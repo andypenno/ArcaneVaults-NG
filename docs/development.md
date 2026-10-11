@@ -27,11 +27,11 @@ These are observations from the named source, not confirmed game failures or fix
 | `AVUI::RenderTransfer` | Staff label binds `GSC_OffloadTwoHand`; TwoHand label binds `GSC_OffloadStaffHand`. `OffloadItems` uses the members according to their actual names |
 | `Stores::ShowFoodMenu` | Spice action moves Reagent items to Reagent but opens RawFood; direct `ShowFoodSaltMenu` opens Reagent |
 | `Stores::ShowScrollMenu` | Keep One/Three deposits one/three per item after withdrawing storage; compare intended label with actual player/store counts |
-| `ClassifyItem` | No explicit native ScrollItem/ammo branch; misc Treasure/Gemstone classification depends on overrides |
+| `ClassifyItem` | No explicit native ScrollItem branch; misc Treasure/Gemstone classification depends on overrides |
 | `Settings::ProcessOverrideFile` | One unresolved/malformed entry stops the remaining file; unknown category names only warn |
 | `AVTranslation::Install`, `Settings::get_value` | JSON/value conversion errors can throw without local handling |
 | `Utility::LoadAllForms` and consumers | Missing required forms only log; later code uses some pointers without guards. Campfire Creation Club lookup is also treated as required by default |
-| `CraftingLoanState`, `FurnitureActivation` | No borrowed-item ledger, no failed-activation rollback, raw active-furniture pointer, and return checks the current setting |
+| `CraftingLoanState`, `Soulgems` | Non-gem loans still return by category; gem loans preserve pre-loan counts but unrecognized form changes remain on the player. Carpenter bench detection is unchanged |
 | `ContainerMenuCloseCallback` | One pending callback; load/revert callbacks do not explicitly reset this menu state |
 | `RedirectedContainerState` | Begin/Cancel are not wired into current call sites; cannot assume its close behavior runs |
 | `main.cpp` | Configuration spell reconciliation explicitly covers loaded games, not a new-game message |

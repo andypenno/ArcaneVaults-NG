@@ -56,6 +56,7 @@ namespace RE {
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESAmmo {};
 struct TESObjectMISC {};
+struct TESSoulGem {};
 struct TESBoundObject {
     ItemCategory category;
     bool bolt = false;
@@ -66,7 +67,8 @@ struct TESBoundObject {
     template<class T> T* As() {
         static T object;
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
-        else return category == ItemCategory::PreciousIngot ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
+        else return nullptr;
     }
 };
 struct InventoryEntryData {
@@ -135,6 +137,7 @@ item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
+namespace Soulgems { void Recover() {} void Deposit(int) {} }
 const char* Translate(const char* key) {
     if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
     if (std::string_view{key} == "Vault.Septims") return "Septims";
@@ -258,6 +261,9 @@ int main() {
     settings->ForEachINIOption(*settings, [&](auto& value, const char* section, const char* key) {
         options[{section, key}] = value;
     });
+    assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
+    assert(options.at({"Offload", "Soulgems"}) == 1);
+    assert(!options.contains({"Offload", "GrandSoulgem"}));
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
     assert(options.at({"Offload", "Gold"}) == 1);
     assert(options.at({"General", "AmmunitionKeepAmount"}) == 100);
@@ -478,6 +484,18 @@ int main() {
     settings->get_value(ini, amount, "General", "GoldKeepAmount");
     assert(amount == 5000 && ini.text == "5000");
 
+    ini.exists = true;
+    for (const auto text : {"0", "25", "100", "2147483647"}) {
+        ini.text = text;
+        settings->get_value(ini, amount, "General", "SoulgemKeepAmount");
+        assert(amount == std::stoi(text));
+    }
+    for (const auto text : {"", "-1", "1.5", "abc", "25x", "2147483648"}) {
+        ini.text = text; amount = 100;
+        settings->get_value(ini, amount, "General", "SoulgemKeepAmount");
+        assert(amount == 25);
+    }
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -487,9 +505,9 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 76
+assert validate_esp(ROOT, generate_esp(working)) == 80
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 35
+assert len([n for n in nodes if n["type"] == "CONT"]) == 37
 for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA")]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)

@@ -66,6 +66,8 @@ public:
     void SortingMenu(RE::TESObjectREFR* a_source);
     void AlchemyMenu(RE::TESObjectREFR* a_source);
     void SoulgemMenu(RE::TESObjectREFR* a_source);
+    void FilledSoulgemsMenu(RE::TESObjectREFR* a_source);
+    void EmptySoulgemsMenu(RE::TESObjectREFR* a_source);
     void FoodMenu(RE::TESObjectREFR* a_source);
     void FoodCookedMenu(RE::TESObjectREFR* a_source);
     void FoodRawMenu(RE::TESObjectREFR* a_source);

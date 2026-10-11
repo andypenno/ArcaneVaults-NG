@@ -72,6 +72,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int soulgemKeepAmount = setting->GSC_SoulgemKeepAmount;
+		if (InputInt(Translate("Options.SoulgemKeepAmount"), &soulgemKeepAmount)) {
+			setting->GSC_SoulgemKeepAmount = (std::max)(0, soulgemKeepAmount);
+			changeOption = true;
+		}
+
 		// Configuration Spells
 		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
 			changeOption = true;
@@ -148,14 +154,8 @@ namespace AVUI {
 
 		}
 
-		if (CollapsingHeader(Translate("Vault.Soulgem"), ImGuiTreeNodeFlags_DefaultOpen)) {
-			if (Checkbox(Translate("Vault.SoulgemEmpty"), &setting->GSC_OffloadEmptySoulgem))
-				changeOption = true;
-			if (Checkbox(Translate("Vault.SoulgemFilled"), &setting->GSC_OffloadFilledSoulgem))
-				changeOption = true;
-			if (Checkbox(Translate("Vault.SoulgemGrand"), &setting->GSC_OffloadGrandSoulgem))
-				changeOption = true;
-		}
+		if (Checkbox(Translate("Vault.Soulgem"), &setting->GSC_OffloadSoulgems))
+			changeOption = true;
 
 		if (CollapsingHeader(Translate("Vault.Weapon"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			if (Checkbox(Translate("Vault.Archery"), &setting->GSC_OffloadArchery))

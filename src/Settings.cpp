@@ -54,6 +54,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_AssignOnlyOwn, "General", "AssignOnlyOwn");
 	option(settings.GSC_AssignSpell, "General", "AssignSpell");
 	option(settings.GSC_SortSpell, "General", "SortSpell");
+	option(settings.GSC_SoulgemKeepAmount, "General", "SoulgemKeepAmount");
 	option(settings.GSC_GoldKeepAmount, "General", "GoldKeepAmount");
 	option(settings.GSC_AmmunitionKeepAmount, "General", "AmmunitionKeepAmount");
 
@@ -76,9 +77,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadPoison, "Offload", "Poison");
 	option(settings.GSC_OffloadCookedFood, "Offload", "CookedFood");
 	option(settings.GSC_OffloadRawFood, "Offload", "RawFood");
-	option(settings.GSC_OffloadEmptySoulgem, "Offload", "EmptySoulgem");
-	option(settings.GSC_OffloadFilledSoulgem, "Offload", "FilledSoulgem");
-	option(settings.GSC_OffloadGrandSoulgem, "Offload", "GrandSoulgem");
+	option(settings.GSC_OffloadSoulgems, "Offload", "Soulgems");
 	option(settings.GSC_OffloadTreasure, "Offload", "Treasure");
 	option(settings.GSC_OffloadGold, "Offload", "Gold");
 	option(settings.GSC_OffloadAmmunition, "Offload", "Ammunition");
@@ -344,8 +343,8 @@ void Settings::get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, 
 				std::stoul(a_ini.GetValue(a_section, a_key, std::format("0x{:X}", a_value).c_str()), nullptr, 0)
 			);
 		} else if constexpr (std::is_integral_v<T>) {
-			if (std::string_view{ a_key } == "AmmunitionKeepAmount" || std::string_view{ a_key } == "GoldKeepAmount") {
-				const int fallback = std::string_view{ a_key } == "GoldKeepAmount" ? 5000 : 100;
+			if (std::string_view{ a_key } == "AmmunitionKeepAmount" || std::string_view{ a_key } == "GoldKeepAmount" || std::string_view{ a_key } == "SoulgemKeepAmount") {
+				const int fallback = std::string_view{ a_key } == "GoldKeepAmount" ? 5000 : std::string_view{ a_key } == "SoulgemKeepAmount" ? 25 : 100;
 				const std::string_view text{ a_ini.GetValue(a_section, a_key, "") };
 				int amount{};
 				const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), amount);

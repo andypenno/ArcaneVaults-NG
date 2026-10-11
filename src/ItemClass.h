@@ -38,7 +38,9 @@ enum class Container : std::uint8_t {
     Staff,
     Keys,
     Ammunition,
-    Valuables
+    Valuables,
+    FilledSoulgems,
+    EmptySoulgems
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -127,6 +129,8 @@ enum class ContainerGroup {
     case Container::Keys:         return "Vault.Keys";
     case Container::Ammunition:   return "Vault.Ammunition";
     case Container::Valuables:    return "Vault.Valuables";
+    case Container::FilledSoulgems: return "Vault.FilledSoulgems";
+    case Container::EmptySoulgems: return "Vault.EmptySoulgems";
     case Container::None:         return {};
     }
     return {};

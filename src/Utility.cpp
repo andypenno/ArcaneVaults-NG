@@ -21,7 +21,8 @@ void Utility::AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::For
     auto* baseContainer = container->GetBaseObject() ? container->GetBaseObject()->As<RE::TESObjectCONT>() : nullptr;
     if (baseContainer && !translationKey.empty()) {
         const auto translatedName = std::format("{} {}", Translate(std::string(translationKey)),
-            Translate(a_name == Container::Valuables ? "Vault.Archive" : "Vault.Vault"));
+            Translate(a_name == Container::Valuables || a_name == Container::FilledSoulgems ||
+                a_name == Container::EmptySoulgems ? "Vault.Archive" : "Vault.Vault"));
         baseContainer->SetFullName(translatedName.c_str());
     }
 
@@ -326,6 +327,8 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Restorative, RE::FormID(0xDA6), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PotionRestoreMenu(a_source); });
     
     // Soulgems
+    AddContainer(dataHandler, Container::FilledSoulgems, RE::FormID(0xDCB), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->FilledSoulgemsMenu(source); });
+    AddContainer(dataHandler, Container::EmptySoulgems, RE::FormID(0xDCD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->EmptySoulgemsMenu(source); });
     AddContainer(dataHandler, Container::Soulgem, RE::FormID(0xDAC), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->SoulgemMenu(a_source); });
 
     // Food

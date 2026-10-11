@@ -75,9 +75,11 @@ The furniture hook selects the bench through `Utility::GetBenchType`, which chec
 | Bench | Entry transfer | Exit transfer |
 | --- | --- | --- |
 | Alchemy, including grain mill keyword | Entire Alchemy inventory to player | Player items matching Alchemy to Alchemy |
-| Smithing, including forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts to player | Smithing items and Catalysts to their parent stores |
+| Smithing, including forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts and banked gems present in the existing recipe caches | Smithing items/Catalysts to their parent stores; identifiable unused gem loans to Soulgem |
 | Cooking | Entire Food inventory plus Alchemy Reagents to player | Food and Reagents to their parent stores |
-| Enchanting | Entire Soulgem inventory to player | Soulgem items to Soulgem |
+| Enchanting | Eligible filled gems from Soulgem | Identifiable unused gem loans to Soulgem; pre-existing carried gems retained |
 | Staff enchanting | Alchemy Catalysts to player | Catalysts to Alchemy |
 
-This is category-based movement, not a ledger of borrowed stacks. Player materials matching the return categories can be deposited even if they predated the loan. Protected player inventory is skipped by `PlayerToStore`. The state holds a raw active-furniture pointer and checks the setting again on exit. Failed activation, disabling the setting mid-session, and materials stranded in archive containers need targeted verification; see [development.md](development.md).
+Non-gem materials retain category-based returns and can include materials carried before the loan. Soul gems record pre-loan counts by base form and empty/filled state, plus borrowed and directly linked forms. Returns inspect current stacks, preserve pre-existing counts, and cap the returned total by the loan. Unrecognized mod transformations and ambiguous bare stacks stay on the player for explicit Quick Transfer. Consumed gems are not recreated. Both gem archives consolidate before lending.
+
+The session captures the bench type, returns loans even if the option changes during crafting, and rolls back after failed furniture activation. Load/new-game messages clear pending loan bookkeeping without transferring items. Bench detection, including its existing Carpenter's Workbench limitations, is unchanged. Mod filling/consumption changes are left to the installed mod; game testing remains necessary.

@@ -1,5 +1,6 @@
 #pragma once
 #include "Stores.h"
+#include "Soulgems.h"
 #include "Events.h"
 #include "ContainerMenu.h"
 #include "RedirectManager.h"
@@ -126,7 +127,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
 
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || !data.second || data.first <= 0) continue;
+        if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         // Ignore Quest, Favorited and Worn items
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
@@ -149,7 +150,7 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
 
     const auto inventory = chest->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0) continue;
+        if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
@@ -167,7 +168,7 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
 
     const auto inventory = source->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0) continue;
+        if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
@@ -251,6 +252,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 // Sorting
 //===================================================
 void Stores::SortItems() {
+    Soulgems::Recover();
     // Sort all items in the sorting container
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
@@ -258,7 +260,6 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
     StoreToStore(ItemCategory::Food, Container::Sort, Container::Food);
     StoreToStore(ItemCategory::Ingredient, Container::Sort, Container::Alchemy);
-    StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     StoreToStore(ItemCategory::Scroll, Container::Sort, Container::Scroll);
     StoreToStore(ItemCategory::Book, Container::Sort, Container::Book);
     StoreToStore(ItemCategory::Treasure, Container::Sort, Container::Treasure);
@@ -270,6 +271,8 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadSoulgems) Soulgems::Deposit(settings->GSC_SoulgemKeepAmount);
 
     if (settings->GSC_OffloadGold)
         PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount);
@@ -310,11 +313,6 @@ void Stores::OffloadItems() {
     // Food
     if (settings->GSC_OffloadCookedFood) PlayerToStore(ItemCategory::CookedFood, Container::Food);
     if (settings->GSC_OffloadRawFood) PlayerToStore(ItemCategory::RawFood, Container::Food);
-
-    // Soulgem
-    if (settings->GSC_OffloadEmptySoulgem) PlayerToStore(ItemCategory::EmptySoulgem, Container::Soulgem);
-    if (settings->GSC_OffloadFilledSoulgem) PlayerToStore(ItemCategory::FilledSoulgem, Container::Soulgem);
-    if (settings->GSC_OffloadGrandSoulgem) PlayerToStore(ItemCategory::GrandSoulgem, Container::Soulgem);
 
     // Treasure
     if (settings->GSC_OffloadTreasure) PlayerToStore(ItemCategory::Treasure, Container::Treasure);
@@ -486,10 +484,7 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     }});
 
     options.push_back({Translate("Vault.Soulgem"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Soulgem, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail2Menu(a_source);
-            });
+        if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Treasure"), [this, sourceHandle] {
@@ -753,39 +748,67 @@ void Stores::SoulgemMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowSoulgemMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    Soulgems::Recover();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
-
-    options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::Soulgem, Container::Soulgem);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+    options.push_back({std::format("{} {} {}", Translate("Vault.KeepAmount"), Settings::GetSingleton()->GSC_SoulgemKeepAmount, Translate("Vault.Empty")), [this, sourceHandle] {
+        Soulgems::Deposit(Settings::GetSingleton()->GSC_SoulgemKeepAmount);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
-
-    options.push_back({Translate("Vault.StoreGrandSouls"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::GrandSoulgem, Container::Soulgem);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+    options.push_back({Translate("Vault.SoulgemsStoreAll"), [this, sourceHandle] {
+        Soulgems::Deposit(0);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
-
-    options.push_back({Translate("Vault.GatherEmptySouls"), [this, sourceHandle] {
-        StoreToPlayer(ItemCategory::EmptySoulgem, Container::Soulgem);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
-        if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
+    options.push_back({Translate("Vault.FilledSoulgems"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) FilledSoulgemsMenu(source.get());
     }});
-
+    options.push_back({Translate("Vault.EmptySoulgems"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());
+    }});
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Soulgem, source.get(), [this](RE::TESObjectREFR* a_source) {
-                SoulgemMenu(a_source);
-            });
+            OpenStorageMenu(Container::Soulgem, source.get(), [this](RE::TESObjectREFR* source) { SoulgemMenu(source); });
     }});
-
     options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
     }});
+    const auto title = std::format("{} {}", Translate("Vault.Soulgem"), Translate("Vault.Vault"));
+    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
+    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+}
 
-    const auto title = std::format("{} {}",Translate("Vault.Soulgem"),Translate("Vault.Vault"));
+void Stores::FilledSoulgemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    Soulgems::Recover();
+    Soulgems::Split();
+    OpenStorageMenu(Container::FilledSoulgems, a_source, [this](RE::TESObjectREFR* source) {
+        Soulgems::Consolidate();
+        CloseStoreObject(source);
+    });
+}
+
+void Stores::EmptySoulgemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    Soulgems::Recover();
+    const auto sourceHandle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.TakeAllEmptySoulgems"), [this, sourceHandle] {
+        Soulgems::TakeEmpty();
+        if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.SoulgemsOpen"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) {
+            Soulgems::Split();
+            OpenStorageMenu(Container::EmptySoulgems, source.get(), [this](RE::TESObjectREFR* source) {
+                Soulgems::Consolidate();
+                EmptySoulgemsMenu(source);
+            });
+        }
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    }});
+    const auto title = std::format("{} {}", Translate("Vault.EmptySoulgems"), Translate("Vault.Archive"));
     const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }

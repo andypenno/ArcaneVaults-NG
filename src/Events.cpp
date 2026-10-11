@@ -4,6 +4,7 @@
 #include "Settings.h"
 #include "ContainerMenu.h"
 #include "Stores.h"
+#include "Soulgems.h"
 #include "ItemClass.h"
 
 //==============================================
@@ -264,18 +265,22 @@ public:
     }
 
     void EnterCrafting(RE::TESObjectREFR* a_furniture) {
-        // Set active furniture
-        activeFurniture = a_furniture;
+        if (loanBench_) ExitCrafting();
 
         // Check for Craft Loan Setting
         if (!Settings::GetSingleton()->GSC_CraftingLoan) return;
 
         auto* stores = Stores::GetSingleton();
         auto* utility = Utility::GetSingleton();
-        BenchType benchType = utility->GetBenchType(activeFurniture);
+        BenchType benchType = utility->GetBenchType(a_furniture);
+
+        if (benchType == BenchType::None) return;
+        loanBench_ = benchType;
 
         // Begin crafting loan
         switch (benchType) {
+        case BenchType::None:
+            break;
         // Alchemy
         case BenchType::Alchemy:
             stores->AllToPlayer(Container::Alchemy);
@@ -283,6 +288,7 @@ public:
 
         // Smithing
         case BenchType::Smithing:
+            Soulgems::BeginLoan(true);
             stores->AllToPlayer(Container::Smithing);
             stores->StoreToPlayer(ItemCategory::Catalyst, Container::Alchemy);
             break;
@@ -295,7 +301,7 @@ public:
 
         // Enchanting Table
         case BenchType::Enchanting:
-            stores->AllToPlayer(Container::Soulgem);
+            Soulgems::BeginLoan(false);
             break;
 
         // Staff Enchanting
@@ -305,16 +311,23 @@ public:
         }
     }
 
-    void ExitCrafting() {        
-        // Check for Craft Loan Setting
-        if (!Settings::GetSingleton()->GSC_CraftingLoan) return;
+    void Reset() {
+        loanBench_.reset();
+        Soulgems::ResetLoan();
+    }
 
+    void ExitCrafting() {
+        if (!loanBench_) return;
+        const auto benchType = *loanBench_;
+        loanBench_.reset();
         auto* stores = Stores::GetSingleton();
-        auto* utility = Utility::GetSingleton();
-        BenchType benchType = utility->GetBenchType(activeFurniture);
+        if (benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
+            Soulgems::EndLoan();
 
         // Restore outstanding crafting loan
         switch (benchType) {
+        case BenchType::None:
+            break;
         // Alchemy
         case BenchType::Alchemy:
             stores->PlayerToStore(ItemCategory::Alchemy, Container::Alchemy);
@@ -333,7 +346,6 @@ public:
 
         // Enchanting Table
         case BenchType::Enchanting:
-            stores->PlayerToStore(ItemCategory::Soulgem, Container::Soulgem);
             break;
 
         // Staff Enchanting
@@ -344,7 +356,7 @@ public:
     }
 
 private:
-    RE::TESObjectREFR* activeFurniture;
+    std::optional<BenchType> loanBench_;
 };
 
 class FurnitureActivation {
@@ -366,7 +378,7 @@ private:
 
         // Call activate record
         const bool result = activate_(a_baseObject, a_target, a_activator, a_arg3, a_object, a_targetCount);
-
+        if (craftingActivation && !result) CraftingLoanState::GetSingleton()->ExitCrafting();
         return result;
     }
 
@@ -445,6 +457,7 @@ class InputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 };
 
 namespace AVEvents {
+    void ResetCraftingLoan() { CraftingLoanState::GetSingleton()->Reset(); }
 	void RunAfterContainerMenuCloses(RE::TESObjectREFR* a_container, std::function<void()> a_callback) {
         ContainerMenuCloseCallback::GetSingleton()->Begin(a_container, std::move(a_callback));
     }

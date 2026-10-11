@@ -142,6 +142,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (!a_item) return ToMask(ItemCategory::None);
     CategoryMask categories = ToMask(ItemCategory::None);
 
+    if (a_item->As<RE::TESSoulGem>())
+        return ToMask(ItemCategory::Soulgem);
+
     // Overrides
     if (const auto override = Settings::GetSingleton()->FindOverride(a_item))
         return ExpandCategories(*override);
@@ -282,21 +285,6 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
             if (book->TeachesSpell()) 
                 categories |= ItemCategory::SpellTome;
         }
-
-        return categories;
-    }
-
-    // Soulgems
-    if (auto* soulGem = a_item->As<RE::TESSoulGem>()) {
-        categories |= ItemCategory::Soulgem;
-
-        if (soulGem->GetContainedSoul() == RE::SOUL_LEVEL::kNone)
-            categories |= ItemCategory::EmptySoulgem;
-        else
-            categories |= ItemCategory::FilledSoulgem;
-
-        if (soulGem->GetMaximumCapacity() == RE::SOUL_LEVEL::kGrand)
-            categories |= ItemCategory::GrandSoulgem;
 
         return categories;
     }

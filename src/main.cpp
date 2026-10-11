@@ -33,6 +33,10 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		} else
 			logger::warn("QuickLoot IE API unavailable");
 		break;
+	case SKSE::MessagingInterface::kPreLoadGame:
+	case SKSE::MessagingInterface::kNewGame:
+		AVEvents::ResetCraftingLoan();
+		break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		Utility::GetSingleton()->ConfigurationSpells();
 		break;

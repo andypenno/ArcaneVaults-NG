@@ -14,7 +14,7 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` also uses actual counts for zero requests, clamps positive requests to available counts, and rejects negative requests. Claims about individual enchanted instances or extra data require runtime checks.
 
-`SortItems` drains the Sort container in this order: Gold, Ammunition, Keys, Smithing, Food, Ingredient, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
+`SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Ingredient, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
 
@@ -43,11 +43,21 @@ Valuables is a composite archive reached through Bind Archive. Its menu offers O
 
 Open temporarily gathers Gold from Treasure, Gemstone and PreciousIngot from Smithing, and Jewelry from Armor. Closing returns gems and precious ingots to Smithing, jewelry to Armor, and Gold plus unrelated manual deposits to Treasure. Materials therefore remain available to the existing Smithing crafting loan. The Gemstone and Jewelry archives keep their existing parents. Opening the Valuables menu also returns any contents left in its reference, including contents persisted while the archive was open. All three parent destinations must exist before gathering or returning.
 
+## Soul gem storage
+
+[Soulgems.cpp](../src/Soulgems.cpp) handles physical `TESSoulGem` records independently of category overrides. Generic category transfers skip them. Quick Transfer deposits all eligible filled gems and retains up to the configured number of empties per base record. It never withdraws to refill a reserve. The bank menu offers Keep N Empty, Store All, Filled Soulgems, Empty Soulgems, Open Vault, and Exit. Empty Soulgems offers Take All Empty Soulgems, Open, and Exit; Filled Soulgems opens directly. Both archives are bindable near an enchanter and return their inventories to the existing bank on close.
+
+Stack classification uses explicit `ExtraSoul` data, including an explicit zero, before the base record's soul. Each extra list supplies its own count; the remainder uses base-record state. Duplicate extra-list pointers, invalid soul levels, or counts exceeding the inventory total leave that record untouched. Moves preserve base records and pass the selected extra list to Skyrim. Splitting moves explicit stacks first so null extra-list transfers cannot select another state. Deposits temporarily park retained explicit empties when the base record is filled, then return them to the player.
+
+Quest, favorited, and equipped inventory entries are skipped. Vanilla Azura's Star and Black Star, plus records linked to them, are excluded from automatic transfers. Flawed Varla Stones and mod-added native soul gems use the same state and metadata rules. No soul-trap, filling, consumption, or gem-conversion logic is replaced.
+
+Bank access, Quick Transfer, Sort, and gem loans recover misplaced soul gems from Smithing, its Crafting/Smelting/Construction/Tanning/Gemstone archives, and Sort. Existing Soulgem storage IDs are preserved. Both new archives consolidate before bank operations and loans, including contents saved while an archive was open.
+
 ## Classification
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
 
-Classification precedence is user override, bundled override, then built-in rules. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, and alchemy leaf categories. It does not infer every related leaf bit. For example, overriding SpellTome does not add Book, and Potion does not imply Restorative.
+Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, and alchemy leaf categories. It does not infer every related leaf bit. For example, overriding SpellTome does not add Book, and Potion does not imply Restorative.
 
 | Engine type | Built-in classification |
 | --- | --- |
@@ -58,7 +68,7 @@ Classification precedence is user override, bundled override, then built-in rule
 | Armor | Armor plus Jewelry by keyword or ring/amulet/circlet slots; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
-| Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
+| Soul gem | Soulgem before miscellaneous items and overrides; filled/empty state belongs to inventory stacks |
 | Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
 | Gold/silver ingots | PreciousIngot and Smithing, plus the existing recipe-derived categories |
 | Ammunition | Ammunition; `TESAmmo` covers arrows and bolts, after override precedence |
@@ -67,7 +77,7 @@ Classification precedence is user override, bundled override, then built-in rule
 
 The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, verified against [UESP](https://en.uesp.net/wiki/Skyrim:Ores_and_Ingots). Gemstones retain the bundled Gemstone overrides. Mods can classify additional records through Gemstone or PreciousIngot overrides.
 
-Native `RE::ScrollItem` has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
+Native `RE::ScrollItem` has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 
@@ -133,4 +143,6 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
 | Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
+| FilledSoulgems | `0xDCB` | Archive | `FilledSoulgemsMenu` |
+| EmptySoulgems | `0xDCD` | Archive | `EmptySoulgemsMenu` |
 | Valuables | `0xDC9` | Archive | `ValuablesMenu` |
