@@ -60,6 +60,12 @@ namespace AVUI {
 		if (Checkbox(Translate("Options.OnlyOwn"), &setting->GSC_AssignOnlyOwn))
 			changeOption = true;
 
+		int keepAmount = setting->GSC_AmmunitionKeepAmount;
+		if (InputInt(Translate("Options.AmmunitionKeepAmount"), &keepAmount)) {
+			setting->GSC_AmmunitionKeepAmount = (std::max)(0, keepAmount);
+			changeOption = true;
+		}
+
 		// Configuration Spells
 		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
 			changeOption = true;
@@ -157,6 +163,8 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (Checkbox(Translate("Vault.Ammunition"), &setting->GSC_OffloadAmmunition))
+				changeOption = true;
 			if (Checkbox(Translate("Vault.Keys"), &setting->GSC_OffloadKeys))
 				changeOption = true;
 			SameLine();

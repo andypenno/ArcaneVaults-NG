@@ -118,11 +118,11 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, bool a_keepOne) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player || !chest || i_count < 0) return;
+    if (!player || !chest || i_count < 0 || a_keepCount < 0) return;
 
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
@@ -134,7 +134,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
 
-        int count = data.first - (a_keepOne ? 1 : 0);
+        int count = data.first - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);
         if (count > 0)
             player->RemoveItem(item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
@@ -175,7 +175,7 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
         
-        source->RemoveItem(item, 9999, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+        source->RemoveItem(item, data.first, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
     }
 }
 
@@ -255,6 +255,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
     StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
     StoreToStore(ItemCategory::Food, Container::Sort, Container::Food);
@@ -272,8 +273,11 @@ void Stores::SortItems() {
 void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
 
+    if (settings->GSC_OffloadAmmunition)
+        PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, settings->GSC_AmmunitionKeepAmount);
+
     if (settings->GSC_OffloadKeys)
-        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne);
+        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne ? 1 : 0);
 
     // Alchemy
     if (settings->GSC_OffloadReagent) PlayerToStore(ItemCategory::Reagent, Container::Alchemy);
@@ -458,6 +462,10 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
+    options.push_back({Translate("Vault.Ammunition"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
+    }});
+
     options.push_back({Translate("Vault.Keys"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
     }});
@@ -606,7 +614,7 @@ void Stores::ShowKeysMenu(RE::TESObjectREFR* a_source) {
     std::vector<MenuOption> options;
 
     options.push_back({Translate("Vault.KeepOne"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
+        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, 1);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
     }});
@@ -635,6 +643,50 @@ void Stores::ShowKeysMenu(RE::TESObjectREFR* a_source) {
     }});
 
     const auto title = std::format("{} {}", Translate("Vault.Keys"), Translate("Vault.Vault"));
+    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
+    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+}
+
+void Stores::AmmunitionMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowAmmunitionMenu(source); });
+}
+
+void Stores::ShowAmmunitionMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto sourceHandle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+
+    options.push_back({std::format("{} {}", Translate("Vault.KeepAmount"), Settings::GetSingleton()->GSC_AmmunitionKeepAmount), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, Settings::GetSingleton()->GSC_AmmunitionKeepAmount);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
+        if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.AmmunitionStoreAll"), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Ammunition, Container::Ammunition);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.AmmunitionTakeAll"), [this, sourceHandle] {
+        AllToPlayer(Container::Ammunition);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
+        if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.AmmunitionOpen"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Ammunition, source.get(), [this](RE::TESObjectREFR* source) {
+                AmmunitionMenu(source);
+            });
+    }});
+
+    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    }});
+
+    const auto title = std::format("{} {}", Translate("Vault.Ammunition"), Translate("Vault.Vault"));
     const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }
