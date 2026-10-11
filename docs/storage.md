@@ -12,9 +12,9 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 | `AllToStore` | `InventoryChanges::RemoveAllItems`; rejects identical source/destination enums |
 | `AllToPlayer` | `InventoryChanges::RemoveAllItems` from the selected store |
 
-The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` still requests `9999` for all-item transfers. Claims about individual enchanted instances or extra data require runtime checks.
+The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` also uses actual counts for zero requests, clamps positive requests to available counts, and rejects negative requests. Claims about individual enchanted instances or extra data require runtime checks.
 
-`SortItems` drains the Sort container in this order: Ammunition, Keys, Smithing, Food, Ingredient, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
+`SortItems` drains the Sort container in this order: Gold, Ammunition, Keys, Smithing, Food, Ingredient, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
 
@@ -39,6 +39,10 @@ Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N,
 
 Keys is an independent vault. Its menu offers Keep One, Store All, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
 
+Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Exit, Keep N Septims, Store All Septims, and Take All Septims. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N uses Gold Keep Amount in Options. Take All Septims selects Gold only and handles counts above 9999.
+
+Open temporarily gathers Gold from Treasure, Gemstone and PreciousIngot from Smithing, and Jewelry from Armor. Closing returns gems and precious ingots to Smithing, jewelry to Armor, and Gold plus unrelated manual deposits to Treasure. Materials therefore remain available to the existing Smithing crafting loan. The Gemstone and Jewelry archives keep their existing parents. Opening the Valuables menu also returns any contents left in its reference, including contents persisted while the archive was open. All three parent destinations must exist before gathering or returning.
+
 ## Classification
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
@@ -55,11 +59,15 @@ Classification precedence is user override, bundled override, then built-in rule
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
 | Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
+| Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
+| Gold/silver ingots | PreciousIngot and Smithing, plus the existing recipe-derived categories |
 | Ammunition | Ammunition; `TESAmmo` covers arrows and bolts, after override precedence |
 | Key | Keys; checked before the miscellaneous-item branch because `TESKey` derives from `TESObjectMISC` |
 | Other types | No built-in category |
 
-Native `RE::ScrollItem` and ammunition have no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
+The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, verified against [UESP](https://en.uesp.net/wiki/Skyrim:Ores_and_Ingots). Gemstones retain the bundled Gemstone overrides. Mods can classify additional records through Gemstone or PreciousIngot overrides.
+
+Native `RE::ScrollItem` has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 
@@ -125,3 +133,4 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
 | Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
+| Valuables | `0xDC9` | Archive | `ValuablesMenu` |

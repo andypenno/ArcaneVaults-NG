@@ -145,7 +145,7 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player || !chest) return;
+    if (!player || !chest || i_count < 0) return;
 
     const auto inventory = chest->GetInventory();
     for (const auto& [item, data] : inventory) {
@@ -154,11 +154,8 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
 
-        // If the input is zero, move all
-        if (i_count == 0)
-            chest->RemoveItem(item, 9999, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player);
-        else
-            chest->RemoveItem(item, i_count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player);
+        const int count = i_count == 0 ? data.first : (std::min)(data.first, i_count);
+        chest->RemoveItem(item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player);
     }
 }
 
@@ -255,6 +252,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
     StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
@@ -272,6 +270,9 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadGold)
+        PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount);
 
     if (settings->GSC_OffloadAmmunition)
         PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, settings->GSC_AmmunitionKeepAmount);
@@ -492,10 +493,7 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     }});
 
     options.push_back({Translate("Vault.Treasure"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Treasure, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail2Menu(a_source);
-            });
+        if (auto source = sourceHandle.get()) TreasureMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Personal"), [this, sourceHandle] {
@@ -1693,6 +1691,69 @@ void Stores::ShowTreasureMenu(RE::TESObjectREFR* a_source) {
         OpenStorageMenu(Container::Treasure, source.get(), [this](RE::TESObjectREFR* a_source) {
             if (a_source) CloseStoreObject(a_source);
     });
+}
+
+void Stores::ReturnValuables() {
+    auto* utility = Utility::GetSingleton();
+    if (!utility->GetContainer(Container::Treasure) || !utility->GetContainer(Container::Smithing) ||
+        !utility->GetContainer(Container::Armor)) return;
+
+    StoreToStore(ItemCategory::Gemstone, Container::Valuables, Container::Smithing);
+    StoreToStore(ItemCategory::PreciousIngot, Container::Valuables, Container::Smithing);
+    StoreToStore(ItemCategory::Jewelry, Container::Valuables, Container::Armor);
+    AllToStore(Container::Valuables, Container::Treasure);
+}
+
+void Stores::ValuablesMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowValuablesMenu(source); });
+}
+
+void Stores::ShowValuablesMenu(RE::TESObjectREFR* a_source) {
+    auto* utility = Utility::GetSingleton();
+    if (!a_source || !utility->GetContainer(Container::Valuables) ||
+        !utility->GetContainer(Container::Treasure) || !utility->GetContainer(Container::Smithing) ||
+        !utility->GetContainer(Container::Armor)) return;
+    ReturnValuables();
+    const auto sourceHandle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+
+    options.push_back({Translate("Vault.ValuablesOpen"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) {
+            if (!RE::PlayerCharacter::GetSingleton()) return;
+            StoreToStore(ItemCategory::Gold, Container::Treasure, Container::Valuables);
+            StoreToStore(ItemCategory::Gemstone, Container::Smithing, Container::Valuables);
+            StoreToStore(ItemCategory::PreciousIngot, Container::Smithing, Container::Valuables);
+            StoreToStore(ItemCategory::Jewelry, Container::Armor, Container::Valuables);
+            OpenStorageMenu(Container::Valuables, source.get(), [this](RE::TESObjectREFR* source) {
+                ReturnValuables();
+                ValuablesMenu(source);
+            });
+        }
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    }});
+    options.push_back({std::format("{} {} {}", Translate("Vault.KeepAmount"),
+        Settings::GetSingleton()->GSC_GoldKeepAmount, Translate("Vault.Septims")), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, Settings::GetSingleton()->GSC_GoldKeepAmount);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
+        if (auto source = sourceHandle.get()) ValuablesMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.StoreAllSeptims"), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Gold, Container::Treasure);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (auto source = sourceHandle.get()) ValuablesMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.TakeAllSeptims"), [this, sourceHandle] {
+        StoreToPlayer(ItemCategory::Gold, Container::Treasure);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
+        if (auto source = sourceHandle.get()) ValuablesMenu(source.get());
+    }});
+
+    const auto title = std::format("{} {}", Translate("Vault.Valuables"), Translate("Vault.Archive"));
+    const auto cancelIndex = 1;
+    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }
 
 void Stores::PersonalMenu(RE::TESObjectREFR* a_source) {

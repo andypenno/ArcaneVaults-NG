@@ -87,6 +87,8 @@ public:
     void PersonalMenu(RE::TESObjectREFR* a_source);
     void KeysMenu(RE::TESObjectREFR* a_source);
     void AmmunitionMenu(RE::TESObjectREFR* a_source);
+    void ValuablesMenu(RE::TESObjectREFR* a_source);
+    void ReturnValuables();
     void PotionMenu(RE::TESObjectREFR* a_source);
     void PotionPositiveMenu(RE::TESObjectREFR* a_source);
     void PotionNegativeMenu(RE::TESObjectREFR* a_source);
@@ -125,6 +127,7 @@ private:
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
     void ShowKeysMenu(RE::TESObjectREFR* a_source);
     void ShowAmmunitionMenu(RE::TESObjectREFR* a_source);
+    void ShowValuablesMenu(RE::TESObjectREFR* a_source);
     void ShowPotionMenu(RE::TESObjectREFR* a_source);
     void ShowPotionPositiveMenu(RE::TESObjectREFR* a_source);
     void ShowPotionNegativeMenu(RE::TESObjectREFR* a_source);

@@ -20,7 +20,8 @@ void Utility::AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::For
     const auto translationKey = ContainerTranslationKey(a_name);
     auto* baseContainer = container->GetBaseObject() ? container->GetBaseObject()->As<RE::TESObjectCONT>() : nullptr;
     if (baseContainer && !translationKey.empty()) {
-        const auto translatedName = std::format("{} {}", Translate(std::string(translationKey)), Translate("Vault.Vault"));
+        const auto translatedName = std::format("{} {}", Translate(std::string(translationKey)),
+            Translate(a_name == Container::Valuables ? "Vault.Archive" : "Vault.Vault"));
         baseContainer->SetFullName(translatedName.c_str());
     }
 
@@ -354,6 +355,7 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     // Misc
     AddContainer(dataHandler, Container::Ammunition, RE::FormID(0xDC7), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->AmmunitionMenu(a_source); });
     AddContainer(dataHandler, Container::Keys, RE::FormID(0xDC5), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->KeysMenu(a_source); });
+    AddContainer(dataHandler, Container::Valuables, RE::FormID(0xDC9), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ValuablesMenu(a_source); });
     AddContainer(dataHandler, Container::Treasure, RE::FormID(0xDAD), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->TreasureMenu(a_source); });
     AddContainer(dataHandler, Container::Personal, RE::FormID(0xDA1), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PersonalMenu(a_source); });
 }

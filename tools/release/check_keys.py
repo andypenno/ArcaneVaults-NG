@@ -19,6 +19,10 @@ start = source.index("void Stores::StoreToStore(")
 store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
+extra_methods = ""
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu"]:
+    start = source.index("void Stores::" + name + "(")
+    extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
 start = settings.index("template <class Func>\nvoid Settings::ForEachINIOption(")
 ini_options = settings[start:settings.index("\n}\n", start) + 3]
@@ -26,8 +30,8 @@ start = settings.index("template <class T>\nvoid Settings::get_value(")
 get_value = settings[start:settings.index("\n}\n", start) + 3]
 classification = (ROOT / "src/ItemClass.cpp").read_text()
 start = classification.index("CategoryMask ClassifyItem(")
-classification = classification[start:classification.index("    // Crafting", start)]
-classification += "    (void)utility;\n    return categories | ToMask(a_item->category);\n}\n"
+classification = classification[start:classification.index("    // Ingredients", start)]
+classification += "\n    return categories | ToMask(a_item->category);\n}\n"
 settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
 program = r'''
@@ -37,6 +41,10 @@ program = r'''
 #include <charconv>
 #include <climits>
 #include <type_traits>
+#include <functional>
+#include <sstream>
+#include <unordered_set>
+#include <vector>
 #include <map>
 #include <memory>
 #include <optional>
@@ -47,11 +55,19 @@ namespace RE { struct TESBoundObject; }
 namespace RE {
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESAmmo {};
+struct TESObjectMISC {};
 struct TESBoundObject {
     ItemCategory category;
     bool bolt = false;
+    unsigned formID = 0;
+    unsigned GetFormID() const { return formID; }
+    bool IsGold() const { return formID == 0xF; }
     bool IsKey() const { return category == ItemCategory::Keys; }
-    template<class T> T* As() { static T ammo; return category == ItemCategory::Ammunition ? &ammo : nullptr; }
+    template<class T> T* As() {
+        static T object;
+        if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
+        else return category == ItemCategory::PreciousIngot ? &object : nullptr;
+    }
 };
 struct InventoryEntryData {
     bool quest = false, favorite = false, worn = false;
@@ -59,7 +75,29 @@ struct InventoryEntryData {
     bool IsFavorited() const { return favorite; }
     bool IsWorn() const { return worn; }
 };
+struct TESObjectREFR;
+struct Handle {
+    TESObjectREFR* object;
+    struct Pointer {
+        TESObjectREFR* object;
+        operator bool() const { return object != nullptr; }
+        TESObjectREFR* get() const { return object; }
+    };
+    Pointer get() const;
+};
 struct TESObjectREFR {
+    bool alive = true;
+    Handle GetHandle() { return {this}; }
+    struct Changes {
+        TESObjectREFR* owner;
+        void RemoveAllItems(TESObjectREFR*, TESObjectREFR* destination, bool, bool, bool) {
+            const auto snapshot = owner->inventory;
+            for (const auto& [item, entry] : snapshot)
+                if (item && entry.first > 0)
+                    owner->RemoveItem(item, entry.first, ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+        }
+    } changes{this};
+    Changes* GetInventoryChanges() { return &changes; }
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
     auto GetInventory() const { return inventory; }
     void RemoveItem(TESBoundObject* item, int count, ITEM_REMOVE_REASON, void*, TESObjectREFR* destination) {
@@ -68,27 +106,70 @@ struct TESObjectREFR {
         destination->inventory[item].first += count;
     }
 };
+Handle::Pointer Handle::get() const { return {object && object->alive ? object : nullptr}; }
 struct PlayerCharacter : TESObjectREFR {
     static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
 };
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition;
+    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables;
+    std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap;
+    bool missingSmithing = false;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
-    RE::TESObjectREFR* GetContainer(Container container) { return container == Container::None ? nullptr : container == Container::Sort ? &inbox : container == Container::Ammunition ? &ammunition : &chest; }
+    RE::TESObjectREFR* GetContainer(Container container) {
+        switch (container) {
+        case Container::None: return nullptr;
+        case Container::Sort: return &inbox;
+        case Container::Ammunition: return &ammunition;
+        case Container::Treasure: return &treasure;
+        case Container::Smithing: return missingSmithing ? nullptr : &smithing;
+        case Container::Armor: return &armor;
+        case Container::Valuables: return &valuables;
+        default: return &chest;
+        }
+    }
 };
-CategoryMask ToMask(ItemCategory category) noexcept {
-    return category == ItemCategory::None ? 0 : CategoryMask{1} << static_cast<unsigned>(category);
+'''
+item_source = (ROOT / "src/ItemClass.cpp").read_text()
+program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
+program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
+program += r'''
+const char* Translate(const char* key) {
+    if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
+    if (std::string_view{key} == "Vault.Septims") return "Septims";
+    return key;
 }
-CategoryMask ExpandCategories(CategoryMask mask) noexcept { return mask; }
-bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
-const char* Translate(const char*) { return ""; }
+struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
     void PlayerToStore(ItemCategory, Container, int = 0, int = 0);
     void OffloadItems();
     void StoreToStore(ItemCategory, Container, Container);
     void SortItems();
+    void StoreToPlayer(ItemCategory, Container, int = 0);
+    void AllToStore(Container, Container);
+    void ReturnValuables();
+    void ShowValuablesMenu(RE::TESObjectREFR*);
+    void ValuablesMenu(RE::TESObjectREFR*);
+    void ShowTreasureMenu(RE::TESObjectREFR*);
+    void TreasureMenu(RE::TESObjectREFR* source) { ShowTreasureMenu(source); }
+    void OpenStoreObject(RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) { action(source); }
+    void CloseStoreObject(RE::TESObjectREFR*) { closed = true; }
+    bool closed = false;
+    std::vector<MenuOption> options;
+    std::string title;
+    Container opened = Container::None;
+    std::function<void()> onClose;
+    void ShowDynamicMessageBox(std::string_view text, std::vector<MenuOption> values, int cancel) {
+        assert(cancel >= 0 && cancel < static_cast<int>(values.size()));
+        assert(values.at(cancel).text == "Vault.Exit");
+        title = text; options = std::move(values);
+    }
+    void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
+        assert(container == Container::Valuables || container == Container::Treasure);
+        opened = container;
+        onClose = [source, action] { action(source); };
+    }
 };
 struct CSimpleIniA {
     std::string text;
@@ -98,12 +179,26 @@ struct CSimpleIniA {
     const char* GetValue(const char*, const char*, const char*) { return text.c_str(); }
 };
 namespace std {
-    template<class T> string format(const char*, T) { return ""; }
+    template<class... Args> string format(const char* text, Args... args) {
+        string result{text};
+        const auto replace = [&](const auto& arg) {
+            ostringstream value; value << arg;
+            const auto at = result.find("{}");
+            if (at != string::npos) result.replace(at, 2, value.str());
+        };
+        (replace(args), ...);
+        return result;
+    }
 }
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     std::optional<CategoryMask> override;
-    std::optional<CategoryMask> FindOverride(RE::TESBoundObject*) { return override; }
+    std::optional<CategoryMask> FindOverride(RE::TESBoundObject* item) {
+        if (override) return override;
+        if (overrides.contains(item)) return overrides.at(item);
+        return std::nullopt;
+    }
+    std::map<RE::TESBoundObject*, CategoryMask> overrides;
     static Settings* GetSingleton() { static Settings settings; return &settings; }
     template <class Func> void ForEachINIOption(Settings&, Func&&);
     template <class T> void get_value(CSimpleIniA&, T&, const char*, const char*);
@@ -112,7 +207,7 @@ program += "struct Settings {\n" + settings_fields + r'''
     }
 };
 '''
-program += classification + method + offload + store_to_store + sort_items + ini_options + get_value
+program += classification + method + offload + store_to_store + sort_items + extra_methods + ini_options + get_value
 program += r'''
 int main() {
     static_assert(static_cast<unsigned>(Container::Staff) == 32);
@@ -163,6 +258,8 @@ int main() {
     settings->ForEachINIOption(*settings, [&](auto& value, const char* section, const char* key) {
         options[{section, key}] = value;
     });
+    assert(options.at({"General", "GoldKeepAmount"}) == 5000);
+    assert(options.at({"Offload", "Gold"}) == 1);
     assert(options.at({"General", "AmmunitionKeepAmount"}) == 100);
     assert(options.at({"Offload", "Ammunition"}) == 1);
     assert(options.at({"Offload", "Keys"}) == 1 && options.at({"Offload", "KeysKeepOne"}) == 1);
@@ -238,6 +335,149 @@ int main() {
     ini.exists = true; ini.text = "-1";
     settings->get_value(ini, amount, "General", "AssignKeyCode");
     assert(amount == -1);
+    player->inventory.clear();
+    auto* utility = Utility::GetSingleton();
+    auto& treasury = utility->treasure;
+    treasury.inventory.clear();
+    RE::TESBoundObject gold{ItemCategory::Gold, false, 0xF}, trinket{ItemCategory::Treasure};
+    assert(ClassifyItem(&gold) == ToMask(ItemCategory::Gold));
+    assert(!HasCategory(ClassifyItem(&gold), ItemCategory::Treasure));
+    settings->override = ToMask(ItemCategory::Treasure);
+    assert(ClassifyItem(&gold) == ToMask(ItemCategory::Treasure));
+    settings->override.reset();
+    put(&gold, 12000); settings->GSC_OffloadTreasure = true;
+    stores.OffloadItems();
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 7000);
+    stores.OffloadItems();
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 7000);
+    put(&gold, 3000); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 3000 && treasury.inventory[&gold].first == 7000);
+    settings->GSC_GoldKeepAmount = 2000; stores.OffloadItems();
+    assert(player->inventory[&gold].first == 2000 && treasury.inventory[&gold].first == 8000);
+    settings->GSC_OffloadGold = false; put(&gold, 12000); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 12000);
+    settings->GSC_OffloadGold = true; settings->GSC_GoldKeepAmount = 0; stores.OffloadItems();
+    assert(player->inventory[&gold].first == 0 && treasury.inventory[&gold].first == 20000);
+    put(&gold, 10000, true); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 10000);
+    put(&gold, 10000, false, true); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 10000);
+    put(&gold, 10000, false, false, true); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 10000);
+    inbox.inventory.clear();
+    inbox.inventory[&gold] = {30000, std::make_shared<RE::InventoryEntryData>()};
+    settings->GSC_GoldKeepAmount = 5000;
+    stores.SortItems();
+    assert(inbox.inventory[&gold].first == 0 && treasury.inventory[&gold].first == 50000);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure, 60000);
+    assert(treasury.inventory[&gold].first == 0 && player->inventory[&gold].first == 60000);
+    treasury.inventory[&gold].first = 15;
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure, -1);
+    assert(treasury.inventory[&gold].first == 15);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure, 5);
+    assert(treasury.inventory[&gold].first == 10);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure);
+    assert(treasury.inventory[&gold].first == 0);
+
+    RE::TESBoundObject goldIngot{ItemCategory::PreciousIngot, false, 0x5AD9E};
+    RE::TESBoundObject silverIngot{ItemCategory::PreciousIngot, false, 0x5ACE3};
+    RE::TESBoundObject ironIngot{ItemCategory::PreciousIngot, false, 0x5ACE4};
+    utility->SmithingMap = {goldIngot.formID, silverIngot.formID, ironIngot.formID};
+    utility->SmeltingMap.insert(goldIngot.formID);
+    utility->ConstructionMap.insert(silverIngot.formID);
+    assert(HasAllCategories(ClassifyItem(&goldIngot), ItemCategory::PreciousIngot | ItemCategory::Smithing | ItemCategory::Crafting | ItemCategory::Smelting));
+    assert(HasAllCategories(ClassifyItem(&silverIngot), ItemCategory::PreciousIngot | ItemCategory::Smithing | ItemCategory::Crafting | ItemCategory::Construction));
+    assert(!HasCategory(ClassifyItem(&ironIngot), ItemCategory::PreciousIngot));
+    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::PreciousIngot)), ItemCategory::Smithing));
+    settings->override = ToMask(ItemCategory::Treasure);
+    assert(ClassifyItem(&goldIngot) == ToMask(ItemCategory::Treasure));
+    settings->override.reset();
+    RE::TESBoundObject gem{ItemCategory::Gemstone}, ring{ItemCategory::Jewelry}, armor{ItemCategory::HeavyArmor};
+    settings->overrides[&gem] = ToMask(ItemCategory::Gemstone);
+    auto entry = [](int count) { return std::pair{count, std::make_shared<RE::InventoryEntryData>()}; };
+    auto& smithing = utility->smithing;
+    auto& armorVault = utility->armor;
+    auto& valuables = utility->valuables;
+    player->inventory.clear(); treasury.inventory.clear();
+    smithing.inventory.clear(); armorVault.inventory.clear(); valuables.inventory.clear();
+    RE::TESObjectREFR source;
+    auto click = [&](int index) { auto action = stores.options.at(index).action; action(); };
+    put(&gold, 25000); treasury.inventory[&trinket] = entry(9);
+    stores.ValuablesMenu(&source);
+    assert(stores.title == "Vault.Valuables Vault.Archive" && stores.options.size() == 5);
+    assert(stores.options[0].text == "Vault.ValuablesOpen");
+    assert(stores.options[1].text == "Vault.Exit");
+    assert(stores.options[2].text == "Keep 5000 Septims");
+    assert(stores.options[3].text == "Vault.StoreAllSeptims");
+    assert(stores.options[4].text == "Vault.TakeAllSeptims");
+    click(2);
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 20000);
+    settings->GSC_GoldKeepAmount = 2500;
+    stores.ValuablesMenu(&source);
+    assert(stores.options[2].text == "Keep 2500 Septims");
+    click(2);
+    assert(player->inventory[&gold].first == 2500 && treasury.inventory[&gold].first == 22500);
+    click(3);
+    assert(player->inventory[&gold].first == 0 && treasury.inventory[&gold].first == 25000);
+    click(4);
+    assert(player->inventory[&gold].first == 25000 && treasury.inventory[&gold].first == 0);
+    assert(treasury.inventory[&trinket].first == 9);
+    click(3);
+    smithing.inventory[&gem] = entry(12);
+    smithing.inventory[&goldIngot] = entry(4); smithing.inventory[&silverIngot] = entry(6);
+    smithing.inventory[&ironIngot] = entry(8);
+    armorVault.inventory[&ring] = entry(3); armorVault.inventory[&armor] = entry(2);
+    click(0);
+    assert(valuables.inventory[&gold].first == 25000 && valuables.inventory[&gem].first == 12);
+    assert(valuables.inventory[&goldIngot].first == 4 && valuables.inventory[&silverIngot].first == 6);
+    assert(valuables.inventory[&ring].first == 3);
+    assert(smithing.inventory[&ironIngot].first == 8 && armorVault.inventory[&armor].first == 2);
+    assert(treasury.inventory[&trinket].first == 9);
+    valuables.inventory[&gold].first -= 1000;
+    valuables.inventory[&goldIngot].first += 2; valuables.inventory[&gem].first += 1;
+    valuables.inventory[&ring].first += 1; valuables.inventory[&nonkey] = entry(5);
+    auto closeArchive = stores.onClose; stores.onClose = {}; closeArchive();
+    assert(treasury.inventory[&gold].first == 24000 && treasury.inventory[&nonkey].first == 5);
+    assert(smithing.inventory[&goldIngot].first == 6 && smithing.inventory[&silverIngot].first == 6 && smithing.inventory[&gem].first == 13);
+    assert(armorVault.inventory[&ring].first == 4);
+    for (const auto& [item, value] : valuables.inventory) { (void)item; assert(value.first == 0); }
+    click(0);
+    assert(valuables.inventory[&gold].first == 24000 && valuables.inventory[&ring].first == 4);
+    stores.ReturnValuables();
+    stores.ReturnValuables();
+    assert(treasury.inventory[&gold].first == 24000 && armorVault.inventory[&ring].first == 4);
+    valuables.inventory[&gem] = entry(2);
+    utility->missingSmithing = true;
+    stores.ReturnValuables();
+    assert(valuables.inventory[&gem].first == 2 && !treasury.inventory.contains(&gem));
+    utility->missingSmithing = false;
+    stores.ValuablesMenu(&source);
+    assert(valuables.inventory[&gem].first == 0 && smithing.inventory[&gem].first == 15);
+    click(1); assert(stores.closed);
+    stores.options.clear(); stores.closed = false;
+    stores.ShowTreasureMenu(&source);
+    assert(stores.options.empty() && stores.opened == Container::Treasure);
+    auto closeTreasure = stores.onClose; closeTreasure(); assert(stores.closed);
+    stores.ValuablesMenu(&source);
+    source.alive = false;
+    const int previousGold = treasury.inventory[&gold].first;
+    click(0);
+    assert(treasury.inventory[&gold].first == previousGold);
+    ini.exists = true;
+    for (const auto text : {"0", "5000", "10000", "2147483647"}) {
+        ini.text = text;
+        settings->get_value(ini, amount, "General", "GoldKeepAmount");
+        assert(amount == std::stoi(text));
+    }
+    for (const auto text : {"", "-1", "1.5", "abc", "5000x", "2147483648"}) {
+        ini.text = text; amount = 25;
+        settings->get_value(ini, amount, "General", "GoldKeepAmount");
+        assert(amount == 5000);
+    }
+    ini.exists = false; amount = 5000;
+    settings->get_value(ini, amount, "General", "GoldKeepAmount");
+    assert(amount == 5000 && ini.text == "5000");
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -247,10 +487,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 74
+assert validate_esp(ROOT, generate_esp(working)) == 76
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 34
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA")]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 35
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA")]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:
@@ -262,5 +502,5 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
     except ValueError:
         pass
     else:
-        raise AssertionError("Unsafe ammunition storage accepted")
-print("PASS: actual transfers preserve counts/protections; Keys regressions, ammunition reserves/sorting/protections, INI validation/defaults, and ESP storage pass")
+        raise AssertionError("Unsafe storage accepted")
+print("PASS: actual transfers preserve counts/protections; Keys/ammunition regressions, Septim reserves, Valuables menu/gather/return, INI validation, and ESP storage pass")

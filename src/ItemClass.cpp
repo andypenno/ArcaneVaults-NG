@@ -111,7 +111,8 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
         ItemCategory::Smelting |
         ItemCategory::Tanning |
         ItemCategory::Construction |
-        ItemCategory::Gemstone;
+        ItemCategory::Gemstone |
+        ItemCategory::PreciousIngot;
 
     if (HasAnyCategory(categories, smithingTypes))
         categories |= ItemCategory::Smithing;
@@ -145,6 +146,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (const auto override = Settings::GetSingleton()->FindOverride(a_item))
         return ExpandCategories(*override);
 
+    if (a_item->IsGold())
+        return ToMask(ItemCategory::Gold);
+
     if (a_item->IsKey())
         return ToMask(ItemCategory::Keys);
 
@@ -152,7 +156,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
         return ToMask(ItemCategory::Ammunition);
 
     // Crafting
-    if (auto* ingredient = a_item->As<RE::TESObjectMISC>()) {
+    if (a_item->As<RE::TESObjectMISC>()) {
+        if (a_item->GetFormID() == 0x0005AD9E || a_item->GetFormID() == 0x0005ACE3)
+            categories |= ItemCategory::PreciousIngot | ItemCategory::Smithing;
         if (utility->SmithingMap.contains(a_item->formID)) {
             categories |= ItemCategory::Smithing;
             categories |= ItemCategory::Crafting;

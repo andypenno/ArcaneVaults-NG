@@ -14,7 +14,7 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 | `ArcaneVaultRedirects.ini` | Global mappings; format and lifecycle in [storage.md](storage.md) |
 | `ArcaneVaultTranslation.json` | Flat translation object, supplied by [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) |
 
-Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. AmmunitionKeepAmount uses `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
+Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount` and `GoldKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100 and 5000 respectively. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
 
 ## Options
 
@@ -30,10 +30,13 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `AssignSpell` | true | Enable external assignment spell |
 | `SortSpell` | true | Enable external sorting/offload spell |
 | `AmmunitionKeepAmount` | 100 | Retain this many per carried arrow or bolt record; zero retains none |
+| `GoldKeepAmount` | 5000 | Retain this many carried Septims; zero deposits all eligible Gold |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `GrandSoulgem`, `Ammunition`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `GrandSoulgem`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
 Options exposes Ammunition Keep Amount as a nonnegative integer control. Quick Transfer only exposes an Ammunition enable checkbox under More. `[Offload] Ammunition=true` enables ammunition deposits using the same reserve as the vault Keep N action. Missing values default to enabled and 100. The amount applies per ammunition base record, not to the combined arrow/bolt count.
+
+Options exposes Gold Keep Amount with the same nonnegative integer control as ammunition. Quick Transfer exposes only a Septims enable checkbox under More, persisted as `[Offload] Gold=true`. The reserve applies to Quick Transfer, its hotkey/spell, and Valuables' Keep N Septims action. Sorting Gold already in Sort moves the entire amount to Treasure. Gold has no Treasure category bit, so enabling the Treasure offload toggle cannot bypass the Gold reserve.
 
 Quick Transfer shows Keys and Keep One under More. `Keys=true` enables key deposits through the menu, hotkey, and offload spell. `KeysKeepOne=true` deposits duplicates while retaining one per carried key record. Disabling Keep One deposits all eligible keys. Both default to true when missing from an existing settings file. Sort moves keys already deposited into its inbox to the Keys vault; it does not withdraw a copy to the player.
 
@@ -61,7 +64,7 @@ User edits replace one item's override. Save clears and rewrites only the Overri
 
 [Translation.cpp](../src/Translation.cpp) reads a flat JSON object of string values at data load. Missing file/key yields `missing translation`; missing file is logged. JSON parsing and string conversion are not wrapped in exception handling, so malformed JSON or non-string values are not a supported fallback case. Existing `Vault.Restoritive` spelling is shared by source and data; preserve that key unless changing both.
 
-`Utility::AddContainer` uses translations to set container base full names, which can affect references sharing that base. Some UI strings remain literal English, including `Search`, `Select destination`, Quick Transfer, and override errors. Translation changes must account for both message-box text and companion container naming.
+`Utility::AddContainer` uses translations to set container base full names, which can affect references sharing that base. Valuables uses the Archive suffix; existing destinations retain the Vault suffix. Some UI strings remain literal English, including `Search`, `Select destination`, Quick Transfer, and override errors. Translation changes must account for both message-box text and companion container naming.
 
 ## External APIs and assets
 
