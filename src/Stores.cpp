@@ -1,6 +1,7 @@
 #pragma once
 #include "Stores.h"
 #include "Soulgems.h"
+#include "Trade.h"
 #include "Events.h"
 #include "ContainerMenu.h"
 #include "RedirectManager.h"
@@ -492,15 +493,8 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) TreasureMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.Junk"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) JunkMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Personal"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Personal, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail2Menu(a_source);
-            });
+    options.push_back({Translate("Vault.More"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) VaultDetail3Menu(source.get());
     }});
 
     options.push_back({Translate("Vault.Back"), [this, sourceHandle] {
@@ -1807,4 +1801,86 @@ void Stores::JunkMenu(RE::TESObjectREFR* a_source) {
             if (closed) CloseStoreObject(closed);
         });
     });
+}
+
+void Stores::VaultDetail3Menu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowVaultDetail3Menu(source); });
+}
+
+void Stores::ShowVaultDetail3Menu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto handle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.Personal"), [this, handle] {
+        if (auto source = handle.get()) PersonalMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.Junk"), [this, handle] {
+        if (auto source = handle.get()) JunkMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.Trade"), [this, handle] {
+        if (auto source = handle.get()) TradeMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.Back"), [this, handle] {
+        if (auto source = handle.get()) VaultDetail2Menu(source.get());
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, handle] {
+        if (auto source = handle.get()) CloseStoreObject(source.get());
+    }});
+    ShowDynamicMessageBox(Translate("Vault.Arcane"), std::move(options), 4);
+}
+
+void Stores::TradeMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowTradeMenu(source); });
+}
+
+void Stores::ShowTradeMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto handle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.OpenContainer"), [this, handle] {
+        if (auto source = handle.get())
+            OpenStorageMenu(Container::Trade, source.get(), [this](RE::TESObjectREFR* closed) {
+                ShowTradeMenu(closed);
+            });
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, handle] {
+        if (auto source = handle.get()) CloseStoreObject(source.get());
+    }});
+    options.push_back({Translate("Vault.TakeAll"), [this, handle] {
+        if (auto source = handle.get()) {
+            AllToPlayer(Container::Trade);
+            ShowTradeMenu(source.get());
+        }
+    }});
+    options.push_back({Translate("Vault.SellAll"), [this, handle] {
+        auto source = handle.get();
+        if (!source) return;
+        const auto quote = Trade::GetQuote(Utility::GetSingleton()->GetContainer(Container::Trade),
+            Settings::GetSingleton()->GSC_SalePercentage);
+        if (!quote.valid || quote.copies == 0) {
+            RE::SendHUDMessage::ShowHUDMessage(Translate(quote.valid ? "Vault.NoSale" : "Vault.SaleUnavailable"));
+            ShowTradeMenu(source.get());
+            return;
+        }
+        const auto message = std::format("{} {} {} {} {}?\n{}", Translate("Vault.Sell"), quote.copies,
+            Translate("Vault.ItemsFor"), quote.payout, Translate("Vault.Septims"), Translate("Vault.SaleExclusions"));
+        std::vector<MenuOption> confirmation;
+        confirmation.push_back({Translate("Vault.Cancel"), [this, handle] {
+            if (auto source = handle.get()) ShowTradeMenu(source.get());
+        }});
+        confirmation.push_back({Translate("Vault.SellAll"), [this, handle, quote] {
+            auto source = handle.get();
+            if (!source) return;
+            const auto paid = quote.percentage == Settings::GetSingleton()->GSC_SalePercentage
+                ? Trade::Sell(Utility::GetSingleton()->GetContainer(Container::Trade), quote) : std::nullopt;
+            if (!paid) RE::SendHUDMessage::ShowHUDMessage(Translate(
+                Trade::CanReceive(quote) ? "Vault.SaleChanged" : "Vault.SaleOverflow"));
+            ShowTradeMenu(source.get());
+        }});
+        ShowDynamicMessageBox(message, std::move(confirmation), 0);
+    }});
+    const auto title = std::format("{} {}", Translate("Vault.Trade"), Translate("Vault.Vault"));
+    ShowDynamicMessageBox(title, std::move(options), 1);
 }

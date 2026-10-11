@@ -503,6 +503,20 @@ int main() {
         assert(amount == 25);
     }
 
+    assert(options.at({"General", "SalePercentage"}) == 30);
+    for (const char* text : {"0", "101", "-1", "30x", "", "9999999999999999999"}) {
+        ini.text = text;
+        int amount = 1;
+        settings->get_value(ini, amount, "General", "SalePercentage");
+        assert(amount == 30);
+    }
+    for (int expected : {1, 30, 100}) {
+        ini.text = std::to_string(expected);
+        int amount = 0;
+        settings->get_value(ini, amount, "General", "SalePercentage");
+        assert(amount == expected);
+    }
+
     inbox.inventory.clear(); chest.inventory.clear();
     RE::TESBoundObject ordinary{ItemCategory::Ingredient, false, 2000};
     RE::TESBoundObject craftingIngredient{ItemCategory::Catalyst, false, 2001};
@@ -557,9 +571,9 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 82
+assert validate_esp(ROOT, generate_esp(working)) == 84
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 38
+assert len([n for n in nodes if n["type"] == "CONT"]) == 39
 for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA")]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)

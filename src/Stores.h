@@ -62,6 +62,7 @@ public:
     // Container Functions
     void VaultMenu(RE::TESObjectREFR* a_source);
     void VaultDetail1Menu(RE::TESObjectREFR* a_source);
+    void VaultDetail3Menu(RE::TESObjectREFR* a_source);
     void VaultDetail2Menu(RE::TESObjectREFR* a_source);
     void SortingMenu(RE::TESObjectREFR* a_source);
     void AlchemyMenu(RE::TESObjectREFR* a_source);
@@ -86,6 +87,7 @@ public:
     void WeaponStaffMenu(RE::TESObjectREFR* a_source);
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
+    void TradeMenu(RE::TESObjectREFR* a_source);
     void JunkMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
     void KeysMenu(RE::TESObjectREFR* a_source);
@@ -105,6 +107,7 @@ public:
 private:
     void ShowVaultMenu(RE::TESObjectREFR* a_source);
     void ShowVaultDetail1Menu(RE::TESObjectREFR* a_source);
+    void ShowVaultDetail3Menu(RE::TESObjectREFR* a_source);
     void ShowVaultDetail2Menu(RE::TESObjectREFR* a_source);
     void ShowSortingMenu(RE::TESObjectREFR* a_source);
     void ShowAlchemyMenu(RE::TESObjectREFR* a_source);
@@ -127,6 +130,7 @@ private:
     void ShowWeaponStaffMenu(RE::TESObjectREFR* a_source);
     void ShowGemstoneMenu(RE::TESObjectREFR* a_source);
     void ShowTreasureMenu(RE::TESObjectREFR* a_source);
+    void ShowTradeMenu(RE::TESObjectREFR* a_source);
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
     void ShowKeysMenu(RE::TESObjectREFR* a_source);
     void ShowAmmunitionMenu(RE::TESObjectREFR* a_source);

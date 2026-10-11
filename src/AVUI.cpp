@@ -78,6 +78,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int salePercentage = setting->GSC_SalePercentage;
+		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
+			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);
+			changeOption = true;
+		}
+
 		// Configuration Spells
 		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
 			changeOption = true;

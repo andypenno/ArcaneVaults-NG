@@ -16,7 +16,7 @@ The category helpers iterate inventory snapshots and call `RemoveItem` with `kSt
 
 `SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
-`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
+`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass. Personal, Junk, and Trade are on the third main-vault page. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
 ## Vaults and archives
 
@@ -44,6 +44,12 @@ Keys is an independent vault. Its menu offers Keep One, Store All, Take All, Ope
 Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Exit, Keep N Septims, Store All Septims, and Take All Septims. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N uses Gold Keep Amount in Options. Take All Septims selects Gold only and handles counts above 9999.
 
 Open temporarily gathers Gold from Treasure, Gemstone and PreciousIngot from Smithing, and Jewelry from Armor. Closing returns gems and precious ingots to Smithing, jewelry to Armor, and Gold plus unrelated manual deposits to Treasure. Materials therefore remain available to the existing Smithing crafting loan. The Gemstone and Jewelry archives keep their existing parents. Opening the Valuables menu also returns any contents left in its reference, including contents persisted while the archive was open. All three parent destinations must exist before gathering or returning.
+
+Trade is manual storage. Sort and Quick Transfer never deposit into it. Its menu is Open, Exit, Take All, Sell All, with Exit as the cancel button. Sell All quotes the total eligible copy count and Septim payout, then asks for confirmation and reminds the user that favourited, equipped and quest items, and Septims, are excluded. The no-eligible-items message states those exclusions explicitly. Cancelling keeps the items. Take All retrieves the pile for manual merchant trading.
+
+[Trade.cpp](../src/Trade.cpp) prices each explicit extra-data stack through Skyrim's InventoryEntryData::GetValue, then prices the bare remainder separately. It passes the matching extra list to RemoveItem. Quest, favorite, worn, and Septim entries are excluded. Malformed counts or repeated extra lists leave that base record untouched. Payout is floor(sum(unit inventory value * copies actually removed) * SalePercentage / 100), rounded once for the sale. Speech, perks, and barter bonuses do not affect it; selling grants no Speech experience.
+
+Confirmation rechecks stack identity, counts, prices, and the configured percentage. Changed quotes cancel without removing anything. Sale totals use signed 64-bit arithmetic with no mod-defined item-count or sale-value cap. Skyrim's inventory counts are signed 32-bit, so a payout exceeding the player's remaining Septim capacity cancels before removing anything and reports an engine-capacity error separately. Explicit stacks move before bare copies; a partial or failed removal skips the rest of that base record. Only the observed inventory count reduction receives payment. Reusing an old confirmation cannot pay twice. Engine valuation and removal still need in-game checks for enchanted and tempered items.
 
 ## Soul gem storage
 
@@ -144,6 +150,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
 | Junk | `0xDCF` | Vault | `JunkMenu` |
+| Trade | `0xDD1` | Vault | `TradeMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
 | Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
 | FilledSoulgems | `0xDCB` | Archive | `FilledSoulgemsMenu` |
