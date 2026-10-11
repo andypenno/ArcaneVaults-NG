@@ -42,6 +42,8 @@ public:
 	bool GSC_OffloadFilledSoulgem{ false };
 	bool GSC_OffloadGrandSoulgem{ true };
 	bool GSC_OffloadTreasure{ false };
+	bool GSC_OffloadKeys{ true };
+	bool GSC_KeysKeepOne{ true };
 	bool GSC_OffloadArchery{ false };
 	bool GSC_OffloadOneHand{ false };
 	bool GSC_OffloadTwoHand{ false };

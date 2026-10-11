@@ -30,11 +30,13 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `AssignSpell` | true | Enable external assignment spell |
 | `SortSpell` | true | Enable external sorting/offload spell |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, and `GrandSoulgem`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `GrandSoulgem`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+
+Quick Transfer shows Keys and Keep One under More. `Keys=true` enables key deposits through the menu, hotkey, and offload spell. `KeysKeepOne=true` deposits duplicates while retaining one per carried key record. Disabling Keep One deposits all eligible keys. Both default to true when missing from an existing settings file. Sort moves keys already deposited into its inbox to the Keys vault; it does not withdraw a copy to the player.
 
 The UI exposes assignment hotkey capture and most settings, plus per-category quick-transfer checkboxes. It has no QuickKeyCode capture control. [HelperFunctions.h](../include/HelperFunctions.h) converts engine codes to/from ImGui keys; keyboard uses engine scan codes, mouse uses 256 through 260, and gamepad uses 266 through 281. Input events trigger assignment/offload for keyboard and gamepad; the handler does not accept mouse even though conversion supports it. It also has no explicit gameplay/menu-state gate beyond singleton checks.
 
-Configuration spells are looked up as local IDs `0xDC0` and `0xDC1` in the companion ESP. `ConfigurationSpells` reconciles player spells on post-load-game and on spell checkbox changes. The scripts and spell effect wiring are external; the source does not show how the spell invokes its native function.
+Configuration spells are looked up as local IDs `0xDC0` and `0xDC1` in the companion ESP. `ConfigurationSpells` reconciles player spells on post-load-game and on spell checkbox changes. The [Papyrus dispatcher](../scripts/Source/ArcaneSpells.psc) calls the same `OffloadItems` native as Quick Transfer, so the Keys settings also apply to that spell.
 
 ## Classification overrides
 

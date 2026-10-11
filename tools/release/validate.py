@@ -106,6 +106,9 @@ def validate_esp(root, data):
     for node in references:
         target = next(int(field["form_id"], 16) for field in node["fields"] if field["type"] == "NAME")
         require(target in by_id and by_id[target]["type"] == "CONT", "Storage reference has no container base")
+        require(node["flags"] & 0x400, "Storage reference must be persistent")
+        container_data = next(field_bytes(field) for field in by_id[target]["fields"] if field["type"] == "DATA")
+        require(len(container_data) == 5 and not container_data[0] & 2, "Storage container must not respawn")
     for local_id, spell_type in [(0xDC0, 0), (0xDC1, 1)]:
         spell = by_id.get(0x01000000 | local_id)
         require(spell is not None and spell["type"] == "SPEL", "Required configuration spell is missing")

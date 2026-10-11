@@ -2,7 +2,7 @@
 
 Arcane Vaults NG is a Windows x64 SKSE plugin for Skyrim. It binds world containers or linked activators to storage references supplied by a companion ESP, presents storage menus, classifies and transfers items, and optionally lends stored materials while crafting. There is no network storage implementation.
 
-These notes are for agents changing the project. They describe source behavior at root commit `8d9644b`, not a verified game session. Re-read the named source when making a change.
+These notes are for agents changing the project. They describe the source and release inputs, not a verified game session. Re-read the named source when making a change.
 
 | Task | Read |
 | --- | --- |

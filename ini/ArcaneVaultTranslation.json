@@ -70,6 +70,10 @@
 	"Vault.Soulgem": "Soulgem",
 	"Vault.Treasure": "Treasure",
 	"Vault.Personal": "Personal",
+	"Vault.Keys": "Keys",
+	"Vault.KeysStoreAll": "Store All",
+	"Vault.KeysTakeAll": "Take All",
+	"Vault.KeysOpen": "Open",
 	
 	"Vault.Crafting": "Crafting",
 	"Vault.Tanning": "Tanning",

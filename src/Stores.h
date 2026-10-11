@@ -41,7 +41,7 @@ public:
     void ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuOption> a_options, std::int32_t a_cancelOption = -1);
 
     // Storage Functions
-    void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0);
+    void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0, bool a_keepOne = false);
     void StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count = 0);
     void StoreToStore(ItemCategory a_category, Container a_source, Container a_destination);
     void AllToStore(Container a_source, Container a_destination);
@@ -85,6 +85,7 @@ public:
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
+    void KeysMenu(RE::TESObjectREFR* a_source);
     void PotionMenu(RE::TESObjectREFR* a_source);
     void PotionPositiveMenu(RE::TESObjectREFR* a_source);
     void PotionNegativeMenu(RE::TESObjectREFR* a_source);
@@ -121,6 +122,7 @@ private:
     void ShowGemstoneMenu(RE::TESObjectREFR* a_source);
     void ShowTreasureMenu(RE::TESObjectREFR* a_source);
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
+    void ShowKeysMenu(RE::TESObjectREFR* a_source);
     void ShowPotionMenu(RE::TESObjectREFR* a_source);
     void ShowPotionPositiveMenu(RE::TESObjectREFR* a_source);
     void ShowPotionNegativeMenu(RE::TESObjectREFR* a_source);

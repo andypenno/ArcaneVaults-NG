@@ -157,6 +157,11 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (Checkbox(Translate("Vault.Keys"), &setting->GSC_OffloadKeys))
+				changeOption = true;
+			SameLine();
+			if (Checkbox(Translate("Vault.KeepOne"), &setting->GSC_KeysKeepOne))
+				changeOption = true;
 			if (Checkbox(Translate("Vault.Treasure"), &setting->GSC_OffloadTreasure))
 				changeOption = true;
 		}

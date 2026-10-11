@@ -35,7 +35,8 @@ enum class Container : std::uint8_t {
     Archery,
     OneHand,
     TwoHand,
-    Staff
+    Staff,
+    Keys
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -74,7 +75,8 @@ enum class ItemCategory : std::uint8_t {
     OneHand,
     TwoHand,
     Staff,
-    None
+    None,
+    Keys
 };
 
 enum class ContainerGroup {
@@ -117,12 +119,13 @@ enum class ContainerGroup {
     case Container::OneHand:      return "Vault.OneHand";
     case Container::TwoHand:      return "Vault.TwoHand";
     case Container::Staff:        return "Vault.Staff";
+    case Container::Keys:         return "Vault.Keys";
     case Container::None:         return {};
     }
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 25> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 26> categoryNames{{
     { "Archery", ItemCategory::Archery },
     { "Book", ItemCategory::Book },
     { "Catalyst", ItemCategory::Catalyst },
@@ -134,6 +137,7 @@ inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 25> categ
     { "HeavyArmor", ItemCategory::HeavyArmor },
     { "Ingredient", ItemCategory::Ingredient },
     { "Jewelry", ItemCategory::Jewelry },
+    { "Keys", ItemCategory::Keys },
     { "LightArmor", ItemCategory::LightArmor },
     { "OneHand", ItemCategory::OneHand },
     { "Potion", ItemCategory::Potion },

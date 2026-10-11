@@ -78,6 +78,8 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadFilledSoulgem, "Offload", "FilledSoulgem");
 	option(settings.GSC_OffloadGrandSoulgem, "Offload", "GrandSoulgem");
 	option(settings.GSC_OffloadTreasure, "Offload", "Treasure");
+	option(settings.GSC_OffloadKeys, "Offload", "Keys");
+	option(settings.GSC_KeysKeepOne, "Offload", "KeysKeepOne");
 	option(settings.GSC_OffloadArchery, "Offload", "Archery");
 	option(settings.GSC_OffloadOneHand, "Offload", "OneHand");
 	option(settings.GSC_OffloadTwoHand, "Offload", "TwoHand");

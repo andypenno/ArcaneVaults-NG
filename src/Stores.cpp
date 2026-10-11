@@ -118,15 +118,15 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, bool a_keepOne) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player || !chest) return;
+    if (!player || !chest || i_count < 0) return;
 
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0) continue;
+        if (!item || !data.second || data.first <= 0) continue;
 
         // Ignore Quest, Favorited and Worn items
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
@@ -134,11 +134,10 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
 
-        // If the input is zero, move all
-        if (i_count == 0)
-            player->RemoveItem(item, 9999, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
-        else
-            player->RemoveItem(item, i_count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
+        int count = data.first - (a_keepOne ? 1 : 0);
+        if (i_count > 0) count = std::min(count, i_count);
+        if (count > 0)
+            player->RemoveItem(item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
     }
 }
 
@@ -256,6 +255,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
     StoreToStore(ItemCategory::Food, Container::Sort, Container::Food);
     StoreToStore(ItemCategory::Ingredient, Container::Sort, Container::Alchemy);
@@ -271,6 +271,9 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadKeys)
+        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne);
 
     // Alchemy
     if (settings->GSC_OffloadReagent) PlayerToStore(ItemCategory::Reagent, Container::Alchemy);
@@ -455,6 +458,10 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
+    options.push_back({Translate("Vault.Keys"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) KeysMenu(source.get());
+    }});
+
     options.push_back({Translate("Vault.Book"), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::Book, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -587,9 +594,52 @@ void Stores::ShowSortingMenu(RE::TESObjectREFR* a_source) {
     });
 }
 
-//===================================================
-// *Alchemy Menus
-//===================================================
+// Keys menu
+void Stores::KeysMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowKeysMenu(source); });
+}
+
+void Stores::ShowKeysMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto sourceHandle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+
+    options.push_back({Translate("Vault.KeepOne"), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
+        if (auto source = sourceHandle.get()) KeysMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.KeysStoreAll"), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Keys, Container::Keys);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (auto source = sourceHandle.get()) KeysMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.KeysTakeAll"), [this, sourceHandle] {
+        AllToPlayer(Container::Keys);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
+        if (auto source = sourceHandle.get()) KeysMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.KeysOpen"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Keys, source.get(), [this](RE::TESObjectREFR* source) {
+                KeysMenu(source);
+            });
+    }});
+
+    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    }});
+
+    const auto title = std::format("{} {}", Translate("Vault.Keys"), Translate("Vault.Vault"));
+    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
+    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+}
+
+// Alchemy menu
 void Stores::AlchemyMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     OpenStoreObject(a_source, [this](RE::TESObjectREFR* a_openSource) { ShowAlchemyMenu(a_openSource); });

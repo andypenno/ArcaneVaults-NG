@@ -352,6 +352,7 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Scroll, RE::FormID(0xD9B), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ScrollMenu(a_source); });
     
     // Misc
+    AddContainer(dataHandler, Container::Keys, RE::FormID(0xDC5), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->KeysMenu(a_source); });
     AddContainer(dataHandler, Container::Treasure, RE::FormID(0xDAD), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->TreasureMenu(a_source); });
     AddContainer(dataHandler, Container::Personal, RE::FormID(0xDA1), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PersonalMenu(a_source); });
 }

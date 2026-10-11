@@ -6,15 +6,15 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 | Operation | Selection and protection |
 | --- | --- |
-| `PlayerToStore` | Positive inventory counts matching a category; skips quest, favorited, and worn entries |
+| `PlayerToStore` | Positive inventory counts matching a category; skips quest, favorited, and worn entries; optional keep-one mode retains one per carried base item |
 | `StoreToPlayer` | Positive counts matching a category, without the player's protection checks |
 | `StoreToStore` | Positive counts matching a category, without quest/favorite/worn checks |
 | `AllToStore` | `InventoryChanges::RemoveAllItems`; rejects identical source/destination enums |
 | `AllToPlayer` | `InventoryChanges::RemoveAllItems` from the selected store |
 
-The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer`, a null extra-list argument, and a requested count. A zero count parameter means request `9999`, not query and remove the exact count. A nonzero parameter applies per matching base item. Claims about individual enchanted instances, extra data, or stacks larger than 9999 require runtime checks.
+The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. Keep-one mode subtracts one before clamping; it never withdraws stored items. `StoreToPlayer` and `StoreToStore` still request `9999` for all-item transfers. Claims about individual enchanted instances or extra data require runtime checks.
 
-`SortItems` drains the Sort container in this order: Smithing, Food, Ingredient, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
+`SortItems` drains the Sort container in this order: Keys, Smithing, Food, Ingredient, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
 
@@ -35,6 +35,8 @@ Do not assume every parent menu consolidates exactly the same children. `ShowVau
 
 Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Book Transfer One Copy and Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
 
+Keys is an independent vault. Its menu offers Keep One, Store All, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
+
 ## Classification
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
@@ -51,6 +53,7 @@ Classification precedence is user override, bundled override, then built-in rule
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
 | Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
+| Key | Keys; checked before the miscellaneous-item branch because `TESKey` derives from `TESObjectMISC` |
 | Other types | No built-in category |
 
 Native `RE::ScrollItem` and ammunition have no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
@@ -81,7 +84,7 @@ Assignment changes update memory immediately. Global redirects are written by th
 
 ## Companion reference registry
 
-The table below is extracted from `Utility::LoadContainers`. IDs are local reference IDs in `ArcaneVaults-LinkedStorage.esp`, not load-order-prefixed runtime IDs. That ESP is absent from this checkout. `AddContainer` requires a reference, translates and renames a container base when available, and registers a menu action. Enum names and IDs must stay coordinated with the external plugin.
+The table below is extracted from `Utility::LoadContainers`. IDs are local reference IDs in `ArcaneVaults-LinkedStorage.esp`, not load-order-prefixed runtime IDs. The release build generates that ESP from the working record definition. `AddContainer` requires a reference, translates and renames a container base when available, and registers a menu action. Enum names and IDs must stay coordinated with the generated plugin.
 
 | Container | Local ID | Group | Stores action |
 | --- | --- | --- | --- |
@@ -117,3 +120,4 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
+| Keys | `0xDC5` | Vault | `KeysMenu` |
