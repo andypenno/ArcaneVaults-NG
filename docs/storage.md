@@ -14,7 +14,7 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` also uses actual counts for zero requests, clamps positive requests to available counts, and rejects negative requests. Claims about individual enchanted instances or extra data require runtime checks.
 
-`SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Ingredient, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects Ingredient, not the Alchemy parent bit, so Reagents and Catalysts alone do not follow that pass.
+`SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
 
@@ -32,6 +32,8 @@ Most archive actions temporarily move matching items from their parent vault int
 | Weapon | Archery, OneHand, TwoHand, Staff |
 
 Do not assume every parent menu consolidates exactly the same children. `ShowVaultDetail1Menu` has its own consolidation actions, while category-specific menus have others. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
+
+Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.
 
 Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Book Transfer One Copy and Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
 

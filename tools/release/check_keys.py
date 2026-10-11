@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -30,7 +30,7 @@ start = settings.index("template <class T>\nvoid Settings::get_value(")
 get_value = settings[start:settings.index("\n}\n", start) + 3]
 classification = (ROOT / "src/ItemClass.cpp").read_text()
 start = classification.index("CategoryMask ClassifyItem(")
-classification = classification[start:classification.index("    // Ingredients", start)]
+classification = classification[start:classification.index("    // Food, Potions, and Poisons", start)]
 classification += "\n    return categories | ToMask(a_item->category);\n}\n"
 settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
@@ -57,10 +57,12 @@ enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESAmmo {};
 struct TESObjectMISC {};
 struct TESSoulGem {};
+struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
 struct TESBoundObject {
     ItemCategory category;
     bool bolt = false;
     unsigned formID = 0;
+    IngredientItem ingredient{};
     unsigned GetFormID() const { return formID; }
     bool IsGold() const { return formID == 0xF; }
     bool IsKey() const { return category == ItemCategory::Keys; }
@@ -68,6 +70,7 @@ struct TESBoundObject {
         static T object;
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, IngredientItem>) return category == ItemCategory::Ingredient || category == ItemCategory::Catalyst || category == ItemCategory::Reagent ? &ingredient : nullptr;
         else return nullptr;
     }
 };
@@ -116,7 +119,8 @@ struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
     RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables;
-    std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap;
+    std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap;
+    bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
     bool missingSmithing = false;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
     RE::TESObjectREFR* GetContainer(Container container) {
@@ -155,6 +159,8 @@ struct Stores {
     void ShowValuablesMenu(RE::TESObjectREFR*);
     void ValuablesMenu(RE::TESObjectREFR*);
     void ShowTreasureMenu(RE::TESObjectREFR*);
+    void ShowAlchemyMenu(RE::TESObjectREFR*);
+    void AlchemyMenu(RE::TESObjectREFR*);
     void TreasureMenu(RE::TESObjectREFR* source) { ShowTreasureMenu(source); }
     void OpenStoreObject(RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) { action(source); }
     void CloseStoreObject(RE::TESObjectREFR*) { closed = true; }
@@ -169,7 +175,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -496,6 +502,50 @@ int main() {
         assert(amount == 25);
     }
 
+    inbox.inventory.clear(); chest.inventory.clear();
+    RE::TESBoundObject ordinary{ItemCategory::Ingredient, false, 2000};
+    RE::TESBoundObject craftingIngredient{ItemCategory::Catalyst, false, 2001};
+    RE::TESBoundObject cookingIngredient{ItemCategory::Reagent, false, 2002};
+    RE::TESBoundObject foodIngredient{ItemCategory::Reagent, false, 2003};
+    RE::TESBoundObject overriddenIngredient{ItemCategory::Ingredient, false, 2004};
+    RE::TESBoundObject unmatched{ItemCategory::None, false, 2005};
+    utility->ConstructionMap.insert(craftingIngredient.formID);
+    utility->RawFoodMap.insert(cookingIngredient.formID);
+    foodIngredient.ingredient.food = true;
+    settings->overrides[&overriddenIngredient] = ToMask(ItemCategory::Reagent);
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient}) {
+        assert(HasCategory(ClassifyItem(item), ItemCategory::Alchemy));
+        inbox.inventory[item] = entry(12);
+    }
+    assert(HasCategory(ClassifyItem(&ordinary), ItemCategory::Ingredient));
+    assert(HasCategory(ClassifyItem(&craftingIngredient), ItemCategory::Catalyst));
+    assert(HasCategory(ClassifyItem(&cookingIngredient), ItemCategory::Reagent));
+    inbox.inventory[&unmatched] = entry(7);
+    stores.SortItems();
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient}) {
+        assert(inbox.inventory[item].first == 0 && chest.inventory[item].first == 12);
+    }
+    assert(inbox.inventory[&unmatched].first == 7);
+    stores.SortItems();
+    assert(chest.inventory[&ordinary].first == 12);
+    player->inventory.clear(); chest.inventory.clear(); source.alive = true;
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient})
+        player->inventory[item] = entry(12);
+    RE::TESBoundObject questIngredient{ItemCategory::Ingredient}, favoriteIngredient{ItemCategory::Ingredient}, wornIngredient{ItemCategory::Ingredient};
+    player->inventory[&questIngredient] = entry(4); player->inventory[&questIngredient].second->quest = true;
+    player->inventory[&favoriteIngredient] = entry(5); player->inventory[&favoriteIngredient].second->favorite = true;
+    player->inventory[&wornIngredient] = entry(6); player->inventory[&wornIngredient].second->worn = true;
+    player->inventory[&unmatched] = entry(7);
+    stores.AlchemyMenu(&source);
+    assert(stores.options[0].text == "Vault.StoreAll"); click(0);
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient})
+        assert(player->inventory[item].first == 0 && chest.inventory[item].first == 12);
+    assert(player->inventory[&questIngredient].first == 4);
+    assert(player->inventory[&favoriteIngredient].first == 5);
+    assert(player->inventory[&wornIngredient].first == 6);
+    assert(player->inventory[&unmatched].first == 7);
+    click(0); assert(chest.inventory[&ordinary].first == 12);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -521,4 +571,4 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: actual transfers preserve counts/protections; Keys/ammunition regressions, Septim reserves, Valuables menu/gather/return, INI validation, and ESP storage pass")
+print("PASS: actual transfers preserve counts/protections; Alchemy Ingredient/Catalyst/Reagent sorting, Keys/ammunition regressions, Septim reserves, Valuables menu/gather/return, INI validation, and ESP storage pass")
