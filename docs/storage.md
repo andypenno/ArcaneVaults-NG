@@ -14,9 +14,9 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 The category helpers iterate inventory snapshots and call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` also uses actual counts for zero requests, clamps positive requests to available counts, and rejects negative requests. Claims about individual enchanted instances or extra data require runtime checks.
 
-`SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+`SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
-`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
+`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
 ## Vaults and archives
 
@@ -143,6 +143,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
+| Junk | `0xDCF` | Vault | `JunkMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
 | Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
 | FilledSoulgems | `0xDCB` | Archive | `FilledSoulgemsMenu` |

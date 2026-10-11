@@ -86,6 +86,7 @@ public:
     void WeaponStaffMenu(RE::TESObjectREFR* a_source);
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
+    void JunkMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
     void KeysMenu(RE::TESObjectREFR* a_source);
     void AmmunitionMenu(RE::TESObjectREFR* a_source);

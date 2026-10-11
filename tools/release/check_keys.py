@@ -118,7 +118,7 @@ struct PlayerCharacter : TESObjectREFR {
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables;
+    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap;
     bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
     bool missingSmithing = false;
@@ -126,6 +126,7 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container container) {
         switch (container) {
         case Container::None: return nullptr;
+        case Container::Junk: return &junk;
         case Container::Sort: return &inbox;
         case Container::Ammunition: return &ammunition;
         case Container::Treasure: return &treasure;
@@ -525,7 +526,7 @@ int main() {
     for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient}) {
         assert(inbox.inventory[item].first == 0 && chest.inventory[item].first == 12);
     }
-    assert(inbox.inventory[&unmatched].first == 7);
+    assert(inbox.inventory[&unmatched].first == 0 && utility->junk.inventory[&unmatched].first == 7);
     stores.SortItems();
     assert(chest.inventory[&ordinary].first == 12);
     player->inventory.clear(); chest.inventory.clear(); source.alive = true;
@@ -546,6 +547,7 @@ int main() {
     assert(player->inventory[&unmatched].first == 7);
     click(0); assert(chest.inventory[&ordinary].first == 12);
 
+    assert(utility->junk.inventory[&unmatched].first == 7);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -555,9 +557,9 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 80
+assert validate_esp(ROOT, generate_esp(working)) == 82
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 37
+assert len([n for n in nodes if n["type"] == "CONT"]) == 38
 for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA")]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)

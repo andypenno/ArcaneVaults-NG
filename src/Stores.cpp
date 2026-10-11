@@ -266,6 +266,7 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Armor, Container::Sort, Container::Armor);
     StoreToStore(ItemCategory::Weapon, Container::Sort, Container::Weapon);
     StoreToStore(ItemCategory::Concoction, Container::Sort, Container::Concoction);
+    AllToStore(Container::Sort, Container::Junk);
     RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
 }
 
@@ -489,6 +490,10 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
 
     options.push_back({Translate("Vault.Treasure"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) TreasureMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.Junk"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) JunkMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Personal"), [this, sourceHandle] {
@@ -1792,5 +1797,14 @@ void Stores::ShowPersonalMenu(RE::TESObjectREFR* a_source) {
     if (auto source = sourceHandle.get())
         OpenStorageMenu(Container::Personal, source.get(), [this](RE::TESObjectREFR* a_source) {
             if (a_source) CloseStoreObject(a_source);
+    });
+}
+
+void Stores::JunkMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) {
+        OpenStorageMenu(Container::Junk, source, [this](RE::TESObjectREFR* closed) {
+            if (closed) CloseStoreObject(closed);
+        });
     });
 }
