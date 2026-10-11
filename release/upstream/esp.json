@@ -1,0 +1,2086 @@
+{
+  "schema": 1,
+  "records": [
+    {
+      "type": "TES4",
+      "flags": 512,
+      "form_id": "0x00000000",
+      "revision": 0,
+      "version": 44,
+      "unknown": 0,
+      "fields": [
+        {
+          "type": "HEDR",
+          "hex": "48e1da3f4d000000c40d0000"
+        },
+        {
+          "type": "CNAM",
+          "hex": "44454641554c5400"
+        },
+        {
+          "type": "MAST",
+          "text": "Skyrim.esm"
+        },
+        {
+          "type": "DATA",
+          "hex": "0000000000000000"
+        },
+        {
+          "type": "INTV",
+          "hex": "01000000"
+        },
+        {
+          "type": "INCC",
+          "hex": "01000000"
+        }
+      ]
+    },
+    {
+      "type": "GRUP",
+      "label_hex": "4d474546",
+      "group_type": 0,
+      "stamp_hex": "0000000000000000",
+      "children": [
+        {
+          "type": "MGEF",
+          "flags": 0,
+          "form_id": "0x01000DC2",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AssignMagicEffect"
+            },
+            {
+              "type": "VMAD",
+              "hex": "0500020001000c00417263616e655370656c6c7300010009005370656c6c54797065030100000000"
+            },
+            {
+              "type": "FULL",
+              "text": "AssignMagicEffect"
+            },
+            {
+              "type": "DATA",
+              "hex": "008000080000000000000000ffffffffffffffff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000ffffffff00000000000000000100000000000000ffffffff00000000000000000000000000000000000000000000803f000000000000000000000000000000000000000000000000010000000000000000000000"
+            },
+            {
+              "type": "SNDD",
+              "hex": ""
+            },
+            {
+              "type": "DNAM",
+              "hex": "00"
+            }
+          ]
+        },
+        {
+          "type": "MGEF",
+          "flags": 0,
+          "form_id": "0x01000DC3",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "SortMagicEffect"
+            },
+            {
+              "type": "VMAD",
+              "hex": "0500020001000c00417263616e655370656c6c7300010009005370656c6c54797065030101000000"
+            },
+            {
+              "type": "FULL",
+              "text": "SortMagicEffect"
+            },
+            {
+              "type": "DATA",
+              "hex": "008000080000000000000000ffffffffffffffff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000ffffffff00000000000000000100000000000000ffffffff00000000000000000000000000000000000000000000803f000000000000000000000000000000000000000000000000010000000000000000000000"
+            },
+            {
+              "type": "SNDD",
+              "hex": ""
+            },
+            {
+              "type": "DNAM",
+              "hex": "00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "GRUP",
+      "label_hex": "5350454c",
+      "group_type": 0,
+      "stamp_hex": "0000000000000000",
+      "children": [
+        {
+          "type": "SPEL",
+          "flags": 0,
+          "form_id": "0x01000DC0",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AssignSpell"
+            },
+            {
+              "type": "OBND",
+              "hex": "000000000000000000000000"
+            },
+            {
+              "type": "FULL",
+              "text": "Arcane Assignment"
+            },
+            {
+              "type": "ETYP",
+              "hex": "ee5b0200"
+            },
+            {
+              "type": "DESC",
+              "text": "Opens the assignment window, allowing you to assign and manage your arcane vaults."
+            },
+            {
+              "type": "SPIT",
+              "hex": "000000000000000003000000000000000100000000000000000000000000000000000000"
+            },
+            {
+              "type": "EFID",
+              "hex": "c20d0001"
+            },
+            {
+              "type": "EFIT",
+              "hex": "000000000000000000000000"
+            }
+          ]
+        },
+        {
+          "type": "SPEL",
+          "flags": 0,
+          "form_id": "0x01000DC1",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "SortSpell"
+            },
+            {
+              "type": "OBND",
+              "hex": "000000000000000000000000"
+            },
+            {
+              "type": "FULL",
+              "text": "Arcane Transference"
+            },
+            {
+              "type": "ETYP",
+              "hex": "ee5b0200"
+            },
+            {
+              "type": "DESC",
+              "text": "Transfers stored items to their designated places within your arcane vault."
+            },
+            {
+              "type": "SPIT",
+              "hex": "000000000000000003000000000000000100000000000000000000000000000000000000"
+            },
+            {
+              "type": "EFID",
+              "hex": "c30d0001"
+            },
+            {
+              "type": "EFIT",
+              "hex": "000000000000000000000000"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "GRUP",
+      "label_hex": "434f4e54",
+      "group_type": 0,
+      "stamp_hex": "0000000000000000",
+      "children": [
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D6E",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Arcane"
+            },
+            {
+              "type": "OBND",
+              "hex": "f4ffe8ff00000c0016002e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Arcane Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D6F",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Alchemy"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Alchemy Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D70",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Armor"
+            },
+            {
+              "type": "OBND",
+              "hex": "f6fff6fffbff0a000a001000"
+            },
+            {
+              "type": "FULL",
+              "text": "Armor Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D71",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Clothing"
+            },
+            {
+              "type": "OBND",
+              "hex": "f6fff6fffbff0a000a001000"
+            },
+            {
+              "type": "FULL",
+              "text": "Clothing Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D72",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_HeavyArmor"
+            },
+            {
+              "type": "OBND",
+              "hex": "f6fff6fffbff0a000a001000"
+            },
+            {
+              "type": "FULL",
+              "text": "Heavy Armor Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D73",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_LightArmor"
+            },
+            {
+              "type": "OBND",
+              "hex": "e5ffe6ff00001a001b002e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Light Armor Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D74",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Jewelry"
+            },
+            {
+              "type": "OBND",
+              "hex": "f6fff6fffbff0a000a001000"
+            },
+            {
+              "type": "FULL",
+              "text": "Jewelry Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D75",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Book"
+            },
+            {
+              "type": "OBND",
+              "hex": "efff0000ffff13000d008d00"
+            },
+            {
+              "type": "FULL",
+              "text": "Book Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D77",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Scroll"
+            },
+            {
+              "type": "OBND",
+              "hex": "f8fff7ff0000080007000700"
+            },
+            {
+              "type": "FULL",
+              "text": "Scroll Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D79",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Food"
+            },
+            {
+              "type": "OBND",
+              "hex": "fafffcff000006000a000c00"
+            },
+            {
+              "type": "FULL",
+              "text": "Food Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D7A",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_FoodCooked"
+            },
+            {
+              "type": "OBND",
+              "hex": "cbffe0ff0000350020003800"
+            },
+            {
+              "type": "FULL",
+              "text": "Cooked Food Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D7B",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_FoodRaw"
+            },
+            {
+              "type": "OBND",
+              "hex": "f2fff7ff00000e0009001400"
+            },
+            {
+              "type": "FULL",
+              "text": "Raw Food Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D7C",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Reagent"
+            },
+            {
+              "type": "OBND",
+              "hex": "e8fff6fffbff1c000b001a00"
+            },
+            {
+              "type": "FULL",
+              "text": "Reagent Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D7D",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Personal"
+            },
+            {
+              "type": "OBND",
+              "hex": "eafff3ffffff130014000b00"
+            },
+            {
+              "type": "FULL",
+              "text": "Personal Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D7E",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Gemstone"
+            },
+            {
+              "type": "OBND",
+              "hex": "d0ffe7ff0000300018003000"
+            },
+            {
+              "type": "FULL",
+              "text": "Gemstone Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D7F",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Concoction"
+            },
+            {
+              "type": "OBND",
+              "hex": "d0ffe7ff0000300018003000"
+            },
+            {
+              "type": "FULL",
+              "text": "Concoction Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D80",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Potion"
+            },
+            {
+              "type": "OBND",
+              "hex": "b9ffdefff7ff3d0018005400"
+            },
+            {
+              "type": "FULL",
+              "text": "Potion Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D81",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Poison"
+            },
+            {
+              "type": "OBND",
+              "hex": "d0ffe7ff0000300018003000"
+            },
+            {
+              "type": "FULL",
+              "text": "Poison Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D82",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Restorative"
+            },
+            {
+              "type": "OBND",
+              "hex": "e0ff0000000020001b008000"
+            },
+            {
+              "type": "FULL",
+              "text": "Restorative Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D84",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Smithing"
+            },
+            {
+              "type": "OBND",
+              "hex": "bfffdeff0000410022005500"
+            },
+            {
+              "type": "FULL",
+              "text": "Smithing Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D85",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Crafting"
+            },
+            {
+              "type": "OBND",
+              "hex": "e3ffe3ff00001d001d005000"
+            },
+            {
+              "type": "FULL",
+              "text": "Crafting Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D86",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Construction"
+            },
+            {
+              "type": "OBND",
+              "hex": "e3ffe3ff00001d001d005000"
+            },
+            {
+              "type": "FULL",
+              "text": "Construction Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D87",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Smelting"
+            },
+            {
+              "type": "OBND",
+              "hex": "e3ffe3ff00001d001d005000"
+            },
+            {
+              "type": "FULL",
+              "text": "Smelter Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D88",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Tanning"
+            },
+            {
+              "type": "OBND",
+              "hex": "cfffe0ffffff230022001f00"
+            },
+            {
+              "type": "FULL",
+              "text": "Tanning Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D89",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Soulgem"
+            },
+            {
+              "type": "OBND",
+              "hex": "c6ffe5fff8ff1a003e002a00"
+            },
+            {
+              "type": "FULL",
+              "text": "Soulgem Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D8E",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Treasure"
+            },
+            {
+              "type": "OBND",
+              "hex": "c9ffcfff000037000e009b00"
+            },
+            {
+              "type": "FULL",
+              "text": "Treasure Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000D90",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Weapon"
+            },
+            {
+              "type": "OBND",
+              "hex": "e5fff0fff6ff1a002400a900"
+            },
+            {
+              "type": "FULL",
+              "text": "Weapon Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DB4",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Archery"
+            },
+            {
+              "type": "OBND",
+              "hex": "c9ffcfff000037000e009b00"
+            },
+            {
+              "type": "FULL",
+              "text": "Archery Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DB5",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_OneHand"
+            },
+            {
+              "type": "OBND",
+              "hex": "c9ffcfff000037000e009b00"
+            },
+            {
+              "type": "FULL",
+              "text": "One-Handed Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DB6",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_TwoHand"
+            },
+            {
+              "type": "OBND",
+              "hex": "efff0000ffff110013008000"
+            },
+            {
+              "type": "FULL",
+              "text": "Two-Handed Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DB7",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Archive_Staff"
+            },
+            {
+              "type": "OBND",
+              "hex": "e5fff0fff6ff1a002400a900"
+            },
+            {
+              "type": "FULL",
+              "text": "Staff Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DB8",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Vault_Conduit"
+            },
+            {
+              "type": "OBND",
+              "hex": "e5fff0fff6ff1a002400a900"
+            },
+            {
+              "type": "FULL",
+              "text": "Conduit Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "GRUP",
+      "label_hex": "43454c4c",
+      "group_type": 0,
+      "stamp_hex": "0135000001000000",
+      "children": [
+        {
+          "type": "GRUP",
+          "label_hex": "06000000",
+          "group_type": 2,
+          "stamp_hex": "0135000001000000",
+          "children": [
+            {
+              "type": "GRUP",
+              "label_hex": "02000000",
+              "group_type": 3,
+              "stamp_hex": "0135000001000000",
+              "children": [
+                {
+                  "type": "CELL",
+                  "flags": 262144,
+                  "form_id": "0x01000D62",
+                  "revision": 13569,
+                  "version": 44,
+                  "unknown": 0,
+                  "fields": [
+                    {
+                      "type": "EDID",
+                      "text": "TheVault"
+                    },
+                    {
+                      "type": "FULL",
+                      "text": "The Vault"
+                    },
+                    {
+                      "type": "DATA",
+                      "hex": "2100"
+                    },
+                    {
+                      "type": "XCLL",
+                      "hex": "8080800000000000000000000000000000000000000000000000000000000000000000000000803f8d80860073807a0080868000807a80003d3d3a00c3c3c600000000000000803f000000000000803f00000000000000009f000000"
+                    },
+                    {
+                      "type": "LTMP",
+                      "hex": "00000000"
+                    },
+                    {
+                      "type": "XCLW",
+                      "hex": "00000000"
+                    }
+                  ],
+                  "compressed_hex": "9d000000789c7375f174e16408c9480d4b2ccd2961700bf5f1e1027115207c17c710472606458608671f9f188686860606c2a0c1beb7a18da1b8a18aa1a1ad81a1a1aa81c1d6d68ae1f0e1637079549a81613e10fb84f806b0807940bbc2212c009ab51b82"
+                },
+                {
+                  "type": "GRUP",
+                  "label_hex": "620d0001",
+                  "group_type": 6,
+                  "stamp_hex": "0000000000000000",
+                  "children": [
+                    {
+                      "type": "GRUP",
+                      "label_hex": "620d0001",
+                      "group_type": 8,
+                      "stamp_hex": "0000000000000000",
+                      "children": [
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D93",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Arcane"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D6E"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "a231144500acd944ac804f460000000000000000d5cccc3f"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D94",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Alchemy"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D6F"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "000019450000d24400804f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D95",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Armor"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D70"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "00801a450000d24400804f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D96",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Clothing"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D71"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "00001c450000d24400804f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D97",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_HeavyArmor"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D72"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "29b2224591becd44126b4f460000000000000000cdcc4c40"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D98",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_LightArmor"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D73"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "d5ef13457423cf44116b4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D99",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Jewelry"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D74"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "a5d60d45ecd7e044139a4f4600000000000000008a664640"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D9A",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Book"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D75"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "206420456c78ce44786b4f460000000000000000fa1f5240"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D9B",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Scroll"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D77"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "d3082545a3f8cc44e7844f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D9D",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Food"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D79"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "ffab1a45d381ce44fa824f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D9E",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_CookedFood"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D7A"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "fa021d4538b0cd44b27f4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000D9F",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_RawFood"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D7B"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "ca081845b58ace44de914f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA0",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Reagent"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D7C"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "42d011455b47cf44116b4f46000000000000000075b94b40"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA1",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Personal"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D7D"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "0c5901456d1dd7442a884f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA2",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Gemstone"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D7E"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "91e40d452390d74445834f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA3",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Concoction"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D7F"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "f6590145954de044f8aa4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA4",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Potion"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D80"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "26f701451ae6cc44fd704f46000000000000000014534540"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA5",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Poison"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D81"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "4808124508efe044b19a4f46000000000000000065664640"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA6",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Restorative"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D82"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "e8701b4539c6d844a78c4f460000000000000000e3c5893c"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA7",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Smithing"
+                            },
+                            {
+                              "type": "VMAD",
+                              "hex": "050002000000"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D84"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "2ea62445efc5d8440d8d4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA8",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Crafting"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D85"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "b2f72a4585b2a144a29b4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DA9",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Construction"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D86"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "b52d2b4527d6a944cb9d4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DAA",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Smelting"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D87"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "25f02a45d854b244e29b4f46000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DAB",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Tanning"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D88"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "4790294584c7bb44dbaa4f460000000000000000a4993940"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DAC",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Soulgem"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D89"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "dae829455120c544d8a64f4600000000000000009b33333f"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DAD",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Treasure"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D8E"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "d6072a4523ebd04464b74f4600000000000000003acd8c3f"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DAF",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Weapon"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000D90"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "23ec0a45ea79954469a34f4600000000000000001b534540"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DB0",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Archery"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DB4"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "d19903453c099544e5a34f4600000000000000007b664640"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DB1",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_OneHand"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DB5"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "935ef84442d5934485a04f46000000000000000074664640"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DB2",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_TwoHand"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DB6"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "55c70a452fe3df449d914f4600000000000000006d664640"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DB3",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Staff"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DB7"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "5e2a0845dbb9df44f9994f46000000000000000065664640"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DB9",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Conduit"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DB8"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "000000000000000000000000000000000000000000000000"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -38,6 +38,7 @@ add_rules("plugin.compile_commands.autoupdate", {outputdir = ".vscode"})
 
 target('ArcaneVaults-NG')
     set_kind("shared")
+    add_shflags('/Brepro', {force = true})
     add_deps('commonlibsse-ng')
 
     local runtime = 'se_ae'

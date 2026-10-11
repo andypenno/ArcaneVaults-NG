@@ -1,0 +1,15 @@
+{
+  "zip_sha256": "d1bd01b37a4325a963cc0d7082ace10da3286ccd51ba4969fbdcbc42b4594f73",
+  "files": {
+    "ArcaneVaults-LinkedStorage.esp": "86b07daeabb027fbd08353bb9a81ee7e93bef2e5f7bc34ce6276a4306773b33f",
+    "Interface/uilib/UILIB_1_ListMenu.swf": "3399c934ebc2362dc521f32e0e016c0a0cfc47e8f141fd761f0a0d46dfac794c",
+    "Interface/uilib/buttonArt.swf": "dab24e97d0d21f2cf24f2629005bdb9185697deac64f82ceadb38827a7f98b4f",
+    "SKSE/Plugins/ArcaneVault/ArcaneVaultOverrides.ini": "280509fe92164c17bd4300d71daa9d63c484d84b9527add88ae0bfef143bb749",
+    "SKSE/Plugins/ArcaneVault/ArcaneVaultTranslation.json": "636d05e3c32d47c5260967651ea8cfa1485cb437d25f243611f3971e0b5b0a69",
+    "SKSE/Plugins/ArcaneVaults-NG.dll": "b675a3ae8c20cd686124e46747b1a4f35bc4a93fe35545ea951a0704fb76a0d7",
+    "Scripts/ArcaneSpells.pex": "2b77ec1a18716ea13c5c78dbd45d199a7d82fa18549801c19b882b182dbb64e0",
+    "Scripts/ArcaneVaults.pex": "5a2f18ad0c70f38f3fab876a85be721830cacdc6a162c01221c29296439fa2a6",
+    "Scripts/Source/ArcaneSpells.psc": "f0f133349a87147baa04aa5073aa61b3e22aa52b987aac533107d7e1e793cf79",
+    "Scripts/Source/ArcaneVaults.psc": "23b1e7d2e48b2c9a09821e1aa80c68fe674f0784721524acb858641f86f589c5"
+  }
+}

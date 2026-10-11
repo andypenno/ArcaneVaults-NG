@@ -1,0 +1,22 @@
+diff --git a/packages/d/directxtk/xmake.lua b/packages/d/directxtk/xmake.lua
+index e1a272e66..6fafbbf3d 100644
+--- a/packages/d/directxtk/xmake.lua
++++ b/packages/d/directxtk/xmake.lua
+@@ -37,6 +37,7 @@ package("directxtk")
+ 
+     on_install("windows", function (package)
+         local configs = {}
++        table.insert(configs, "-DBUILD_TOOLS=OFF")
+         local vs_sdkver = package:toolchain("msvc"):config("vs_sdkver")
+         if vs_sdkver then
+             table.insert(configs, "-DCMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=" .. vs_sdkver)
+@@ -47,6 +48,9 @@ package("directxtk")
+         -- fix path issue with spaces
+         io.replace("Src/Shaders/CompileShaders.cmd", " %1.hlsl ", " \"%1.hlsl\" ", {plain = true})
+         io.replace("Src/Shaders/CompileShaders.cmd", " %1.fx ", " \"%1.fx\" ", {plain = true})
++        io.replace("Src/Shaders/CompileShaders.cmd", "%fxc% || set error=1", "%fxc%\nif errorlevel 1 set error=1", {plain = true})
++        io.replace("CMakeLists.txt", 'CompileShadersOutput="${COMPILED_SHADERS}" CompileShaders.cmd',
++            'CompileShadersOutput="Z:${COMPILED_SHADERS}" WINEPATH="Z:/work/msvc/kits/10/bin/10.0.26100.0/x64" WINEDLLOVERRIDES=d3dcompiler_47=n /work/wine-bin/wine cmd /c CompileShaders.cmd', {plain = true})
+         import("package.tools.cmake").install(package, configs)
+         os.cp("Inc/*", package:installdir("include"))
+     end)
