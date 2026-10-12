@@ -35,6 +35,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
 | `AlchemyKeepAmount` | 1 | Manual Alchemy Keep N and Take Up To N target per base record |
 | `ScrollKeepAmount` | 3 | Manual Scroll Keep N and Take Up To N target per base record |
+| `LearnDepositOverrides` | false | Offer classification overrides for mismatched manual deposits |
 | `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
@@ -57,6 +58,14 @@ The Books Quick Transfer controls use a separate ImGui ID scope from their Books
 The UI exposes assignment hotkey capture and most settings, plus per-category quick-transfer checkboxes. It has no QuickKeyCode capture control. [HelperFunctions.h](../include/HelperFunctions.h) converts engine codes to/from ImGui keys; keyboard uses engine scan codes, mouse uses 256 through 260, and gamepad uses 266 through 281. Input events trigger assignment/offload for keyboard and gamepad; the handler does not accept mouse even though conversion supports it. It also has no explicit gameplay/menu-state gate beyond singleton checks.
 
 Configuration spells are looked up as local IDs `0xDC0` and `0xDC1` in the companion ESP. `ConfigurationSpells` reconciles player spells on post-load-game and on spell checkbox changes. The [Papyrus dispatcher](../scripts/Source/ArcaneSpells.psc) calls the same `OffloadItems` native as Quick Transfer, so the Keys settings also apply to that spell.
+
+## Learning from deposits
+
+Options' Learn Overrides From Deposits is disabled by default. [DepositLearning.cpp](../src/DepositLearning.cpp) observes player deposits while an eligible storage container is open. Only classification mismatches prompt. Accepting replaces that base record's global user override; declining leaves its classification unchanged. Both leave deposited copies in place. A declined record is not offered again during that container visit. Prompts queue without overlapping, and close/load/new-game invalidates pending decisions. Save failures restore the previous in-memory override and show an error.
+
+Parent vaults learn Alchemy, Armor, Weapon, Smithing, Food, or Concoction without choosing a subtype. Category archives learn their named category. Notes learns Note. Personal, Valuables, soul-gem storage, Junk, Trade, Sort, Ignore, and Arcane Vault cannot teach a single persistent category. Physical soul gems and forms without stable plugin identifiers never prompt, even in eligible destinations. Soul state remains per copy.
+
+Automatic transfers record observed moved counts before queued container events are processed. Matching automatic counts suppress prompts, including partial engine transfers. This is conservative if an external hook suppresses container events. A missing automatic event can suppress a later manual deposit for that record during the same visit.
 
 ## Classification overrides
 

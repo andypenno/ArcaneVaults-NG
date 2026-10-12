@@ -39,6 +39,7 @@ public:
     // Container Functions
     void AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::FormID a_formid, ContainerGroup a_group, ContainerAction a_action = {});
     RE::TESObjectREFR* GetContainer(Container name);
+    [[nodiscard]] Container GetContainerKind(RE::FormID formID) const;
     [[nodiscard]] std::vector<ContainerChoice> GetContainerChoices() const;
     [[nodiscard]] std::vector<ContainerChoice> GetVaultChoices() const;
     [[nodiscard]] std::vector<ContainerChoice> GetArchiveChoices() const;

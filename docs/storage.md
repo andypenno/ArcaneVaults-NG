@@ -214,3 +214,7 @@ The [published in-game record extraction](https://www.nexusmods.com/skyrimspecia
 | Fort Neugrad | Skyrim.esm | `0x0F33D2` |
 | Velehk Sain | Skyrim.esm | `0x0DDEFB` |
 | Deathbrand | Dragonborn.esm | `0x02BAAE` |
+
+## Broad category overrides
+
+Override parsing and formatting accept parent categories and Restorative. Parent categories do not expand into children. Quick Transfer deposits a parent-only override when any checkbox in that family is enabled; it excludes named child bits so a disabled subtype remains protected. These transfers use the shared quest, favourite, equipment, and ignore checks. Manual parent vault transfers and Sort already match the parent bit. [configuration.md](configuration.md#learning-from-deposits) describes the opt-in deposit workflow.

@@ -6,6 +6,7 @@
 #include "Stores.h"
 #include "Soulgems.h"
 #include "ItemClass.h"
+#include "DepositLearning.h"
 
 //==============================================
 //  Redirects
@@ -240,9 +241,11 @@ public:
             return RE::BSEventNotifyControl::kContinue;
 
         if (event->opening) {
+            DepositLearning::MenuOpened();
             RedirectedContainerState::GetSingleton()->OnContainerMenuOpen();
             ContainerMenuCloseCallback::GetSingleton()->OnContainerMenuOpen();
         } else {
+            DepositLearning::MenuClosed();
             RedirectedContainerState::GetSingleton()->OnContainerMenuClose();
             ContainerMenuCloseCallback::GetSingleton()->OnContainerMenuClose();
         }
@@ -485,6 +488,7 @@ namespace AVEvents {
         FurnitureActivation::Install();
 
         // Register Events
+        DepositLearning::Register();
         ContainerMenuEventHandler::Register();
         CraftingMenuEventHandler::Register();
         InputHandler::Register();

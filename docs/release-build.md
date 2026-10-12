@@ -16,6 +16,7 @@ python3 tools/release/check_misc.py
 python3 tools/release/check_navigation.py
 python3 tools/release/check_redirects.py
 python3 tools/release/check_ignores.py
+python3 tools/release/check_learning.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.

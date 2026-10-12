@@ -16,6 +16,7 @@ public:
 	bool GSC_GlobalRedirects{ true };
 	bool GSC_CraftingLoan{ false };
 	bool GSC_ReturnIgnoredItems{ true };
+	bool GSC_LearnDepositOverrides{ false };
 	bool GSC_AssignOnlyOwn{ true };
 	bool GSC_AssignSpell{ true };
 	bool GSC_SortSpell{ true };

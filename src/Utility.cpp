@@ -34,6 +34,12 @@ RE::TESObjectREFR* Utility::GetContainer(Container name) {
     return it != containerMap.end() ? it->second.container : nullptr;
 }
 
+Container Utility::GetContainerKind(RE::FormID formID) const {
+    for (const auto& [kind, entry] : containerMap)
+        if (entry.container && entry.container->GetFormID() == formID) return kind;
+    return Container::None;
+}
+
 bool Utility::RunContainerAction(const RE::TESObjectREFR* container, RE::TESObjectREFR* source) const {
     if (!container || !source) return false;
 

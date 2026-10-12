@@ -8,6 +8,7 @@
 #include "ItemClass.h"
 #include "Translation.h"
 #include "Settings.h"
+#include "DepositLearning.h"
 
 #include <chrono>
 #include <thread>
@@ -25,6 +26,7 @@ namespace {
             source->RemoveItem(item, (std::min)(count, available), RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
             const int after = countItems();
             if (after >= available) return;
+            DepositLearning::RecordAutomaticTransfer(source, destination, item, available - after);
             count -= (std::min)(count, available - after);
             available = after;
         }
@@ -157,7 +159,7 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores, CategoryMask a_excluded) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
@@ -175,7 +177,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
 
         const auto categories = ClassifyItem(item);
-        if (!HasCategory(categories, a_category)) continue;
+        if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
 
         // Equipment mods can expose virtual worn items through the standard condition.
         double equipped{};
@@ -400,6 +402,20 @@ void Stores::OffloadItems() {
     if (settings->GSC_OffloadOneHand) PlayerToStore(ItemCategory::OneHand, Container::Weapon, 0, 0, true);
     if (settings->GSC_OffloadTwoHand) PlayerToStore(ItemCategory::TwoHand, Container::Weapon, 0, 0, true);
     if (settings->GSC_OffloadStaffHand) PlayerToStore(ItemCategory::Staff, Container::Weapon, 0, 0, true);
+
+    // Broad overrides have no subtype checkbox of their own.
+    if (settings->GSC_OffloadReagent || settings->GSC_OffloadCatalyst || settings->GSC_OffloadIngredient)
+        PlayerToStore(ItemCategory::Alchemy, Container::Alchemy, 0, 0, true, ItemCategory::Reagent | ItemCategory::Catalyst | ItemCategory::Ingredient);
+    if (settings->GSC_OffloadClothing || settings->GSC_OffloadHeavyArmor || settings->GSC_OffloadLightArmor || settings->GSC_OffloadJewelry)
+        PlayerToStore(ItemCategory::Armor, Container::Armor, 0, 0, true, ItemCategory::Clothing | ItemCategory::HeavyArmor | ItemCategory::LightArmor | ItemCategory::Jewelry);
+    if (settings->GSC_OffloadArchery || settings->GSC_OffloadOneHand || settings->GSC_OffloadTwoHand || settings->GSC_OffloadStaffHand)
+        PlayerToStore(ItemCategory::Weapon, Container::Weapon, 0, 0, true, ItemCategory::Archery | ItemCategory::OneHand | ItemCategory::TwoHand | ItemCategory::Staff);
+    if (settings->GSC_OffloadCrafting || settings->GSC_OffloadConstruction || settings->GSC_OffloadGemstone || settings->GSC_OffloadSmelting || settings->GSC_OffloadTanning)
+        PlayerToStore(ItemCategory::Smithing, Container::Smithing, 0, 0, true, ItemCategory::Crafting | ItemCategory::Construction | ItemCategory::Gemstone | ItemCategory::Smelting | ItemCategory::Tanning | ItemCategory::PreciousIngot);
+    if (settings->GSC_OffloadCookedFood || settings->GSC_OffloadRawFood)
+        PlayerToStore(ItemCategory::Food, Container::Food, 0, 0, true, ItemCategory::CookedFood | ItemCategory::RawFood);
+    if (settings->GSC_OffloadPotion || settings->GSC_OffloadPoison)
+        PlayerToStore(ItemCategory::Concoction, Container::Concoction, 0, 0, true, ItemCategory::Potion | ItemCategory::Poison | ItemCategory::Restorative);
 
     // Final Message
     RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));

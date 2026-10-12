@@ -100,7 +100,8 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
     // Concoctions
     const auto concoctionTypes =
         ItemCategory::Potion |
-        ItemCategory::Poison;
+        ItemCategory::Poison |
+        ItemCategory::Restorative;
 
     if (HasAnyCategory(categories, concoctionTypes))
         categories |= ItemCategory::Concoction;

@@ -234,6 +234,7 @@ item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
+namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
 namespace Soulgems {
     void Recover() {} void Deposit(int, bool = false) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
     void Split() {} void Consolidate() {}
@@ -251,7 +252,7 @@ const char* Translate(const std::string& key) { return Translate(key.c_str()); }
 
 struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
-    void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false);
+    void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0);
     std::unordered_map<unsigned, std::pair<int,int>> junkLoan_;
     void BeginJunkLoan();
     void EndJunkLoan();
@@ -1003,6 +1004,15 @@ int main() {
     settings->GSC_OffloadNotes=true;settings->ignored.clear();settings->ignored.insert(&mapBook);put(&mapBook,4);stores.OffloadItems();
     assert(player->inventory[&noteBook].first==0 && player->inventory[&mapBook].first==4);
     utility->scrollContainer=nullptr;
+    player->inventory.clear();utility->armor.inventory.clear();settings->ignored.clear();
+    RE::TESBoundObject broadArmor{ItemCategory::None,false,0x140001}, leafArmor{ItemCategory::None,false,0x140002};
+    settings->overrides[&broadArmor]=ToMask(ItemCategory::Armor);settings->overrides[&leafArmor]=ToMask(ItemCategory::HeavyArmor);
+    settings->GSC_OffloadClothing=false;settings->GSC_OffloadHeavyArmor=false;settings->GSC_OffloadLightArmor=false;settings->GSC_OffloadJewelry=false;
+    put(&broadArmor,4);put(&leafArmor,5);stores.OffloadItems();assert(player->inventory[&broadArmor].first==4);
+    settings->GSC_OffloadJewelry=true;stores.OffloadItems();assert(player->inventory[&broadArmor].first==0 && utility->armor.inventory[&broadArmor].first==4 && player->inventory[&leafArmor].first==5);
+    settings->ignored.insert(&broadArmor);put(&broadArmor,3);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+    settings->ignored.clear();put(&broadArmor,3,false,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+    put(&broadArmor,3,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
 
 }
 '''

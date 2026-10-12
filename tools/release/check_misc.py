@@ -69,6 +69,7 @@ std::set<std::string> ids;
 std::vector<std::string> scope;
 bool duplicate = false;
 bool toggleNotes = false;
+bool toggleLearning = false;
 bool waitKey = false;
 using ImGuiKey = int;
 constexpr int ImGuiKey_NamedKey_BEGIN = 0, ImGuiKey_NamedKey_END = 1;
@@ -100,6 +101,7 @@ std::string ID(const char* label) {
 bool CollapsingHeader(const char* label, int) { assert(ids.insert(ID(label)).second); return true; }
 bool Checkbox(const char* label, bool* value) {
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
+    if (toggleLearning && value == &Settings::GetSingleton()->GSC_LearnDepositOverrides) { *value = !*value; return true; }
     if (toggleNotes && value == &Settings::GetSingleton()->GSC_OffloadNotes) { *value = !*value; return true; }
     if (value == &Settings::GetSingleton()->GSC_OffloadBooks) { *value = !*value; return true; }
     return false;
@@ -181,6 +183,10 @@ int main() {
     const int beforeNotes=settings->saves;
     assert(!settings->GSC_OffloadNotes);toggleNotes=true;ids.clear();RenderTransfer();
     assert(settings->GSC_OffloadNotes && settings->saves==beforeNotes+1);
+
+    assert(!settings->GSC_LearnDepositOverrides);inputs.clear();ids.clear();toggleLearning=true;
+    const auto beforeLearning=settings->saves;RenderOptions();assert(settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+1);
+    ids.clear();RenderOptions();assert(!settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+2);
 
 }
 '''

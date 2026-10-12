@@ -8,6 +8,7 @@
 #include "AVUI.h"
 #include "Translation.h"
 #include "Papyrus.h"
+#include "DepositLearning.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -35,6 +36,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		break;
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
+		DepositLearning::Reset();
 		AVEvents::ResetCraftingLoan();
 		AVEvents::CancelContainerMenuCloseCallback();
 		Stores::GetSingleton()->ResetIgnorePicker();

@@ -65,6 +65,9 @@ namespace AVUI {
 		if (Checkbox(Translate("Options.ReturnIgnoredItems"), &setting->GSC_ReturnIgnoredItems))
 			changeOption = true;
 
+		if (Checkbox(Translate("Options.LearnDepositOverrides"), &setting->GSC_LearnDepositOverrides))
+			changeOption = true;
+
 		int salePercentage = setting->GSC_SalePercentage;
 		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
 			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);

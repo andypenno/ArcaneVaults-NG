@@ -156,7 +156,14 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 33> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 40> categoryNames{{
+    { "Alchemy", ItemCategory::Alchemy },
+    { "Armor", ItemCategory::Armor },
+    { "Weapon", ItemCategory::Weapon },
+    { "Smithing", ItemCategory::Smithing },
+    { "Food", ItemCategory::Food },
+    { "Concoction", ItemCategory::Concoction },
+    { "Restorative", ItemCategory::Restorative },
     { "Ammunition", ItemCategory::Ammunition },
     { "Archery", ItemCategory::Archery },
     { "Book", ItemCategory::Book },
