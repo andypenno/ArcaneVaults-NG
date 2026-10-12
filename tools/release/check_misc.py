@@ -61,13 +61,16 @@ program += "struct Settings {\n" + settings_fields + r'''
 };
 struct Utility {
     static Utility* GetSingleton() { static Utility utility; return &utility; }
-    void ConfigurationSpells() {}
+    int spellUpdates = 0;
+    void ConfigurationSpells() { ++spellUpdates; }
 };
 const char* Translate(const char* key) { return key; }
 constexpr int ImGuiTreeNodeFlags_DefaultOpen = 1;
 std::set<std::string> ids;
 std::vector<std::string> scope;
 bool duplicate = false;
+std::vector<std::string> shownControls;
+bool toggleSpells = false;
 bool toggleNotes = false;
 bool toggleLearning = false;
 bool toggleStolenTags = false;
@@ -82,7 +85,7 @@ namespace HelperFunctions {
 const char* GetKeyName(ImGuiKey) { return "Key"; }
 bool Button(const char*) { return false; }
 bool IsKeyPressed(int) { return false; }
-void Text(const char*) {}
+void Text(const char* label) { shownControls.emplace_back(label); }
 void RenderOptions(); void RenderQuantities(); void RenderTransfer();
 void RenderOverrides() {}
 void RenderIgnoredItems() {}
@@ -102,6 +105,8 @@ std::string ID(const char* label) {
 }
 bool CollapsingHeader(const char* label, int) { assert(ids.insert(ID(label)).second); return true; }
 bool Checkbox(const char* label, bool* value) {
+    shownControls.emplace_back(label);
+    if (toggleSpells && (value == &Settings::GetSingleton()->GSC_AssignSpell || value == &Settings::GetSingleton()->GSC_SortSpell)) { *value = !*value; return true; }
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
     if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
     if (toggleStolenTags && value == &Settings::GetSingleton()->GSC_AllowRemovingStolenTags) { *value = !*value; return true; }
@@ -114,6 +119,7 @@ void SameLine() {}
 void PushID(const char* id) { scope.emplace_back(id); }
 void PopID() { assert(!scope.empty()); scope.pop_back(); }
 bool InputInt(const char* label, int* value) {
+    shownControls.emplace_back(label);
     assert(ids.insert(ID(label)).second); shownInputs.emplace_back(label);
     auto found=inputs.find(label); if (found==inputs.end()) return false;
     *value=found->second; return true;
@@ -201,6 +207,12 @@ int main() {
     const auto beforeStolenTags=settings->saves;RenderOptions();assert(settings->GSC_AllowRemovingStolenTags && settings->saves==beforeStolenTags+1);
     ids.clear();RenderOptions();assert(!settings->GSC_AllowRemovingStolenTags && settings->saves==beforeStolenTags+2);
 
+    toggleStolenTags=false;toggleSelectedAmmo=false;toggleSpells=true;ids.clear();
+    const auto beforeSpells=settings->saves;
+    const bool assignSpell=settings->GSC_AssignSpell, sortSpell=settings->GSC_SortSpell;
+    RenderOptions();
+    assert(settings->GSC_AssignSpell==!assignSpell && settings->GSC_SortSpell==!sortSpell);
+    assert(Utility::GetSingleton()->spellUpdates==2 && settings->saves==beforeSpells+1);
 }
 '''
 overrides = (ROOT / "ini/ArcaneVaultOverrides.ini").read_text()

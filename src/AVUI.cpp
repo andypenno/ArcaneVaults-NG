@@ -55,21 +55,26 @@ namespace AVUI {
 				changeOption = true;
 			}
 		}
-		if (Checkbox(Translate("Options.Redirect"), &setting->GSC_GlobalRedirects))
-			changeOption = true;		
-		if (Checkbox(Translate("Options.CraftLoan"), &setting->GSC_CraftingLoan))
-			changeOption = true;
 		if (Checkbox(Translate("Options.OnlyOwn"), &setting->GSC_AssignOnlyOwn))
 			changeOption = true;
-
+		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
+			changeOption = true;
+			utility->ConfigurationSpells();
+		}
+		if (Checkbox(Translate("Options.Redirect"), &setting->GSC_GlobalRedirects))
+			changeOption = true;
+		if (Checkbox(Translate("Options.CraftLoan"), &setting->GSC_CraftingLoan))
+			changeOption = true;
+		if (Checkbox(Translate("Options.LearnDepositOverrides"), &setting->GSC_LearnDepositOverrides))
+			changeOption = true;
+		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
+			changeOption = true;
+			utility->ConfigurationSpells();
+		}
 		if (Checkbox(Translate("Options.ReturnIgnoredItems"), &setting->GSC_ReturnIgnoredItems))
 			changeOption = true;
 		if (Checkbox(Translate("Options.KeepSelectedAmmunition"), &setting->GSC_KeepSelectedAmmunition))
 			changeOption = true;
-
-		if (Checkbox(Translate("Options.LearnDepositOverrides"), &setting->GSC_LearnDepositOverrides))
-			changeOption = true;
-
 		if (Checkbox(Translate("Options.AllowRemovingStolenTags"), &setting->GSC_AllowRemovingStolenTags))
 			changeOption = true;
 
@@ -77,16 +82,6 @@ namespace AVUI {
 		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
 			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);
 			changeOption = true;
-		}
-
-		// Configuration Spells
-		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
-			changeOption = true;
-			utility->ConfigurationSpells();
-		}
-		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
-			changeOption = true;
-			utility->ConfigurationSpells();
 		}
 
 		if (changeOption)
