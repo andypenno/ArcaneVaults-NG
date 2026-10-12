@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "ShowBookArchives", "OpenBookArchive"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -33,6 +33,8 @@ start = classification.index("CategoryMask ClassifyItem(")
 classification = classification[start:classification.index("    // Food, Potions, and Poisons", start)]
 armor_source = (ROOT / "src/ItemClass.cpp").read_text()
 classification += armor_source[armor_source.index("    // Armor and Clothing"):armor_source.index("    // Weapons", armor_source.index("    // Armor and Clothing"))]
+book_source = (ROOT / "src/ItemClass.cpp").read_text()
+classification += book_source[book_source.index("    // Books, Scrolls, and Spell Tomes"):book_source.rindex("    return categories;")]
 classification += "\n    return categories | ToMask(a_item->category);\n}\n"
 settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
@@ -59,6 +61,13 @@ namespace RE {
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESAmmo {};
 struct ScrollItem {};
+struct TESObjectBOOK {
+    bool note=false, spell=false, skill=false, recipe=false;
+    bool IsNoteScroll() const { return note; }
+    bool TeachesSpell() const { return spell; }
+    bool TeachesSkill() const { return skill; }
+    bool HasKeywordByEditorID(std::string_view key) const { return recipe && key=="VendorItemRecipe"; }
+};
 struct TESObjectMISC {};
 struct TESSoulGem {};
 struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
@@ -95,6 +104,8 @@ struct TESBoundObject {
     TESObjectARMO armor{};
     bool nativeArmor = false;
     bool nativeScroll = false;
+    bool nativeBook = false;
+    TESObjectBOOK book{};
     unsigned GetFormID() const { return formID; }
     bool IsGold() const { return formID == 0xF; }
     bool IsKey() const { return category == ItemCategory::Keys; }
@@ -102,6 +113,7 @@ struct TESBoundObject {
         static T object;
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
         else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
         else if constexpr (std::is_same_v<T, IngredientItem>) return category == ItemCategory::Ingredient || category == ItemCategory::Catalyst || category == ItemCategory::Reagent ? &ingredient : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectARMO>) return nativeArmor ? &armor : nullptr;
@@ -183,7 +195,8 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk;
+    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps;
+    RE::TESObjectREFR* scrollContainer = nullptr;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap;
     bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
     BenchType bench = BenchType::Smithing;
@@ -194,6 +207,12 @@ struct Utility {
         switch (container) {
         case Container::None: return nullptr;
         case Container::Junk: return &junk;
+        case Container::Notes: return &notes;
+        case Container::SpellTomes: return &spellTomes;
+        case Container::SkillBooks: return &skillBooks;
+        case Container::Recipes: return &recipes;
+        case Container::TreasureMaps: return &treasureMaps;
+        case Container::Scroll: return scrollContainer ? scrollContainer : &chest;
         case Container::Sort: return &inbox;
         case Container::Ignore: return &inbox;
         case Container::Ammunition: return &ammunition;
@@ -228,6 +247,8 @@ const char* Translate(const char* key) {
     if (std::string_view{key} == "Vault.TakeUpToAmount") return "Take Up To";
     return key;
 }
+const char* Translate(const std::string& key) { return Translate(key.c_str()); }
+
 struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
     void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false);
@@ -248,6 +269,11 @@ struct Stores {
     void KeysMenu(RE::TESObjectREFR*);
     void ShowKeysMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);
+    void ConsolidateBooks();
+    void NotesMenu(RE::TESObjectREFR*);
+    void ShowNotesMenu(RE::TESObjectREFR*);
+    void ShowBookArchives(Container,RE::TESObjectREFR*);
+    void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool = false);
     void ShowBookMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);
     void ShowScrollMenu(RE::TESObjectREFR*);
@@ -274,7 +300,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -380,6 +406,7 @@ int main() {
     assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
     assert(options.at({"General", "ScrollKeepAmount"}) == 3);
     assert(options.at({"General", "ReturnIgnoredItems"}) == 1);
+    assert(options.at({"Offload", "Notes"}) == 0);
     assert(options.at({"Offload", "Soulgems"}) == 1);
     assert(!options.contains({"Offload", "GrandSoulgem"}));
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
@@ -799,15 +826,15 @@ int main() {
     player->inventory.clear();chest.inventory.clear();
     RE::TESBoundObject duplicateBook{ItemCategory::Book};
     chest.inventory[&nonkey]=entry(4);chest.inventory[&duplicateBook]=entry(8);put(&duplicateBook,2);
-    stores.BookMenu(&source);assert(stores.options.size()==5 && stores.options[1].text=="Take Up To 1");
+    stores.BookMenu(&source);assert(stores.options.size()==6 && stores.options[1].text=="Take Up To 1");
     click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
     assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
     click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
     player->inventory[&duplicateBook].second->favorite=true;
     click(0);assert(player->inventory[&nonkey].first==0 && chest.inventory[&nonkey].first==4);
     assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
-    click(3);assert(stores.opened==Container::Book);stores.onClose();
-    stores.closed=false;click(4);assert(stores.closed);
+    click(4);assert(stores.opened==Container::Book);stores.onClose();
+    stores.closed=false;click(5);assert(stores.closed);
     player->inventory.clear();chest.inventory.clear();settings->GSC_AlchemyKeepAmount=6;
     for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient}) {
         put(item,8);chest.inventory[item]=entry(10);
@@ -933,6 +960,50 @@ int main() {
     assert(player->inventory[&junkMaterial].first==INT_MAX && utility->junk.inventory[&junkMaterial].first==3);
     stores.EndJunkLoan();assert(player->inventory[&junkMaterial].first==INT_MAX-2 && utility->junk.inventory[&junkMaterial].first==5);
 
+    player->inventory.clear();chest.inventory.clear();inbox.inventory.clear();utility->notes.inventory.clear();utility->junk.inventory.clear();
+    RE::TESObjectREFR scrollBank;utility->scrollContainer=&scrollBank;settings->ignored.clear();
+    RE::TESBoundObject plainBook{ItemCategory::None,false,0x120001}, spellBook{ItemCategory::None,false,0x120002}, skillBook{ItemCategory::None,false,0x120003}, noteBook{ItemCategory::None,false,0x120004}, recipeBook{ItemCategory::None,false,0x120005}, mapBook{ItemCategory::None,false,0x120006};
+    for (auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook}) item->nativeBook=true;
+    spellBook.book.spell=true;skillBook.book.skill=true;noteBook.book.note=true;recipeBook.book.note=true;recipeBook.book.recipe=true;mapBook.book.note=true;
+    settings->overrides[&mapBook]=ToMask(ItemCategory::TreasureMap);
+    assert(ClassifyItem(&plainBook)==ToMask(ItemCategory::Book));
+    assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
+    assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Note));
+    assert(ClassifyItem(&recipeBook)==(ItemCategory::Note|ItemCategory::Recipe));
+    assert(ClassifyItem(&mapBook)==(ItemCategory::Note|ItemCategory::TreasureMap));
+    RE::TESBoundObject miscMap{ItemCategory::None,false,0xFE001800};settings->overrides[&miscMap]=ToMask(ItemCategory::TreasureMap);
+    assert(ClassifyItem(&miscMap)==(ItemCategory::Note|ItemCategory::TreasureMap));
+    spellBook.book.note=true;spellBook.book.recipe=true;spellBook.book.skill=true;
+    assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
+    skillBook.book.note=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    assert(ExpandCategories(ToMask(ItemCategory::SpellTome))==(ItemCategory::SpellTome|ItemCategory::Book));
+    assert(ExpandCategories(ToMask(ItemCategory::Recipe))==(ItemCategory::Recipe|ItemCategory::Note));
+    for(auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook,&scrollA}) inbox.inventory[item]=entry(7);
+    stores.SortItems();
+    for(auto* item : {&plainBook,&spellBook,&skillBook}) assert(chest.inventory[item].first==7);
+    for(auto* item : {&noteBook,&recipeBook,&mapBook}) assert(utility->notes.inventory[item].first==7);
+    assert(scrollBank.inventory[&scrollA].first==7 && utility->junk.inventory.empty());
+    scrollBank.inventory[&noteBook]=entry(2);scrollBank.inventory[&plainBook]=entry(3);stores.ConsolidateBooks();
+    assert(utility->notes.inventory[&noteBook].first==9 && chest.inventory[&plainBook].first==10 && scrollBank.inventory[&scrollA].first==7);
+    stores.BookMenu(&source);click(3);assert(stores.options.size()==4 && stores.options[0].text=="Vault.SpellTomes" && stores.options[1].text=="Vault.SkillBooks");
+    click(0);assert(stores.opened==Container::SpellTomes && utility->spellTomes.inventory[&spellBook].first==7 && chest.inventory[&spellBook].first==0);
+    stores.onClose();assert(utility->spellTomes.inventory[&spellBook].first==0 && chest.inventory[&spellBook].first==7 && stores.options.size()==4);
+    click(1);assert(stores.opened==Container::SkillBooks && utility->skillBooks.inventory[&skillBook].first==7);stores.onClose();click(2);assert(stores.options.size()==6);
+    stores.NotesMenu(&source);click(2);assert(stores.options.size()==4 && stores.options[0].text=="Vault.Recipes" && stores.options[1].text=="Vault.TreasureMaps");
+    click(0);assert(stores.opened==Container::Recipes && utility->recipes.inventory[&recipeBook].first==7);stores.onClose();
+    click(1);assert(stores.opened==Container::TreasureMaps && utility->treasureMaps.inventory[&mapBook].first==7);stores.onClose();click(2);assert(stores.options.size()==5);
+    player->inventory[&noteBook]=entry(2);click(1);assert(player->inventory[&noteBook].first==2 && player->inventory[&recipeBook].first==1 && player->inventory[&mapBook].first==1);
+    click(0);assert(player->inventory[&noteBook].first==0 && utility->notes.inventory[&noteBook].first==11);
+    stores.closed=false;stores.OpenBookArchive(Container::Recipes,Container::Notes,ItemCategory::Recipe,&source);stores.onClose();assert(stores.closed);
+    utility->recipes.inventory[&recipeBook]=entry(2);utility->skillBooks.inventory[&skillBook]=entry(2);stores.ConsolidateBooks();
+    assert(utility->recipes.inventory[&recipeBook].first==0 && utility->notes.inventory[&recipeBook].first==9 && chest.inventory[&skillBook].first==9);
+    player->inventory.clear();settings->GSC_OffloadNotes=false;settings->GSC_OffloadBooks=true;
+    put(&noteBook,5);put(&plainBook,5);stores.OffloadItems();assert(player->inventory[&noteBook].first==5 && player->inventory[&plainBook].first==0);
+    settings->GSC_OffloadNotes=true;settings->ignored.clear();settings->ignored.insert(&mapBook);put(&mapBook,4);stores.OffloadItems();
+    assert(player->inventory[&noteBook].first==0 && player->inventory[&mapBook].first==4);
+    utility->scrollContainer=nullptr;
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -942,10 +1013,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 86
+assert validate_esp(ROOT, generate_esp(working)) == 96
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 40
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA")]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 45
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC)]]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:
@@ -958,4 +1029,15 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+
+map_overrides = {}
+for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines():
+    if "=" in line:
+        identifier, categories = (part.strip() for part in line.split("=", 1))
+        if categories == "TreasureMap":
+            plugin, local = identifier.split("|", 1)
+            map_overrides[(plugin, int(local, 16))] = categories
+assert set(map_overrides) == {("Skyrim.esm", local) for local in
+    (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
+     0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)}
+print("PASS: Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")

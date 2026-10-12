@@ -360,6 +360,11 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
 
     // Books and Scrolls
     AddContainer(dataHandler, Container::Book, RE::FormID(0xD9A), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->BookMenu(a_source); });
+    AddContainer(dataHandler, Container::Notes, RE::FormID(0xDD5), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->NotesMenu(source); });
+    AddContainer(dataHandler, Container::SpellTomes, RE::FormID(0xDD7), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SpellTomes, Container::Book, ItemCategory::SpellTome, source); });
+    AddContainer(dataHandler, Container::SkillBooks, RE::FormID(0xDD9), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SkillBooks, Container::Book, ItemCategory::SkillBook, source); });
+    AddContainer(dataHandler, Container::Recipes, RE::FormID(0xDDB), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Recipes, Container::Notes, ItemCategory::Recipe, source); });
+    AddContainer(dataHandler, Container::TreasureMaps, RE::FormID(0xDDD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::TreasureMaps, Container::Notes, ItemCategory::TreasureMap, source); });
     AddContainer(dataHandler, Container::Scroll, RE::FormID(0xD9B), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ScrollMenu(a_source); });
     
     // Misc

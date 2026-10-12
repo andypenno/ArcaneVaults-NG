@@ -83,6 +83,10 @@ public:
     void FoodRawMenu(RE::TESObjectREFR* a_source);
     void FoodSaltMenu(RE::TESObjectREFR* a_source);
     void BookMenu(RE::TESObjectREFR* a_source);
+    void NotesMenu(RE::TESObjectREFR* a_source);
+    void ConsolidateBooks();
+    void OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,
+        RE::TESObjectREFR* a_source, bool a_returnToParent = false);
     void ScrollMenu(RE::TESObjectREFR* a_source);
     void ArmorMenu(RE::TESObjectREFR* a_source);
     void ArmorLightMenu(RE::TESObjectREFR* a_source);
@@ -130,6 +134,8 @@ private:
     void ShowFoodRawMenu(RE::TESObjectREFR* a_source);
     void ShowFoodSaltMenu(RE::TESObjectREFR* a_source);
     void ShowBookMenu(RE::TESObjectREFR* a_source);
+    void ShowNotesMenu(RE::TESObjectREFR* a_source);
+    void ShowBookArchives(Container a_parent, RE::TESObjectREFR* a_source);
     void ShowScrollMenu(RE::TESObjectREFR* a_source);
     void ShowArmorMenu(RE::TESObjectREFR* a_source);
     void ShowArmorLightMenu(RE::TESObjectREFR* a_source);

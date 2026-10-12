@@ -150,5 +150,12 @@
 	"Ignore.ConfirmClear": "Confirm Clear All",
 	"Ignore.Cancel": "Cancel",
 	"Ignore.SaveFailed": "Ignore list could not be saved. Changes apply until the game closes.",
-	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list."
+	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list.",
+
+	"Vault.Notes": "Notes",
+	"Vault.SkillBooks": "Skill Books",
+	"Vault.Recipes": "Recipes",
+	"Vault.TreasureMaps": "Treasure Maps",
+	"Vault.Archives": "Archives",
+	"Vault.SpellTomes": "Spell Tomes"
 }

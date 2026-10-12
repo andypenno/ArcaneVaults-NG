@@ -323,6 +323,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 // Sorting
 //===================================================
 void Stores::SortItems() {
+    ConsolidateBooks();
     ReturnIgnoredItems();
     Soulgems::Recover();
     // Sort all items in the sorting container
@@ -333,6 +334,7 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Food, Container::Sort, Container::Food);
     StoreToStore(ItemCategory::Alchemy, Container::Sort, Container::Alchemy);
     StoreToStore(ItemCategory::Scroll, Container::Sort, Container::Scroll);
+    StoreToStore(ItemCategory::Note, Container::Sort, Container::Notes);
     StoreToStore(ItemCategory::Book, Container::Sort, Container::Book);
     StoreToStore(ItemCategory::Treasure, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Armor, Container::Sort, Container::Armor);
@@ -343,6 +345,7 @@ void Stores::SortItems() {
 }
 
 void Stores::OffloadItems() {
+    ConsolidateBooks();
     auto* settings = Settings::GetSingleton();
 
     if (settings->GSC_OffloadSoulgems) Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
@@ -366,6 +369,8 @@ void Stores::OffloadItems() {
     if (settings->GSC_OffloadHeavyArmor) PlayerToStore(ItemCategory::HeavyArmor, Container::Armor, 0, 0, true);
     if (settings->GSC_OffloadLightArmor) PlayerToStore(ItemCategory::LightArmor, Container::Armor, 0, 0, true);
     if (settings->GSC_OffloadJewelry) PlayerToStore(ItemCategory::Jewelry, Container::Armor, 0, 0, true);
+
+    if (settings->GSC_OffloadNotes) PlayerToStore(ItemCategory::Note, Container::Notes, 0, 0, true);
 
     // Books
     if (settings->GSC_OffloadBooks) PlayerToStore(ItemCategory::Book, Container::Book, 0, 0, true);
@@ -552,10 +557,11 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     }});
 
     options.push_back({Translate("Vault.Book"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Book, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail2Menu(a_source);
-            });
+        if (auto source = sourceHandle.get()) BookMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.Notes"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) NotesMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Scroll"), [this, sourceHandle] {
@@ -1044,6 +1050,7 @@ void Stores::ShowPotionRestoreMenu(RE::TESObjectREFR* a_source) {
 //===================================================
 void Stores::BookMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidateBooks();
     OpenStoreObject(a_source, [this](RE::TESObjectREFR* a_openSource) { ShowBookMenu(a_openSource); });
 }
 
@@ -1068,6 +1075,10 @@ void Stores::ShowBookMenu(RE::TESObjectREFR* a_source) {
         StoreToPlayer(ItemCategory::SpellTome, Container::Book);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) BookMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.Archives"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) ShowBookArchives(Container::Book, source.get());
     }});
 
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
@@ -2071,4 +2082,92 @@ void Stores::EndJunkLoan() {
         MoveItems(player, destination, item, count);
     }
     ResetJunkLoan();
+}
+
+void Stores::ConsolidateBooks() {
+    AllToStore(Container::SpellTomes, Container::Book);
+    AllToStore(Container::SkillBooks, Container::Book);
+    AllToStore(Container::Recipes, Container::Notes);
+    AllToStore(Container::TreasureMaps, Container::Notes);
+    StoreToStore(ItemCategory::Note, Container::Scroll, Container::Notes);
+    StoreToStore(ItemCategory::Book, Container::Scroll, Container::Book);
+    StoreToStore(ItemCategory::Note, Container::Book, Container::Notes);
+}
+
+void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,
+    RE::TESObjectREFR* a_source, bool a_returnToParent) {
+    if (!a_source) return;
+    ConsolidateBooks();
+    StoreToStore(a_category, a_parent, a_archive);
+    OpenStoreObject(a_source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
+        OpenStorageMenu(a_archive, source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
+            AllToStore(a_archive, a_parent);
+            if (a_returnToParent) ShowBookArchives(a_parent, source);
+            else CloseStoreObject(source);
+        });
+    });
+}
+
+void Stores::ShowBookArchives(Container a_parent, RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto sourceHandle = a_source->GetHandle();
+    const bool books = a_parent == Container::Book;
+    std::vector<MenuOption> options;
+    const auto addArchive = [this, &options, sourceHandle, a_parent](Container archive, ItemCategory category) {
+        options.push_back({Translate(std::string{ContainerTranslationKey(archive)}), [this, sourceHandle, a_parent, archive, category] {
+            if (auto source = sourceHandle.get()) OpenBookArchive(archive, a_parent, category, source.get(), true);
+        }});
+    };
+    if (books) {
+        addArchive(Container::SpellTomes, ItemCategory::SpellTome);
+        addArchive(Container::SkillBooks, ItemCategory::SkillBook);
+    } else {
+        addArchive(Container::Recipes, ItemCategory::Recipe);
+        addArchive(Container::TreasureMaps, ItemCategory::TreasureMap);
+    }
+    options.push_back({Translate("Vault.Back"), [this, sourceHandle, books] {
+        if (auto source = sourceHandle.get()) {
+            if (books) BookMenu(source.get());
+            else NotesMenu(source.get());
+        }
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    }});
+    const auto title = std::format("{} {}", Translate(books ? "Vault.Book" : "Vault.Notes"), Translate("Vault.Archives"));
+    ShowDynamicMessageBox(title, std::move(options), 3);
+}
+
+void Stores::NotesMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    ConsolidateBooks();
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowNotesMenu(source); });
+}
+
+void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto sourceHandle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
+        PlayerToStore(ItemCategory::Note, Container::Notes);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (auto source = sourceHandle.get()) NotesMenu(source.get());
+    }});
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), 1), [this, sourceHandle] {
+        StoreToPlayer(ItemCategory::Note, Container::Notes, 0, 1);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
+        if (auto source = sourceHandle.get()) NotesMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.Archives"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) ShowBookArchives(Container::Notes, source.get());
+    }});
+    options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Notes, source.get(), [this](RE::TESObjectREFR* source) { NotesMenu(source); });
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    }});
+    const auto title = std::format("{} {}", Translate("Vault.Notes"), Translate("Vault.Vault"));
+    ShowDynamicMessageBox(title, std::move(options), 4);
 }

@@ -11,7 +11,7 @@
       "fields": [
         {
           "type": "HEDR",
-          "hex": "48e1da3f5d000000d40d0000"
+          "hex": "48e1da3f67000000de0d0000"
         },
         {
           "type": "CNAM",
@@ -1568,6 +1568,176 @@
               "hex": "0000000000"
             }
           ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DD4",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Notes"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Notes Vault"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DD6",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_SpellTomes"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Spell Tomes Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DD8",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_SkillBooks"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Skill Books Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DDA",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_Recipes"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Recipes Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DDC",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_TreasureMaps"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Treasure Maps Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
         }
       ]
     },
@@ -2517,6 +2687,116 @@
                             {
                               "type": "DATA",
                               "hex": "0000dc440000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DD5",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Notes"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DD4"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "0000e1440000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DD7",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_SpellTomes"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DD6"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "00c0f3440000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DD9",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_SkillBooks"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DD8"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "004003450000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DDB",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_Recipes"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DDA"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "00a00c450000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DDD",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_TreasureMaps"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DDC"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "000016450000000000000000000000000000000000000000"
                             }
                           ]
                         }

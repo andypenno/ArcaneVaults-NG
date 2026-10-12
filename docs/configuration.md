@@ -38,7 +38,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults include `Notes` alongside `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
 Quantities also exposes Alchemy Keep Amount and Scroll Keep Amount. They affect manual vault actions; Quick Transfer retains its existing deposit-all policy for enabled Alchemy and Scroll categories.
 
@@ -100,3 +100,5 @@ Framework wrappers come from its submodule's resources header and resolve `SKSEM
 Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ignore List picker. Items remaining when it closes are added by base record, and every deposited copy is returned. Removing an item before closing cancels that addition. Normal activation, manual vault actions, and crafting loans do not use the list. Quick Transfer, its hotkey, and its spell always skip ignored records, including physical soul gems.
 
 The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
+
+Notes has its own Quick Transfer checkbox, persisted as `[Offload] Notes=false` by default. It deposits Note records, including Recipe and TreasureMap children. Books and Spell Tomes controls remain independent. Override categories now also accept Note, SkillBook, Recipe, and TreasureMap; leaf-parent expansion is described in [storage.md](storage.md).

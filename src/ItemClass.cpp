@@ -134,6 +134,11 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
     if (HasAnyCategory(categories, alchemyTypes))
         categories |= ItemCategory::Alchemy;
 
+    if (HasAnyCategory(categories, ItemCategory::SpellTome | ItemCategory::SkillBook))
+        categories |= ItemCategory::Book;
+    if (HasAnyCategory(categories, ItemCategory::Recipe | ItemCategory::TreasureMap))
+        categories |= ItemCategory::Note;
+
     return categories;
 }
 
@@ -280,13 +285,16 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
 
     // Books, Scrolls, and Spell Tomes
     if (auto* book = a_item->As<RE::TESObjectBOOK>()) {
-        if (book->IsNoteScroll())
-            categories |= ItemCategory::Scroll;
-        else {
+        if (book->TeachesSpell())
+            categories |= ItemCategory::Book | ItemCategory::SpellTome;
+        else if (book->TeachesSkill())
+            categories |= ItemCategory::Book | ItemCategory::SkillBook;
+        else if (book->HasKeywordByEditorID("VendorItemRecipe"))
+            categories |= ItemCategory::Note | ItemCategory::Recipe;
+        else if (book->IsNoteScroll())
+            categories |= ItemCategory::Note;
+        else
             categories |= ItemCategory::Book;
-            if (book->TeachesSpell()) 
-                categories |= ItemCategory::SpellTome;
-        }
 
         return categories;
     }

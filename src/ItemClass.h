@@ -43,7 +43,12 @@ enum class Container : std::uint8_t {
     EmptySoulgems,
     Junk,
     Trade,
-    Ignore
+    Ignore,
+    Notes,
+    SpellTomes,
+    SkillBooks,
+    Recipes,
+    TreasureMaps
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -86,7 +91,11 @@ enum class ItemCategory : std::uint8_t {
     Keys,
     Ammunition,
     Gold,
-    PreciousIngot
+    PreciousIngot,
+    Note,
+    SkillBook,
+    Recipe,
+    TreasureMap
 };
 
 enum class ContainerGroup {
@@ -137,15 +146,24 @@ enum class ContainerGroup {
     case Container::Trade:        return "Vault.Trade";
     case Container::Junk:         return "Vault.Junk";
     case Container::Ignore:       return "Ignore";
+    case Container::Notes:        return "Vault.Notes";
+    case Container::SpellTomes:   return "Vault.SpellTomes";
+    case Container::SkillBooks:   return "Vault.SkillBooks";
+    case Container::Recipes:      return "Vault.Recipes";
+    case Container::TreasureMaps: return "Vault.TreasureMaps";
     case Container::None:         return {};
     }
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 29> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 33> categoryNames{{
     { "Ammunition", ItemCategory::Ammunition },
     { "Archery", ItemCategory::Archery },
     { "Book", ItemCategory::Book },
+    { "Note", ItemCategory::Note },
+    { "SkillBook", ItemCategory::SkillBook },
+    { "Recipe", ItemCategory::Recipe },
+    { "TreasureMap", ItemCategory::TreasureMap },
     { "Catalyst", ItemCategory::Catalyst },
     { "Clothing", ItemCategory::Clothing },
     { "CookedFood", ItemCategory::CookedFood },

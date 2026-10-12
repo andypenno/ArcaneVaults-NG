@@ -16,7 +16,7 @@ The category helpers iterate inventory snapshots and use `MoveItems` to call `Re
 
 `PlayerToStore` also evaluates Skyrim's standard `GetEquipped` condition for matching items. It resolves the current function on each transfer so mod-installed condition hooks are respected. A successful nonzero result protects the whole base-item stack, as native worn flags already do. Missing or failed condition evaluation leaves the existing quest, favourite, and worn checks in force. Mods keeping worn state private without exposing native flags or this condition cannot be detected through these checks.
 
-`SortItems` first recovers physical soul gems from Sort and Smithing storage into the Soulgem Vault, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+`SortItems` consolidates book/note archives and old note storage, returns ignored records when configured, recovers physical soul gems, then drains Sort in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Note, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass. Personal, Junk, and Trade are on the third main-vault page. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
@@ -43,7 +43,7 @@ Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N,
 
 Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
 
-Books offers Take Up To 1 in place of Transfer One Copy. It withdraws only missing book records, without emptying the vault or depositing carried duplicates. Store All, Gather Spell Tomes, Open, and Exit retain their existing actions.
+Books offers Take Up To 1 in place of Transfer One Copy. It withdraws only missing book records, without emptying the vault or depositing carried duplicates. Store All, Gather Spell Tomes, Open, and Exit retain their existing actions. Archives opens Spell Tomes and Skill Books.
 
 Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Exit, Keep N Septims, Store All Septims, and Take All Septims. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N uses Gold Keep Amount in Quantities. Take All Septims selects Gold only and handles counts above 9999.
 
@@ -71,7 +71,7 @@ Bank access, Quick Transfer, Sort, and gem loans recover misplaced soul gems fro
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
 
-Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, and alchemy leaf categories. It does not infer every related leaf bit. For example, overriding SpellTome does not add Book, and Potion does not imply Restorative.
+Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, alchemy, book, and note leaf categories. SpellTome and SkillBook imply Book; Recipe and TreasureMap imply Note. It does not infer every related leaf bit; Potion does not imply Restorative.
 
 | Engine type | Built-in classification |
 | --- | --- |
@@ -82,7 +82,7 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 | Armor | Armor plus Jewelry by keyword or CommonLib accessory detection excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Native spell scroll | Scroll through the engine ScrollItem type; explicit overrides still win |
-| Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
+| Book | Spell-teaching forms become Book/SpellTome; skill-teaching forms become Book/SkillBook; recipe-keyword forms become Note/Recipe; other note-style forms become Note; remaining forms become Book |
 | Soul gem | Soulgem before miscellaneous items and overrides; filled/empty state belongs to inventory stacks |
 | Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
 | Gold/silver ingots | PreciousIngot and Smithing, plus the existing recipe-derived categories |
@@ -94,7 +94,7 @@ The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, ve
 
 Rare Curios Welkynd Stones use the bundled `ccBGSSSE037-Curios.esl|0x000800 = Treasure` override. The identity is documented by the [Rare Curios/The Cause patch author](https://www.nexusmods.com/skyrimspecialedition/mods/189779). Other plugins' stone records are not inferred from display names.
 
-Native `RE::ScrollItem` records, including mod-added spell scrolls, classify as Scroll without per-form overrides. Dragonborn's throwable spider scrolls use the same path; a [published KID configuration and runtime log](https://www.nexusmods.com/skyrimspecialedition/mods/55728?comment_id=110378683&tab=posts) identifies `DLC2ExpSpider` items through its native Scroll filter. Book-style note scroll classification is unchanged. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
+Native `RE::ScrollItem` records, including mod-added spell scrolls, classify as Scroll without per-form overrides. Dragonborn's throwable spider scrolls use the same path; a [published KID configuration and runtime log](https://www.nexusmods.com/skyrimspecialedition/mods/55728?comment_id=110378683&tab=posts) identifies `DLC2ExpSpider` items through its native Scroll filter. Note-style BOOK records belong to Notes; native SCRL records remain Scroll. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 
@@ -161,6 +161,11 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Jewelry | `0xD99` | Archive | `ArmorJewelryMenu` |
 | Clothing | `0xD96` | Archive | `ArmorClothingMenu` |
 | Book | `0xD9A` | Vault | `BookMenu` |
+| Notes | `0xDD5` | Vault | `NotesMenu` |
+| SpellTomes | `0xDD7` | Archive | `OpenBookArchive` from Book |
+| SkillBooks | `0xDD9` | Archive | `OpenBookArchive` from Book |
+| Recipes | `0xDDB` | Archive | `OpenBookArchive` from Notes |
+| TreasureMaps | `0xDDD` | Archive | `OpenBookArchive` from Notes |
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
@@ -183,3 +188,29 @@ Sort first returns ignored records when Return Ignored Items is enabled. Its cat
 Every recognized crafting bench also borrows eligible Junk items when Crafting Loan is enabled. The Junk session starts after normal vault loans and records carried counts plus actual borrowed counts per base record. On exit it returns up to the borrowed amount above the captured carried count to Junk, before soul-gem and category returns. Consumed items are not recreated; partial engine moves use the shared retry helper. Quest, favourited, worn, and standard GetEquipped-protected player entries are retained. Quick Transfer ignores do not suppress this explicit loan.
 
 Loan counts use runtime form IDs only during the active session. Load/reset discards bookkeeping without transferring saved inventory, as with existing crafting loans. A transformed item with a different base record stays on the player. The ledger preserves counts, not identities of copies sharing a base record; engine removal selects the returned copies and preserves their extra data. Carpenter bench detection is unchanged.
+
+## Books and Notes archives
+
+Books owns Spell Tomes and Skill Books. Notes owns Recipes and Treasure Maps. Each parent has an Archives submenu; each archive is also directly assignable. Opening gathers matching items from the parent. Closing returns all contents to that parent, including manually added items. A parent-menu visit returns to Archives; a direct archive assignment closes the source. Parent menus retain contextual Back to the originating Arcane Vault page. Notes offers Store All, Take Up To 1, Archives, Open, and Exit.
+
+`ConsolidateBooks` returns child contents to parents and migrates Note/Book records from legacy Scroll storage, plus Note records from Books. It runs before Books/Notes/archive menus, Sort, and Quick Transfer. Native scrolls remain in Scroll. If a source disappears before the close callback runs, the next consolidation recovers the archive contents. Player protections and the ignore list still apply through their existing transfer paths.
+
+Spell/skill-teaching flags take precedence over the recipe keyword and note-style flag. Recipes use `VendorItemRecipe`; no translated item names are matched. Treasure Maps use bundled plugin-local overrides. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns TreasureMap.
+
+The [published in-game record extraction](https://www.nexusmods.com/skyrimspecialedition/mods/32763?tab=docs) identifies the bundled map records:
+
+| Map | Plugin | Local ID |
+| --- | --- | --- |
+| I | Skyrim.esm | `0x0EF07A` |
+| II | Skyrim.esm | `0x0F33CE` |
+| III | Skyrim.esm | `0x0F33CF` |
+| IV | Skyrim.esm | `0x0F33D1` |
+| V | Skyrim.esm | `0x0F33D4` |
+| VI | Skyrim.esm | `0x0F33D0` |
+| VII | Skyrim.esm | `0x0F33D5` |
+| VIII | Skyrim.esm | `0x0F33D3` |
+| IX | Skyrim.esm | `0x0F33CD` |
+| X | Skyrim.esm | `0x0F33E0` |
+| Fort Neugrad | Skyrim.esm | `0x0F33D2` |
+| Velehk Sain | Skyrim.esm | `0x0DDEFB` |
+| Deathbrand | Dragonborn.esm | `0x02BAAE` |

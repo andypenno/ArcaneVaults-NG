@@ -158,6 +158,9 @@ namespace AVUI {
 			PopID();
 		}
 
+		if (Checkbox(Translate("Vault.Notes"), &setting->GSC_OffloadNotes))
+			changeOption = true;
+
 		if (CollapsingHeader(Translate("Vault.Concoction"), ImGuiTreeNodeFlags_DefaultOpen)) {
 			if (Checkbox(Translate("Vault.Poison"), &setting->GSC_OffloadPoison))
 				changeOption = true;

@@ -68,6 +68,7 @@ constexpr int ImGuiTreeNodeFlags_DefaultOpen = 1;
 std::set<std::string> ids;
 std::vector<std::string> scope;
 bool duplicate = false;
+bool toggleNotes = false;
 bool waitKey = false;
 using ImGuiKey = int;
 constexpr int ImGuiKey_NamedKey_BEGIN = 0, ImGuiKey_NamedKey_END = 1;
@@ -99,6 +100,7 @@ std::string ID(const char* label) {
 bool CollapsingHeader(const char* label, int) { assert(ids.insert(ID(label)).second); return true; }
 bool Checkbox(const char* label, bool* value) {
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
+    if (toggleNotes && value == &Settings::GetSingleton()->GSC_OffloadNotes) { *value = !*value; return true; }
     if (value == &Settings::GetSingleton()->GSC_OffloadBooks) { *value = !*value; return true; }
     return false;
 }
@@ -176,6 +178,10 @@ int main() {
     data->forms.erase({"ccBGSSSE037-Curios.esl", 0x800}); overrides.clear();
     settings->ProcessOverrideFile(L"test.ini", overrides);
     assert(overrides.size() == 1 && overrides.contains(ingredient.id));
+    const int beforeNotes=settings->saves;
+    assert(!settings->GSC_OffloadNotes);toggleNotes=true;ids.clear();RenderTransfer();
+    assert(settings->GSC_OffloadNotes && settings->saves==beforeNotes+1);
+
 }
 '''
 overrides = (ROOT / "ini/ArcaneVaultOverrides.ini").read_text()
