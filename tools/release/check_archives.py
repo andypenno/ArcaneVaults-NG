@@ -161,8 +161,8 @@ int main() {
     state->Begin(source, {}); assert(state->GetTitle() == "Select destination");
     assert(!state->Complete(-1)); assert(state->GetTitle().empty());
     source->alive = true;
-    auto* target = utility->containerMap[Container::Crafting].container;
-    RE::TESForm::forms[target->id] = target;
+    for (auto& [kind, entry] : utility->containerMap)
+        if (entry.container) RE::TESForm::forms[entry.container->id] = entry.container;
     state->Begin(source, utility->GetArchiveChoices());
     assert(state->Complete(0) && RedirectManager::GetSingleton()->assignments == 1);
     assert(state->GetChoices().empty());

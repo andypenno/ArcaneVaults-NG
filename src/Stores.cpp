@@ -1116,14 +1116,14 @@ void Stores::ShowBookMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) BookMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.GatherSpellTomes"), [this, sourceHandle] {
-        StoreToPlayer(ItemCategory::SpellTome, Container::Book);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
-        if (auto source = sourceHandle.get()) BookMenu(source.get());
+    options.push_back({Translate("Vault.SpellTomes"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::SpellTomes, Container::Book, ItemCategory::SpellTome, source.get(), true);
     }});
 
-    options.push_back({Translate("Vault.Archives"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) ShowBookArchives(Container::Book, source.get());
+    options.push_back({Translate("Vault.SkillBooks"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::SkillBooks, Container::Book, ItemCategory::SkillBook, source.get(), true);
     }});
 
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
@@ -2222,8 +2222,10 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
     OpenStoreObject(a_source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
         OpenStorageMenu(a_archive, source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
             AllToStore(a_archive, a_parent);
-            if (a_returnToParent) ShowBookArchives(a_parent, source);
-            else CloseStoreObject(source);
+            if (a_returnToParent) {
+                if (a_parent == Container::Book) BookMenu(source);
+                else ShowBookArchives(a_parent, source);
+            } else CloseStoreObject(source);
         });
     });
 }

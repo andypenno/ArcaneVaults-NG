@@ -860,6 +860,7 @@ int main() {
     RE::TESBoundObject duplicateBook{ItemCategory::Book};
     chest.inventory[&nonkey]=entry(4);chest.inventory[&duplicateBook]=entry(8);put(&duplicateBook,2);
     stores.BookMenu(&source);assert(stores.options.size()==6 && stores.options[1].text=="Take Up To 1");
+    assert(stores.options[0].text=="Vault.StoreAll" && stores.options[2].text=="Vault.SpellTomes" && stores.options[3].text=="Vault.SkillBooks" && stores.options[4].text=="Vault.Open" && stores.options[5].text=="Vault.Exit");
     click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
     assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
     click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
@@ -1034,10 +1035,11 @@ int main() {
     assert(scrollBank.inventory[&scrollA].first==7 && utility->junk.inventory.empty());
     scrollBank.inventory[&noteBook]=entry(2);scrollBank.inventory[&plainBook]=entry(3);stores.ConsolidateBooks();
     assert(utility->notes.inventory[&noteBook].first==9 && chest.inventory[&plainBook].first==10 && scrollBank.inventory[&scrollA].first==7);
-    stores.BookMenu(&source);click(3);assert(stores.options.size()==4 && stores.options[0].text=="Vault.SpellTomes" && stores.options[1].text=="Vault.SkillBooks");
-    click(0);assert(stores.opened==Container::SpellTomes && utility->spellTomes.inventory[&spellBook].first==7 && chest.inventory[&spellBook].first==0);
-    stores.onClose();assert(utility->spellTomes.inventory[&spellBook].first==0 && chest.inventory[&spellBook].first==7 && stores.options.size()==4);
-    click(1);assert(stores.opened==Container::SkillBooks && utility->skillBooks.inventory[&skillBook].first==7);stores.onClose();click(2);assert(stores.options.size()==6);
+    stores.BookMenu(&source);assert(stores.options.size()==6);
+    click(2);assert(stores.opened==Container::SpellTomes && utility->spellTomes.inventory[&spellBook].first==7 && chest.inventory[&spellBook].first==0);
+    stores.onClose();assert(utility->spellTomes.inventory[&spellBook].first==0 && chest.inventory[&spellBook].first==7 && stores.options.size()==6 && stores.options[3].text=="Vault.SkillBooks");
+    click(3);assert(stores.opened==Container::SkillBooks && utility->skillBooks.inventory[&skillBook].first==7);
+    stores.onClose();assert(utility->skillBooks.inventory[&skillBook].first==0 && chest.inventory[&skillBook].first==7 && stores.options.size()==6 && stores.options[2].text=="Vault.SpellTomes");
     stores.NotesMenu(&source);click(2);assert(stores.options.size()==4 && stores.options[0].text=="Vault.Recipes" && stores.options[1].text=="Vault.TreasureMaps");
     click(0);assert(stores.opened==Container::Recipes && utility->recipes.inventory[&recipeBook].first==7);stores.onClose();
     click(1);assert(stores.opened==Container::TreasureMaps && utility->treasureMaps.inventory[&mapBook].first==7);stores.onClose();click(2);assert(stores.options.size()==5);

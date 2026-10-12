@@ -194,7 +194,7 @@ Loan counts use runtime form IDs only during the active session. Load/reset disc
 
 ## Books and Notes archives
 
-Books owns Spell Tomes and Skill Books. Notes owns Recipes and Treasure Maps. Each parent has an Archives submenu; each archive is also directly assignable. Opening gathers matching items from the parent. Closing returns all contents to that parent, including manually added items. A parent-menu visit returns to Archives; a direct archive assignment closes the source. Parent menus retain contextual Back to the originating Arcane Vault page. Notes offers Store All, Take Up To 1, Archives, Open, and Exit.
+Books has direct Spell Tomes and Skill Books archive actions. Notes owns Recipes and Treasure Maps through its Archives submenu. Each archive is also directly assignable. Opening gathers matching items from the parent. Closing returns all contents to that parent, including manually added items. Books archive visits return to Books; Notes archive visits return to Archives. A direct archive assignment closes the source. Parent menus retain contextual Back to the originating Arcane Vault page. Both parents offer Store All, Take Up To 1, Open, and Exit.
 
 `ConsolidateBooks` returns child contents to parents and migrates Note/Book records from legacy Scroll storage, plus Note records from Books. It runs before Books/Notes/archive menus, Sort, and Quick Transfer. Native scrolls remain in Scroll. If a source disappears before the close callback runs, the next consolidation recovers the archive contents. Player protections and the ignore list still apply through their existing transfer paths.
 
