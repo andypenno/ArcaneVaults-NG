@@ -94,8 +94,28 @@ namespace {
 
 using AVTranslation::Translate;
 
+void Stores::ResetNavigation() {
+    navigationSource_ = {};
+    returnToVault_ = {};
+}
+
 void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuOption> a_options, std::int32_t a_cancelOption) {
     if (a_options.empty()) return;
+    bool hasExit = false;
+    bool hasBack = false;
+    for (auto& option : a_options) {
+        hasBack |= option.text == Translate("Vault.Back");
+        if (option.text == Translate("Vault.Exit")) {
+            hasExit = true;
+            auto action = std::move(option.action);
+            option.action = [this, action = std::move(action)] {
+                ResetNavigation();
+                if (action) action();
+            };
+        }
+    }
+    if (returnToVault_ && hasExit && !hasBack)
+        a_options.push_back({Translate("Vault.Back"), returnToVault_});
 
     // Start the strings
     const auto* strings = RE::InterfaceStrings::GetSingleton();
@@ -256,6 +276,15 @@ void Stores::OpenStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_on
 
 void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_onComplete) {
     if (!a_source) return;
+    if (!a_onComplete && returnToVault_ &&
+        navigationSource_.native_handle() == a_source->GetHandle().native_handle()) {
+        const auto handle = navigationSource_;
+        auto action = returnToVault_;
+        SKSE::GetTaskInterface()->AddTask([this, handle, action = std::move(action)] {
+            if (handle.get() && returnToVault_ && navigationSource_.native_handle() == handle.native_handle()) action();
+        });
+        return;
+    }
 
     const auto openState = RE::BGSOpenCloseForm::GetOpenState(a_source);
     if (openState != RE::BGSOpenCloseForm::OPEN_STATE::kClosed &&
@@ -351,6 +380,7 @@ void Stores::OffloadItems() {
 //===================================================
 void Stores::VaultMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ResetNavigation();
     OpenStoreObject(a_source, [this](RE::TESObjectREFR* a_openSource) { ShowVaultMenu(a_openSource); });
 }
 
@@ -393,6 +423,10 @@ void Stores::VaultDetail1Menu(RE::TESObjectREFR* a_source) {
 void Stores::ShowVaultDetail1Menu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     const auto sourceHandle = a_source->GetHandle();
+    navigationSource_ = sourceHandle;
+    returnToVault_ = [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) VaultDetail1Menu(source.get());
+    };
     std::vector<MenuOption> options;
 
     options.push_back({Translate("Vault.Smithing"), [this, sourceHandle] {
@@ -478,6 +512,10 @@ void Stores::VaultDetail2Menu(RE::TESObjectREFR* a_source) {
 void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     const auto sourceHandle = a_source->GetHandle();
+    navigationSource_ = sourceHandle;
+    returnToVault_ = [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) VaultDetail2Menu(source.get());
+    };
     std::vector<MenuOption> options;
 
     options.push_back({Translate("Vault.Ammunition"), [this, sourceHandle] {
@@ -532,6 +570,7 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
 //===================================================
 void Stores::VaultAssignment(RE::TESObjectREFRPtr a_source) {
     if (!a_source) return;
+    ResetNavigation();
     auto* utility = Utility::GetSingleton();
     std::vector<MenuOption> options;
 
@@ -1828,6 +1867,10 @@ void Stores::VaultDetail3Menu(RE::TESObjectREFR* a_source) {
 void Stores::ShowVaultDetail3Menu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     const auto handle = a_source->GetHandle();
+    navigationSource_ = handle;
+    returnToVault_ = [this, handle] {
+        if (auto source = handle.get()) VaultDetail3Menu(source.get());
+    };
     std::vector<MenuOption> options;
     options.push_back({Translate("Vault.Personal"), [this, handle] {
         if (auto source = handle.get()) PersonalMenu(source.get());

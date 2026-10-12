@@ -57,6 +57,7 @@ public:
     // Utility Functions
     void SortItems();
     void OffloadItems();
+    void ResetNavigation();
     void VaultAssignment(RE::TESObjectREFRPtr a_source);
     
     // Container Functions
@@ -105,6 +106,8 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
+    RE::ObjectRefHandle navigationSource_;
+    MenuAction returnToVault_;
     void ShowVaultMenu(RE::TESObjectREFR* a_source);
     void ShowVaultDetail1Menu(RE::TESObjectREFR* a_source);
     void ShowVaultDetail3Menu(RE::TESObjectREFR* a_source);

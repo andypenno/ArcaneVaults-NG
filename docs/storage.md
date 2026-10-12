@@ -113,6 +113,12 @@ This is illustrative, not a real source reference. `MakeFormIdentifier` refuses 
 
 Assignment changes update memory immediately. Global redirects are written by the SKSE save callback, not by every assignment. Switching persistence mode in the settings UI does not migrate existing records or INI data. Global refers to the mapping across saves, not item inventories shared across games.
 
+## Menu navigation
+
+Main-vault pages retain their source handle and a callback to rebuild the originating page. Submenus append Back when that context exists, preserving their existing Exit/cancel index. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
+
+Direct bound-container activation clears navigation before running its action, so it shows no contextual Back. Assignment and pre-load/new-game handling also clear navigation. The stored callback resolves a handle rather than retaining a raw source pointer.
+
 ## Companion reference registry
 
 The table below is extracted from `Utility::LoadContainers`. IDs are local reference IDs in `ArcaneVaults-LinkedStorage.esp`, not load-order-prefixed runtime IDs. The release build generates that ESP from the working record definition. `AddContainer` requires a reference, translates and renames a container base when available, and registers a menu action. Enum names and IDs must stay coordinated with the generated plugin.

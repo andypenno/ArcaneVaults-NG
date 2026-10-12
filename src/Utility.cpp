@@ -39,6 +39,7 @@ bool Utility::RunContainerAction(const RE::TESObjectREFR* container, RE::TESObje
 
     for (const auto& [name, entry] : containerMap) {
         if (entry.container && entry.container->GetFormID() == container->GetFormID() && entry.action) {
+            Stores::GetSingleton()->ResetNavigation();
             entry.action(source);
             return true;
         }

@@ -13,6 +13,7 @@ python3 tools/release/check_keys.py
 python3 tools/release/check_soulgems.py
 python3 tools/release/check_trade.py
 python3 tools/release/check_misc.py
+python3 tools/release/check_navigation.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -64,6 +65,6 @@ The build validates Windows x64 PE format and the actual SKSE export table, ESP 
 
 `check_trade.py` compiles the actual sale and menu code with inventory stubs. It covers copy counts, variant prices, aggregate rounding, confirmation/cancellation, protected entries, failed and partial removal, repeat sale, and payment limits. Skyrim must verify engine-derived prices and item removal.
 
-`check_misc.py` exercises the actual Quick Transfer UI with ImGui ID/persistence stubs and the actual override loader with optional-plugin and malformed-entry cases.
+`check_misc.py` exercises the actual Quick Transfer UI with ImGui ID/persistence stubs and the actual override loader with optional-plugin and malformed-entry cases. `check_navigation.py` runs the actual message-box, close, registry-dispatch, and page-return code with UI/task stubs, including direct binding, cancellation, cleanup, and expired handles.
 
 The package root corresponds to Skyrim's `Data` directory. It has no enclosing `Data` or project-name directory. Runtime prerequisites such as SKSE, Address Library, and SKSE Menu Framework remain external game dependencies described in [build.md](build.md). No Skyrim launch or gameplay scenario is verified by these artifact checks.

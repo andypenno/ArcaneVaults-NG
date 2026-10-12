@@ -457,7 +457,10 @@ class InputHandler : public RE::BSTEventSink<RE::InputEvent*> {
 };
 
 namespace AVEvents {
-    void ResetCraftingLoan() { CraftingLoanState::GetSingleton()->Reset(); }
+    void ResetCraftingLoan() {
+        CraftingLoanState::GetSingleton()->Reset();
+        Stores::GetSingleton()->ResetNavigation();
+    }
 	void RunAfterContainerMenuCloses(RE::TESObjectREFR* a_container, std::function<void()> a_callback) {
         ContainerMenuCloseCallback::GetSingleton()->Begin(a_container, std::move(a_callback));
     }
