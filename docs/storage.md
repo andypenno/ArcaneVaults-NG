@@ -82,7 +82,7 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 | Armor | Armor plus Jewelry when the Head slot is absent and either the jewelry keyword or CommonLib accessory detection matches. Accessory detection also excludes helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Native spell scroll | Scroll through the engine ScrollItem type; explicit overrides still win |
-| Book | Spell-teaching forms become Book/SpellTome; skill-teaching forms become Book/SkillBook; recipe-keyword forms become Note/Recipe; other note-style forms become Note; remaining forms become Book |
+| Book | Spell-teaching forms become Book/SpellTome; skill-teaching forms become Book/SkillBook; recipe-keyword forms become Note/Recipe; forms with Note/Scroll type or "note" in their mesh path become Note; remaining forms become Book |
 | Soul gem | Soulgem before miscellaneous items and overrides; filled/empty state belongs to inventory stacks |
 | Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
 | Gold/silver ingots | PreciousIngot and Smithing, plus the existing recipe-derived categories |
@@ -200,7 +200,7 @@ Books has direct Spell Tomes and Skill Books archive actions. Notes owns Recipes
 
 Skill-book identities are captured from loaded native book records during `kDataLoaded`, before saved read state is applied. Skyrim consumes skill-teaching data when a book is read, so classification also checks that cache. It survives save loads and new games, requires no save record, and includes mod-added native skill books. Explicit overrides still win; spell tomes retain priority.
 
-Spell/skill-teaching flags and cached skill-book identity take precedence over the recipe keyword and note-style flag. Recipes use `VendorItemRecipe`; no translated item names are matched. Treasure Maps use bundled plugin-local overrides. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns TreasureMap.
+Spell/skill-teaching flags and cached skill-book identity take precedence over the recipe keyword and note detection. Ordinary notes match either the Note/Scroll type or a mesh path containing "note", ignoring case, as SKSE does for SkyUI. Special Edition no longer reliably uses the type field. This also migrates matching notes already stored in Books during consolidation. Recipes use `VendorItemRecipe`; no translated item names are matched. Treasure Maps use bundled plugin-local overrides. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns TreasureMap.
 
 The [published in-game record extraction](https://www.nexusmods.com/skyrimspecialedition/mods/32763?tab=docs) identifies the bundled map records:
 

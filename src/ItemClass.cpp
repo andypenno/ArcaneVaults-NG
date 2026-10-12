@@ -1,6 +1,7 @@
 #include "ItemClass.h"
 #include "Settings.h"
 #include "Utility.h"
+#include <cctype>
 
 CategoryMask ToMask(ItemCategory a_category) noexcept {
     const auto bit = static_cast<std::uint8_t>(a_category);
@@ -293,7 +294,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
             categories |= ItemCategory::Book | ItemCategory::SkillBook;
         else if (book->HasKeywordByEditorID("VendorItemRecipe"))
             categories |= ItemCategory::Note | ItemCategory::Recipe;
-        else if (book->IsNoteScroll())
+        else if (book->IsNoteScroll() ||
+            !std::ranges::search(std::string_view{book->model.c_str()}, std::string_view{"note"},
+                [](char value, char wanted) { return std::tolower(static_cast<unsigned char>(value)) == wanted; }).empty())
             categories |= ItemCategory::Note;
         else
             categories |= ItemCategory::Book;

@@ -64,6 +64,7 @@ struct TESAmmo {};
 struct ScrollItem {};
 struct TESObjectBOOK {
     bool note=false, spell=false, skill=false, recipe=false;
+    std::string model;
     unsigned formID=0;
     unsigned GetFormID() const { return formID; }
     bool IsNoteScroll() const { return note; }
@@ -1015,6 +1016,15 @@ int main() {
     assert(ClassifyItem(&skillBook)==ToMask(ItemCategory::Book));settings->overrides.erase(&skillBook);
     assert(!skillBook.book.TeachesSkill() && ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
     settings->overrides[&mapBook]=ToMask(ItemCategory::TreasureMap);
+    noteBook.book.note=false;noteBook.book.model="Clutter\\Books\\nOtE01.nif";
+    plainBook.book.model="Clutter\\Books\\Book01.nif";
+    spellBook.book.model="Meshes\\Notes\\spell.nif";skillBook.book.model="Clutter\\Books\\Note01.nif";
+    recipeBook.book.note=false;recipeBook.book.model="Meshes\\Notes\\recipe.nif";
+    RE::TESBoundObject typedNote{ItemCategory::None,false,0x120007};typedNote.nativeBook=true;typedNote.book.note=true;
+    assert(ClassifyItem(&typedNote)==ToMask(ItemCategory::Note));
+    assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Note));
+    settings->overrides[&noteBook]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Book));settings->overrides.erase(&noteBook);
     assert(ClassifyItem(&plainBook)==ToMask(ItemCategory::Book));
     assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
     assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
@@ -1052,6 +1062,9 @@ int main() {
     put(&noteBook,5);put(&plainBook,5);stores.OffloadItems();assert(player->inventory[&noteBook].first==5 && player->inventory[&plainBook].first==0);
     settings->GSC_OffloadNotes=true;settings->ignored.clear();settings->ignored.insert(&mapBook);put(&mapBook,4);stores.OffloadItems();
     assert(player->inventory[&noteBook].first==0 && player->inventory[&mapBook].first==4);
+    const int notesBeforeMigration=utility->notes.inventory[&noteBook].first;
+    chest.inventory[&noteBook]=entry(4);stores.ConsolidateBooks();
+    assert(chest.inventory[&noteBook].first==0 && utility->notes.inventory[&noteBook].first==notesBeforeMigration+4);
     utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());
     skillBook.book.skill=true;utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.size()==1);
     skillBook.book.spell=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SpellTome));
