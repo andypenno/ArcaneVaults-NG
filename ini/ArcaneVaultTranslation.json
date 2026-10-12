@@ -158,11 +158,18 @@
 	"Vault.TreasureMaps": "Treasure Maps",
 	"Vault.Archives": "Archives",
 	"Vault.SpellTomes": "Spell Tomes",
+	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition",
 	"Options.LearnDepositOverrides": "Learn Overrides From Deposits",
 	"Learning.Confirm": "Assign {0} to {1}?\nCurrent classification: {2}\nThis replaces its user override for all copies. You can remove it in the SKSE Overrides menu. Items remain where deposited.",
 	"Learning.No": "No",
 	"Learning.Yes": "Yes",
 	"Learning.Unclassified": "Unclassified",
 	"Learning.SaveFailed": "Could not save the override. Classification has not changed.",
-	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition"
+	"Vault.StolenItems": "Stolen Items",
+	"Options.AllowRemovingStolenTags": "Allow Removing Stolen Tags",
+	"Stolen.Open": "Open",
+	"Stolen.RemoveAllTags": "Remove All Stolen Tags",
+	"Stolen.Confirm": "Remove stolen tags from all stolen copies stored in your vaults? Their other properties and counts will remain unchanged.",
+	"Stolen.Cleared": "Stolen tags removed. Items returned to their vaults.",
+	"Stolen.TransferFailed": "Some items could not be transferred. Remaining archive items are kept for recovery."
 }

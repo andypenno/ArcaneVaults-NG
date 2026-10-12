@@ -91,6 +91,11 @@ def validate_esp(root, data):
     require({int(node["form_id"], 16) & 0xFFFFFF for node in references} == set(registered),
             "ESP storage references differ from the C++ registry")
 
+    origin_keyword = by_id.get(0x01000DE0)
+    require(origin_keyword is not None and origin_keyword["type"] == "KYWD" and
+            any(field.get("text") == "AV_StolenOrigin" for field in origin_keyword["fields"] if field["type"] == "EDID"),
+            "Stolen Items origin keyword is missing or invalid")
+
     def check_cells(items, cell=None):
         for node in items:
             if node["type"] == "GRUP":

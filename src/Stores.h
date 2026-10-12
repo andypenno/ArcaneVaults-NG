@@ -72,6 +72,7 @@ public:
     
     // Container Functions
     void VaultMenu(RE::TESObjectREFR* a_source);
+    void ShowVaultArchivesMenu(RE::TESObjectREFR* a_source);
     void VaultDetail1Menu(RE::TESObjectREFR* a_source);
     void VaultDetail3Menu(RE::TESObjectREFR* a_source);
     void VaultDetail2Menu(RE::TESObjectREFR* a_source);
@@ -108,6 +109,9 @@ public:
     void KeysMenu(RE::TESObjectREFR* a_source);
     void AmmunitionMenu(RE::TESObjectREFR* a_source);
     void ValuablesMenu(RE::TESObjectREFR* a_source);
+    void StolenItemsMenu(RE::TESObjectREFR* a_source);
+    void ShowStolenItemsMenu(RE::TESObjectREFR* a_source);
+    void OpenStolenItems(RE::TESObjectREFR* a_source);
     void ReturnValuables();
     void PotionMenu(RE::TESObjectREFR* a_source);
     void PotionPositiveMenu(RE::TESObjectREFR* a_source);

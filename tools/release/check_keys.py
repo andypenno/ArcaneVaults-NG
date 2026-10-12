@@ -1014,15 +1014,6 @@ int main() {
     settings->GSC_OffloadNotes=true;settings->ignored.clear();settings->ignored.insert(&mapBook);put(&mapBook,4);stores.OffloadItems();
     assert(player->inventory[&noteBook].first==0 && player->inventory[&mapBook].first==4);
     utility->scrollContainer=nullptr;
-    player->inventory.clear();utility->armor.inventory.clear();settings->ignored.clear();
-    RE::TESBoundObject broadArmor{ItemCategory::None,false,0x140001}, leafArmor{ItemCategory::None,false,0x140002};
-    settings->overrides[&broadArmor]=ToMask(ItemCategory::Armor);settings->overrides[&leafArmor]=ToMask(ItemCategory::HeavyArmor);
-    settings->GSC_OffloadClothing=false;settings->GSC_OffloadHeavyArmor=false;settings->GSC_OffloadLightArmor=false;settings->GSC_OffloadJewelry=false;
-    put(&broadArmor,4);put(&leafArmor,5);stores.OffloadItems();assert(player->inventory[&broadArmor].first==4);
-    settings->GSC_OffloadJewelry=true;stores.OffloadItems();assert(player->inventory[&broadArmor].first==0 && utility->armor.inventory[&broadArmor].first==4 && player->inventory[&leafArmor].first==5);
-    settings->ignored.insert(&broadArmor);put(&broadArmor,3);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
-    settings->ignored.clear();put(&broadArmor,3,false,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
-    put(&broadArmor,3,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
 
     player->inventory.clear();ammoChest.inventory.clear();settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.clear();
     RE::TESBoundObject selectedArrows{ItemCategory::Ammunition,false,0x130001}, selectedBolts{ItemCategory::Ammunition,true,0x130002}, spareArrows{ItemCategory::Ammunition,false,0x130003}, questAmmo{ItemCategory::Ammunition,false,0x130004}, ignoredAmmo{ItemCategory::Ammunition,false,0x130005}, wornAmmo{ItemCategory::Ammunition,false,0x130006}, virtualAmmo{ItemCategory::Ammunition,false,0x130007};
@@ -1077,6 +1068,16 @@ int main() {
     player->currentAmmo=&selectedBolts;put(&selectedBolts,180);stores.KeepAmmunition();assert(player->inventory[&selectedBolts].first==100);
     RE::SCRIPT_FUNCTION::available=true;player->currentAmmo=nullptr;
 
+    player->inventory.clear();utility->armor.inventory.clear();settings->ignored.clear();
+    RE::TESBoundObject broadArmor{ItemCategory::None,false,0x140001}, leafArmor{ItemCategory::None,false,0x140002};
+    settings->overrides[&broadArmor]=ToMask(ItemCategory::Armor);settings->overrides[&leafArmor]=ToMask(ItemCategory::HeavyArmor);
+    settings->GSC_OffloadClothing=false;settings->GSC_OffloadHeavyArmor=false;settings->GSC_OffloadLightArmor=false;settings->GSC_OffloadJewelry=false;
+    put(&broadArmor,4);put(&leafArmor,5);stores.OffloadItems();assert(player->inventory[&broadArmor].first==4);
+    settings->GSC_OffloadJewelry=true;stores.OffloadItems();assert(player->inventory[&broadArmor].first==0 && utility->armor.inventory[&broadArmor].first==4 && player->inventory[&leafArmor].first==5);
+    settings->ignored.insert(&broadArmor);put(&broadArmor,3);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+    settings->ignored.clear();put(&broadArmor,3,false,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+    put(&broadArmor,3,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1086,10 +1087,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 96
+assert validate_esp(ROOT, generate_esp(working)) == 99
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 45
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC)]]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 46
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE)]]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:

@@ -112,7 +112,7 @@ int main() {
     auto open=[&](Container kind){u->kind=kind;DepositLearning::MenuOpened();};
     DepositLearning::Register();open(Container::Alchemy);send(a);tasks->Run();assert(menu->prompts==0);
     s->GSC_LearnDepositOverrides=true;
-    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Personal,Container::Valuables,Container::Soulgem,Container::FilledSoulgems,Container::EmptySoulgems}) {
+    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Personal,Container::Valuables,Container::Soulgem,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems}) {
         open(kind);send(a);tasks->Run();assert(menu->prompts==0);
     }
     for(auto [name,cat]:categoryNames) assert(ParseCategories(FormatCategories(ToMask(cat)))==ToMask(cat));

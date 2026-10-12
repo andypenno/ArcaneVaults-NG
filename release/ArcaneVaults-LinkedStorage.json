@@ -11,7 +11,7 @@
       "fields": [
         {
           "type": "HEDR",
-          "hex": "48e1da3f67000000de0d0000"
+          "hex": "48e1da3f6b000000e10d0000"
         },
         {
           "type": "CNAM",
@@ -32,6 +32,32 @@
         {
           "type": "INCC",
           "hex": "01000000"
+        }
+      ]
+    },
+    {
+      "type": "GRUP",
+      "label_hex": "4b595744",
+      "group_type": 0,
+      "stamp_hex": "0000000000000000",
+      "children": [
+        {
+          "type": "KYWD",
+          "flags": 0,
+          "form_id": "0x01000DE0",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_StolenOrigin"
+            },
+            {
+              "type": "CNAM",
+              "hex": "00000000"
+            }
+          ]
         }
       ]
     },
@@ -1738,6 +1764,40 @@
               "hex": "0000000000"
             }
           ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DDE",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_StolenItems"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Stolen Items Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
         }
       ]
     },
@@ -2797,6 +2857,28 @@
                             {
                               "type": "DATA",
                               "hex": "000016450000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DDF",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_StolenItems"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DDE"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "000036450000000000000000000000000000000000000000"
                             }
                           ]
                         }

@@ -48,7 +48,8 @@ enum class Container : std::uint8_t {
     SpellTomes,
     SkillBooks,
     Recipes,
-    TreasureMaps
+    TreasureMaps,
+    StolenItems
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -151,6 +152,7 @@ enum class ContainerGroup {
     case Container::SkillBooks:   return "Vault.SkillBooks";
     case Container::Recipes:      return "Vault.Recipes";
     case Container::TreasureMaps: return "Vault.TreasureMaps";
+    case Container::StolenItems:  return "Vault.StolenItems";
     case Container::None:         return {};
     }
     return {};

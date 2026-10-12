@@ -69,8 +69,9 @@ std::set<std::string> ids;
 std::vector<std::string> scope;
 bool duplicate = false;
 bool toggleNotes = false;
-bool toggleSelectedAmmo = false;
 bool toggleLearning = false;
+bool toggleStolenTags = false;
+bool toggleSelectedAmmo = false;
 bool waitKey = false;
 using ImGuiKey = int;
 constexpr int ImGuiKey_NamedKey_BEGIN = 0, ImGuiKey_NamedKey_END = 1;
@@ -103,6 +104,7 @@ bool CollapsingHeader(const char* label, int) { assert(ids.insert(ID(label)).sec
 bool Checkbox(const char* label, bool* value) {
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
     if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
+    if (toggleStolenTags && value == &Settings::GetSingleton()->GSC_AllowRemovingStolenTags) { *value = !*value; return true; }
     if (toggleLearning && value == &Settings::GetSingleton()->GSC_LearnDepositOverrides) { *value = !*value; return true; }
     if (toggleNotes && value == &Settings::GetSingleton()->GSC_OffloadNotes) { *value = !*value; return true; }
     if (value == &Settings::GetSingleton()->GSC_OffloadBooks) { *value = !*value; return true; }
@@ -186,13 +188,18 @@ int main() {
     assert(!settings->GSC_OffloadNotes);toggleNotes=true;ids.clear();RenderTransfer();
     assert(settings->GSC_OffloadNotes && settings->saves==beforeNotes+1);
 
-    assert(!settings->GSC_LearnDepositOverrides);inputs.clear();ids.clear();toggleLearning=true;
-    const auto beforeLearning=settings->saves;RenderOptions();assert(settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+1);
-    ids.clear();RenderOptions();assert(!settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+2);
     const int beforeSelectedAmmo=settings->saves;
     assert(!settings->GSC_KeepSelectedAmmunition);toggleSelectedAmmo=true;ids.clear();RenderOptions();
     assert(settings->GSC_KeepSelectedAmmunition && settings->saves==beforeSelectedAmmo+1);
     ids.clear();RenderOptions();assert(!settings->GSC_KeepSelectedAmmunition && settings->saves==beforeSelectedAmmo+2);
+
+    assert(!settings->GSC_LearnDepositOverrides);inputs.clear();ids.clear();toggleLearning=true;
+    const auto beforeLearning=settings->saves;RenderOptions();assert(settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+1);
+    ids.clear();RenderOptions();assert(!settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+2);
+
+    toggleLearning=false;toggleStolenTags=true;ids.clear();assert(!settings->GSC_AllowRemovingStolenTags);
+    const auto beforeStolenTags=settings->saves;RenderOptions();assert(settings->GSC_AllowRemovingStolenTags && settings->saves==beforeStolenTags+1);
+    ids.clear();RenderOptions();assert(!settings->GSC_AllowRemovingStolenTags && settings->saves==beforeStolenTags+2);
 
 }
 '''

@@ -22,7 +22,7 @@ void Utility::AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::For
     if (baseContainer && !translationKey.empty()) {
         const auto translatedName = std::format("{} {}", Translate(std::string(translationKey)),
             Translate(a_name == Container::Valuables || a_name == Container::FilledSoulgems ||
-                a_name == Container::EmptySoulgems ? "Vault.Archive" : "Vault.Vault"));
+                a_name == Container::EmptySoulgems || a_name == Container::StolenItems ? "Vault.Archive" : "Vault.Vault"));
         baseContainer->SetFullName(translatedName.c_str());
     }
 
@@ -373,6 +373,8 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::TreasureMaps, RE::FormID(0xDDD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::TreasureMaps, Container::Notes, ItemCategory::TreasureMap, source); });
     AddContainer(dataHandler, Container::Scroll, RE::FormID(0xD9B), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ScrollMenu(a_source); });
     
+    AddContainer(dataHandler, Container::StolenItems, RE::FormID(0xDDF), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->StolenItemsMenu(source); });
+
     // Misc
     AddContainer(dataHandler, Container::Ammunition, RE::FormID(0xDC7), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->AmmunitionMenu(a_source); });
     AddContainer(dataHandler, Container::Keys, RE::FormID(0xDC5), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->KeysMenu(a_source); });

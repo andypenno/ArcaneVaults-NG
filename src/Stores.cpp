@@ -9,6 +9,7 @@
 #include "Translation.h"
 #include "Settings.h"
 #include "DepositLearning.h"
+#include "StolenItems.h"
 
 #include <chrono>
 #include <thread>
@@ -468,6 +469,10 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
 
     options.push_back({Translate("Vault.ArcaneVaults"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) VaultDetail1Menu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.Archives"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) ShowVaultArchivesMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
@@ -1923,6 +1928,66 @@ void Stores::ShowValuablesMenu(RE::TESObjectREFR* a_source) {
     const auto title = std::format("{} {}", Translate("Vault.Valuables"), Translate("Vault.Archive"));
     const auto cancelIndex = 1;
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+}
+
+void Stores::ShowVaultArchivesMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto handle = a_source->GetHandle();
+    navigationSource_ = handle;
+    returnToVault_ = [this, handle] {
+        if (auto source = handle.get()) ShowVaultArchivesMenu(source.get());
+    };
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.StolenItems"), [this, handle] {
+        if (auto source = handle.get()) StolenItemsMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.Back"), [this, handle] {
+        if (auto source = handle.get()) VaultMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, handle] {
+        if (auto source = handle.get()) CloseStoreObject(source.get());
+    }});
+    ShowDynamicMessageBox(Translate("Vault.Archives"), std::move(options), 2);
+}
+
+void Stores::StolenItemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) {
+        if (Settings::GetSingleton()->GSC_AllowRemovingStolenTags) ShowStolenItemsMenu(source);
+        else OpenStolenItems(source);
+    });
+}
+
+void Stores::OpenStolenItems(RE::TESObjectREFR* a_source) {
+    if (!a_source || !Utility::GetSingleton()->GetContainer(Container::StolenItems)) return;
+    if (!StolenItems::Gather()) RE::SendHUDMessage::ShowHUDMessage(Translate("Stolen.TransferFailed"));
+    OpenStorageMenu(Container::StolenItems, a_source, [this](RE::TESObjectREFR* source) {
+        if (!StolenItems::Return()) RE::SendHUDMessage::ShowHUDMessage(Translate("Stolen.TransferFailed"));
+        if (Settings::GetSingleton()->GSC_AllowRemovingStolenTags) ShowStolenItemsMenu(source);
+        else if (returnToVault_) returnToVault_();
+        else CloseStoreObject(source);
+    });
+}
+
+void Stores::ShowStolenItemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source || !Utility::GetSingleton()->GetContainer(Container::StolenItems)) return;
+    if (!StolenItems::Recover()) RE::SendHUDMessage::ShowHUDMessage(Translate("Stolen.TransferFailed"));
+    const auto handle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Stolen.Open"), [this, handle] {
+        if (auto source = handle.get()) OpenStolenItems(source.get());
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, handle] {
+        if (auto source = handle.get()) CloseStoreObject(source.get());
+    }});
+    if (returnToVault_) options.push_back({Translate("Vault.Back"), returnToVault_});
+    options.push_back({Translate("Stolen.RemoveAllTags"), [this, handle] {
+        StolenItems::ConfirmClear([this, handle] {
+            if (auto source = handle.get()) StolenItemsMenu(source.get());
+        });
+    }});
+    const auto title = std::format("{} {}", Translate("Vault.StolenItems"), Translate("Vault.Archive"));
+    ShowDynamicMessageBox(title, std::move(options), 1);
 }
 
 void Stores::PersonalMenu(RE::TESObjectREFR* a_source) {

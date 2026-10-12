@@ -166,6 +166,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | SkillBooks | `0xDD9` | Archive | `OpenBookArchive` from Book |
 | Recipes | `0xDDB` | Archive | `OpenBookArchive` from Notes |
 | TreasureMaps | `0xDDD` | Archive | `OpenBookArchive` from Notes |
+| StolenItems | `0xDDF` | Archive | `StolenItemsMenu` |
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
@@ -233,3 +234,15 @@ Store All is independent of the toggle and preserves quest, favourite, native wo
 ## Broad category overrides
 
 Override parsing and formatting accept parent categories and Restorative. Parent categories do not expand into children. Quick Transfer deposits a parent-only override when any checkbox in that family is enabled; it excludes named child bits so a disabled subtype remains protected. These transfers use the shared quest, favourite, equipment, and ignore checks. Manual parent vault transfers and Sort already match the parent bit. [configuration.md](configuration.md#learning-from-deposits) describes the opt-in deposit workflow.
+
+## Stolen Items archive
+
+[StolenItems.cpp](../src/StolenItems.cpp) gathers ownership-bearing physical stacks from registered main vaults, including Personal and Junk, and excludes Sort, Ignore, Trade, and archives. It uses `InventoryEntryData::IsOwnedBy(player, stackOwner, true)` for each extra list. The aggregate base-record owner does not select clean copies. Implicit copies without an ownership extra are clean. Malformed counts or duplicate extra-list pointers are skipped without moving the affected record.
+
+The companion adds container `0xDDE`, persistent reference `0xDDF`, and private keyword `AV_StolenOrigin` at `0xDE0`. Gathering adds a keyword-qualified `ExtraLinkedRef` to the source vault on each selected stack. The design relies on native extra-data comparison distinguishing source links and native inventory saves remapping them. The regression model covers these contracts; actual engine merge/save behavior remains unverified. No new SKSE co-save record is added. Return removes only the private link, preserving other linked references and item metadata. Withdrawn copies keep their ownership and lose the private marker through the container event handler. Untagged manual deposits return to the player on close.
+
+Each explicit transfer checks observed source/destination count changes and re-reads stacks after progress. It handles partial engine removals without keeping destroyed list pointers. Destination count capacity is checked before transfer. A refused move, an unresolved marked source, or inconsistent archive counts leaves remaining contents for recovery. Opening the archive allows withdrawal of retained contents even after a recovery failure. New-game/load resets invalidate queued withdrawal cleanup and clearing confirmations; post-load/new-game tasks recover archive contents and remove stale markers from vault/player inventories.
+
+Arcane Vault has an Archives entry containing Stolen Items. Binding the archive directly also works. With the default-off clearing option disabled, activation opens the gathered inventory directly. Enabled activation shows Open, Exit, and Remove All Stolen Tags. Contextual Back appears before the clearing action. Clearing requires confirmation, defaults to No, rechecks the setting and game generation, gathers current stolen copies, removes only `ExtraOwnership`, then returns them to their sources. Successful clearing leaves the next opening empty unless new stolen copies arrive. Transfer failures preserve remaining inventory and show a recovery message.
+
+`check_stolen.py` exercises the actual selector, transfer/recovery code, and archive menus. Its save/load check models native link persistence and load-order remapping. Native extra-data comparison and save handling still require in-game verification.

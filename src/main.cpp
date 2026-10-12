@@ -9,6 +9,7 @@
 #include "Translation.h"
 #include "Papyrus.h"
 #include "DepositLearning.h"
+#include "StolenItems.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -23,6 +24,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		Utility::GetSingleton()->LoadAllForms();
 		Settings::GetSingleton()->Init();
 		AVEvents::Init();
+		StolenItems::Init();
 		Menus::Init();
 		AVUI::Register();		
 		break;
@@ -36,16 +38,17 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		break;
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
+		StolenItems::Reset();
 		DepositLearning::Reset();
 		AVEvents::ResetCraftingLoan();
 		AVEvents::CancelContainerMenuCloseCallback();
 		Stores::GetSingleton()->ResetIgnorePicker();
 		if (message->type == SKSE::MessagingInterface::kNewGame)
-			SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); });
+			SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); });
 		break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		Utility::GetSingleton()->ConfigurationSpells();
-		SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); });
+		SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); });
 		break;
 	}
 	

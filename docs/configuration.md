@@ -36,6 +36,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
 | `AlchemyKeepAmount` | 1 | Manual Alchemy Keep N and Take Up To N target per base record |
 | `ScrollKeepAmount` | 3 | Manual Scroll Keep N and Take Up To N target per base record |
+| `AllowRemovingStolenTags` | false | Enable the Stolen Items menu and confirmed ownership clearing |
 | `LearnDepositOverrides` | false | Offer classification overrides for mismatched manual deposits |
 | `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
@@ -59,6 +60,8 @@ The Books Quick Transfer controls use a separate ImGui ID scope from their Books
 The UI exposes assignment hotkey capture and most settings, plus per-category quick-transfer checkboxes. It has no QuickKeyCode capture control. [HelperFunctions.h](../include/HelperFunctions.h) converts engine codes to/from ImGui keys; keyboard uses engine scan codes, mouse uses 256 through 260, and gamepad uses 266 through 281. Input events trigger assignment/offload for keyboard and gamepad; the handler does not accept mouse even though conversion supports it. It also has no explicit gameplay/menu-state gate beyond singleton checks.
 
 Configuration spells are looked up as local IDs `0xDC0` and `0xDC1` in the companion ESP. `ConfigurationSpells` reconciles player spells on post-load-game and on spell checkbox changes. The [Papyrus dispatcher](../scripts/Source/ArcaneSpells.psc) calls the same `OffloadItems` native as Quick Transfer, so the Keys settings also apply to that spell.
+
+Options exposes Allow Removing Stolen Tags, persisted as `[General] AllowRemovingStolenTags=false`. It enables the clearing action only; stolen-copy inspection works with the option disabled. The [Stolen Items contract](storage.md#stolen-items-archive) covers gathering, return destinations, and metadata preservation. Stolen Items cannot teach a persistent base-record classification and is excluded from deposit learning.
 
 ## Learning from deposits
 
