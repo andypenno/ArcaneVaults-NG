@@ -2031,3 +2031,44 @@ void Stores::IgnoreMenu(RE::TESObjectREFR* a_source) {
     if (!picker->ActivateRef(RE::PlayerCharacter::GetSingleton(), 0, nullptr, 1, false))
         AVEvents::CancelContainerMenuCloseCallback();
 }
+
+void Stores::BeginJunkLoan() {
+    ResetJunkLoan();
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Junk);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return;
+    const auto carried = player->GetInventoryCounts();
+    for (const auto& [item, data] : source->GetInventory()) {
+        if (!item || data.first <= 0 || !data.second || data.second->IsQuestObject() ||
+            data.second->IsFavorited() || data.second->IsWorn()) continue;
+        const auto existing = carried.find(item);
+        const int before = existing == carried.end() ? 0 : (std::max)(0, existing->second);
+        const int count = (std::min)(data.first, (std::numeric_limits<int>::max)() - before);
+        MoveItems(source, player, item, count);
+        const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+        const auto remaining = counts.find(item);
+        const int after = remaining == counts.end() ? 0 : (std::max)(0, remaining->second);
+        const int borrowed = (std::max)(0, data.first - after);
+        if (borrowed > 0) junkLoan_[item->GetFormID()] = {before, borrowed};
+    }
+}
+
+void Stores::EndJunkLoan() {
+    auto* destination = Utility::GetSingleton()->GetContainer(Container::Junk);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!destination || !player) { ResetJunkLoan(); return; }
+    const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+    const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
+    for (const auto& [item, data] : player->GetInventory()) {
+        if (!item || !data.second || data.first <= 0) continue;
+        const auto loan = junkLoan_.find(item->GetFormID());
+        if (loan == junkLoan_.end()) continue;
+        if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
+        double equipped{};
+        if (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0) continue;
+        const auto [before, borrowed] = loan->second;
+        const int count = (std::min)(borrowed, (std::max)(0, data.first - before));
+        MoveItems(player, destination, item, count);
+    }
+    ResetJunkLoan();
+}

@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -42,6 +42,7 @@ program = r'''
 #include <cassert>
 #include <charconv>
 #include <climits>
+#include <limits>
 #include <type_traits>
 #include <functional>
 #include <sstream>
@@ -144,7 +145,7 @@ struct TESObjectREFR {
     Changes* GetInventoryChanges() { return &changes; }
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
     auto GetInventory() const { return inventory; }
-    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter) const {
+    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }) const {
         std::map<TESBoundObject*, int> counts;
         for (auto& [item, data] : inventory) if (filter(*item)) counts[item] = data.first;
         return counts;
@@ -185,7 +186,8 @@ struct Utility {
     RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap;
     bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
-    BenchType GetBenchType(RE::TESObjectREFR*) { return BenchType::Smithing; }
+    BenchType bench = BenchType::Smithing;
+    BenchType GetBenchType(RE::TESObjectREFR*) { return bench; }
     bool missingSmithing = false;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
     RE::TESObjectREFR* GetContainer(Container container) {
@@ -229,6 +231,10 @@ const char* Translate(const char* key) {
 struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
     void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false);
+    std::unordered_map<unsigned, std::pair<int,int>> junkLoan_;
+    void BeginJunkLoan();
+    void EndJunkLoan();
+    void ResetJunkLoan() { junkLoan_.clear(); }
     void ReturnIgnoredItems();
     void FinishIgnorePicker();
     void OffloadItems();
@@ -886,6 +892,47 @@ int main() {
     assert(!settings->IsIgnored(&unknown) && inbox.inventory[&unknown].first==0);
     settings->saveFails=false;
 
+    player->inventory.clear();utility->junk.inventory.clear();chest.inventory.clear();
+    RE::TESBoundObject junkMaterial{ItemCategory::None,false,0x123123}, protectedJunk{ItemCategory::None,false,0x123124};
+    put(&junkMaterial,7);utility->junk.inventory[&junkMaterial]=entry(25000);utility->junk.inventory[&protectedJunk]=entry(3);utility->junk.inventory[&protectedJunk].second->quest=true;
+    player->removeLimit=9999;utility->junk.removeLimit=9999;
+    stores.BeginJunkLoan();assert(player->inventory[&junkMaterial].first==25007 && utility->junk.inventory[&junkMaterial].first==0);
+    assert(utility->junk.inventory[&protectedJunk].first==3);
+    player->inventory[&junkMaterial].first-=11;stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==7 && utility->junk.inventory[&junkMaterial].first==24989);
+    stores.EndJunkLoan();assert(player->inventory[&junkMaterial].first==7);
+    stores.BeginJunkLoan();player->inventory[&junkMaterial].first=3;stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==3 && utility->junk.inventory[&junkMaterial].first==0);
+    utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==8 && utility->junk.inventory[&junkMaterial].first==0);
+    player->inventory.clear();utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();
+    RE::SCRIPT_FUNCTION::equipped.insert(&junkMaterial);stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==5);RE::SCRIPT_FUNCTION::equipped.erase(&junkMaterial);
+    player->inventory.clear();utility->junk.inventory[&junkMaterial]=entry(5);utility->junk.rejectMove=true;
+    stores.BeginJunkLoan();assert(player->inventory.empty() && stores.junkLoan_.empty());utility->junk.rejectMove=false;
+    settings->GSC_CraftingLoan=true;auto* crafting=CraftingLoanState::GetSingleton();
+    crafting->EnterCrafting(&source);assert(player->inventory[&junkMaterial].first==5);
+    settings->GSC_CraftingLoan=false;crafting->ExitCrafting();assert(utility->junk.inventory[&junkMaterial].first==5);
+
+    for (auto bench : {BenchType::Alchemy, BenchType::Cooking, BenchType::Enchanting, BenchType::StaffEnchanting}) {
+        player->inventory.clear();chest.inventory.clear();utility->junk.inventory.clear();utility->junk.inventory[&junkMaterial]=entry(9);
+        utility->bench=bench;settings->GSC_CraftingLoan=true;crafting->EnterCrafting(&source);
+        assert(player->inventory[&junkMaterial].first==9 && utility->junk.inventory[&junkMaterial].first==0);
+        player->inventory[&junkMaterial].first-=4;crafting->ExitCrafting();
+        assert(utility->junk.inventory[&junkMaterial].first==5 && player->inventory[&junkMaterial].first==0);
+    }
+    utility->bench=BenchType::None;utility->junk.inventory[&junkMaterial]=entry(9);crafting->EnterCrafting(&source);crafting->ExitCrafting();
+    assert(utility->junk.inventory[&junkMaterial].first==9);
+    utility->bench=BenchType::Smithing;player->inventory.clear();utility->smithing.inventory.clear();utility->junk.inventory.clear();
+    junkMaterial.category=ItemCategory::Smithing;put(&junkMaterial,3);utility->smithing.inventory[&junkMaterial]=entry(2);utility->junk.inventory[&junkMaterial]=entry(4);
+    crafting->EnterCrafting(&source);assert(player->inventory[&junkMaterial].first==9);
+    player->inventory[&junkMaterial].first-=1;crafting->ExitCrafting();
+    assert(utility->junk.inventory[&junkMaterial].first==3 && utility->smithing.inventory[&junkMaterial].first==5);
+    player->inventory.clear();utility->junk.inventory.clear();junkMaterial.category=ItemCategory::None;
+    put(&junkMaterial,INT_MAX-2);utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();
+    assert(player->inventory[&junkMaterial].first==INT_MAX && utility->junk.inventory[&junkMaterial].first==3);
+    stores.EndJunkLoan();assert(player->inventory[&junkMaterial].first==INT_MAX-2 && utility->junk.inventory[&junkMaterial].first==5);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -911,4 +958,4 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+print("PASS: ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")

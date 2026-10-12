@@ -309,11 +309,13 @@ public:
             stores->StoreToPlayer(ItemCategory::Catalyst, Container::Alchemy);
             break;
         }
+        stores->BeginJunkLoan();
     }
 
     void Reset() {
         loanBench_.reset();
         Soulgems::ResetLoan();
+        Stores::GetSingleton()->ResetJunkLoan();
     }
 
     void ExitCrafting() {
@@ -321,6 +323,7 @@ public:
         const auto benchType = *loanBench_;
         loanBench_.reset();
         auto* stores = Stores::GetSingleton();
+        stores->EndJunkLoan();
         if (benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
             Soulgems::EndLoan();
 

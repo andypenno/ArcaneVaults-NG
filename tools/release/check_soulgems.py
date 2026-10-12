@@ -139,6 +139,9 @@ program += r'''
 
 struct Stores {
     static Stores* GetSingleton() { static Stores s;return &s; }
+    void BeginJunkLoan() {}
+    void EndJunkLoan() {}
+    void ResetJunkLoan() {}
     void AllToPlayer(Container) {}
     void StoreToPlayer(ItemCategory,Container) {}
     void PlayerToStore(ItemCategory,Container) {}

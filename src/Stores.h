@@ -62,6 +62,9 @@ public:
     void FinishIgnorePicker();
     void ResetIgnorePicker() { ++ignoreSession_; }
     void ReturnIgnoredItems();
+    void BeginJunkLoan();
+    void EndJunkLoan();
+    void ResetJunkLoan() { junkLoan_.clear(); }
     void ResetNavigation();
     void VaultAssignment(RE::TESObjectREFRPtr a_source);
     
@@ -112,6 +115,7 @@ public:
 
 private:
     std::uint64_t ignoreSession_{};
+    std::unordered_map<RE::FormID, std::pair<int, int>> junkLoan_;
     RE::ObjectRefHandle navigationSource_;
     MenuAction returnToVault_;
     void ShowVaultMenu(RE::TESObjectREFR* a_source);
