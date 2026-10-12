@@ -163,5 +163,6 @@
 	"Learning.No": "No",
 	"Learning.Yes": "Yes",
 	"Learning.Unclassified": "Unclassified",
-	"Learning.SaveFailed": "Could not save the override. Classification has not changed."
+	"Learning.SaveFailed": "Could not save the override. Classification has not changed.",
+	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition"
 }

@@ -61,6 +61,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_ScrollKeepAmount, "General", "ScrollKeepAmount");
 	option(settings.GSC_GoldKeepAmount, "General", "GoldKeepAmount");
 	option(settings.GSC_AmmunitionKeepAmount, "General", "AmmunitionKeepAmount");
+	option(settings.GSC_KeepSelectedAmmunition, "General", "KeepSelectedAmmunition");
 	option(settings.GSC_SalePercentage, "General", "SalePercentage");
 
 	option(settings.GSC_OffloadReagent, "Offload", "Reagent");

@@ -30,6 +30,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `AssignOnlyOwn` | true | Restrict binding according to ownership/exterior non-respawn rules |
 | `AssignSpell` | true | Enable external assignment spell |
 | `SortSpell` | true | Enable external sorting/offload spell |
+| `KeepSelectedAmmunition` | false | Options toggle selecting equipped/favourited ammunition reserves |
 | `AmmunitionKeepAmount` | 100 | Retain this many per carried arrow or bolt record; zero retains none |
 | `GoldKeepAmount` | 5000 | Retain this many carried Septims; zero deposits all eligible Gold |
 | `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
@@ -111,3 +112,5 @@ Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ign
 The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
 
 Notes has its own Quick Transfer checkbox, persisted as `[Offload] Notes=false` by default. It deposits Note records, including Recipe and TreasureMap children. Books and Spell Tomes controls remain independent. Override categories now also accept Note, SkillBook, Recipe, and TreasureMap; leaf-parent expansion is described in [storage.md](storage.md).
+
+Keep Selected Ammunition is an Options checkbox, persisted as `[General] KeepSelectedAmmunition`; a missing key defaults to false. Ammunition Keep Amount remains on Quantities. The toggle controls Quick Transfer and the ammunition vault Keep N and Take Up To N actions; [storage.md](storage.md) defines both modes and protections.

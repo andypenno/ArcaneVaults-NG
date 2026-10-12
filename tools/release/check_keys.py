@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "ShowBookArchives", "OpenBookArchive"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "ShowBookArchives", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -58,6 +58,7 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+using FormID = unsigned;
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESAmmo {};
 struct ScrollItem {};
@@ -174,6 +175,8 @@ struct TESObjectREFR {
 };
 Handle::Pointer Handle::get() const { return {object && object->alive ? object : nullptr}; }
 struct PlayerCharacter : TESObjectREFR {
+    TESBoundObject* currentAmmo = nullptr;
+    TESBoundObject* GetCurrentAmmo() const { return currentAmmo; }
     static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
 };
 struct SCRIPT_FUNCTION {
@@ -260,6 +263,10 @@ struct Stores {
     void ReturnIgnoredItems();
     void FinishIgnorePicker();
     void OffloadItems();
+    void KeepAmmunition(bool = false);
+    void TakeAmmunition();
+    void AmmunitionMenu(RE::TESObjectREFR*);
+    void ShowAmmunitionMenu(RE::TESObjectREFR*);
     void StoreToStore(ItemCategory, Container, Container);
     void SortItems();
     void StoreToPlayer(ItemCategory, Container, int = 0, std::optional<int> = std::nullopt);
@@ -301,7 +308,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -349,7 +356,9 @@ program += "struct Settings {\n" + settings_fields + r'''
 '''
 move_start = source.index("    void MoveItems(")
 program += source[move_start:source.index("\n    }", move_start) + 6]
-program += classification + method + offload + store_to_store + sort_items + extra_methods + ini_options + get_value
+selected_start = source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
+selected_method = source[selected_start:source.index("\n    }", selected_start) + 6]
+program += classification + selected_method + method + offload + store_to_store + sort_items + extra_methods + ini_options + get_value
 events = (ROOT / "src/Events.cpp").read_text()
 loan_start = events.index("class CraftingLoanState {")
 program += events[loan_start:events.index("\n};", loan_start) + 3]
@@ -413,6 +422,7 @@ int main() {
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
     assert(options.at({"Offload", "Gold"}) == 1);
     assert(options.at({"General", "AmmunitionKeepAmount"}) == 100);
+    assert(options.at({"General", "KeepSelectedAmmunition"}) == 0);
     assert(options.at({"Offload", "Ammunition"}) == 1);
     assert(options.at({"Offload", "Keys"}) == 1 && options.at({"Offload", "KeysKeepOne"}) == 1);
     put(&a, 4);
@@ -1014,6 +1024,59 @@ int main() {
     settings->ignored.clear();put(&broadArmor,3,false,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
     put(&broadArmor,3,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
 
+    player->inventory.clear();ammoChest.inventory.clear();settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.clear();
+    RE::TESBoundObject selectedArrows{ItemCategory::Ammunition,false,0x130001}, selectedBolts{ItemCategory::Ammunition,true,0x130002}, spareArrows{ItemCategory::Ammunition,false,0x130003}, questAmmo{ItemCategory::Ammunition,false,0x130004}, ignoredAmmo{ItemCategory::Ammunition,false,0x130005}, wornAmmo{ItemCategory::Ammunition,false,0x130006}, virtualAmmo{ItemCategory::Ammunition,false,0x130007};
+    settings->GSC_AmmunitionKeepAmount=100;settings->GSC_KeepSelectedAmmunition=false;
+    player->currentAmmo=&selectedBolts;put(&selectedArrows,250,false,true);put(&selectedBolts,180);put(&spareArrows,160);put(&questAmmo,200,true);put(&ignoredAmmo,225);
+    settings->ignored.insert(&ignoredAmmo);stores.KeepAmmunition(true);
+    assert(player->inventory[&selectedArrows].first==250 && player->inventory[&selectedBolts].first==180 && player->inventory[&spareArrows].first==100);
+    assert(player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
+    settings->GSC_KeepSelectedAmmunition=true;put(&wornAmmo,200,false,false,true);put(&virtualAmmo,220);RE::SCRIPT_FUNCTION::equipped.insert(&virtualAmmo);
+    stores.KeepAmmunition(true);
+    for(auto* item : {&selectedArrows,&selectedBolts,&wornAmmo,&virtualAmmo}) assert(player->inventory[item].first==100);
+    assert(player->inventory[&spareArrows].first==0 && player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
+    player->inventory[&selectedBolts].second->favorite=true;put(&selectedBolts,180,false,true);stores.KeepAmmunition(true);
+    assert(player->inventory[&selectedBolts].first==100);
+    stores.KeepAmmunition();assert(player->inventory[&ignoredAmmo].first==0 && player->inventory[&questAmmo].first==200);
+    stores.AmmunitionMenu(&source);assert(stores.options.size()==6 && stores.options[0].text=="Keep 100" && stores.options[2].text=="Take Up To 100");
+    put(&selectedArrows,30,false,true);put(&selectedBolts,140);put(&wornAmmo,20,false,false,true);put(&virtualAmmo,20);
+    ammoChest.inventory[&wornAmmo]=entry(5);ammoChest.inventory[&virtualAmmo]=entry(150);ammoChest.inventory[&spareArrows]=entry(200);
+    click(2);assert(player->inventory[&selectedArrows].first==100 && player->inventory[&selectedBolts].first==140);
+    assert(player->inventory[&wornAmmo].first==25 && player->inventory[&virtualAmmo].first==100 && player->inventory[&spareArrows].first==0);
+    click(2);assert(player->inventory[&selectedArrows].first==100 && player->inventory[&selectedBolts].first==140);
+    settings->GSC_KeepSelectedAmmunition=false;click(2);assert(player->inventory[&spareArrows].first==100 && player->inventory[&ignoredAmmo].first==100);
+    settings->GSC_KeepSelectedAmmunition=true;player->inventory.clear();player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::equipped.clear();
+    stores.TakeAmmunition();assert(player->inventory.empty());put(&spareArrows,60);put(&selectedArrows,60,false,true);stores.KeepAmmunition();
+    assert(player->inventory[&spareArrows].first==0 && player->inventory[&selectedArrows].first==60);
+    player->inventory[&selectedArrows].second->favorite=false;player->currentAmmo=&selectedArrows;settings->GSC_AmmunitionKeepAmount=0;
+    stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==60);stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=false;put(&selectedArrows,60,false,true);put(&spareArrows,60);stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==60);stores.KeepAmmunition();
+    assert(player->inventory[&selectedArrows].first==60 && player->inventory[&spareArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=true;settings->GSC_AmmunitionKeepAmount=40000;ammoChest.inventory[&selectedArrows]=entry(50000);player->inventory.clear();
+    ammoChest.removeLimit=9999;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==40000 && ammoChest.inventory[&selectedArrows].first==10000);
+    settings->GSC_AmmunitionKeepAmount=100;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==100 && ammoChest.inventory[&selectedArrows].first==49900);
+    put(&selectedArrows,150,false,true);player->rejectMove=true;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==150);player->rejectMove=false;
+    put(&selectedArrows,20,false,true);ammoChest.rejectMove=true;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==20);ammoChest.rejectMove=false;
+    settings->GSC_OffloadAmmunition=true;put(&selectedArrows,150,false,true);put(&spareArrows,20);stores.OffloadItems();
+    assert(player->inventory[&selectedArrows].first==100 && player->inventory[&spareArrows].first==0);
+    put(&selectedArrows,150,false,true);settings->GSC_OffloadAmmunition=false;stores.OffloadItems();assert(player->inventory[&selectedArrows].first==150);
+    stores.AmmunitionMenu(&source);click(0);assert(player->inventory[&selectedArrows].first==100);
+    put(&selectedArrows,180,false,true);put(&selectedBolts,180);put(&spareArrows,20);player->currentAmmo=&selectedBolts;
+    click(1);assert(player->inventory[&selectedArrows].first==180 && player->inventory[&selectedBolts].first==180 && player->inventory[&spareArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=false;put(&spareArrows,20);click(1);assert(player->inventory[&spareArrows].first==0);
+    click(4);assert(stores.opened==Container::Ammunition);stores.onClose();stores.closed=false;click(5);assert(stores.closed);
+
+    for(bool mode : {false,true}) {
+        settings->GSC_KeepSelectedAmmunition=mode;player->inventory.clear();ammoChest.inventory.clear();
+        put(&spareArrows,10);ammoChest.inventory[&spareArrows]=entry(40);stores.AmmunitionMenu(&source);click(3);
+        assert(player->inventory[&spareArrows].first==50 && ammoChest.inventory[&spareArrows].first==0);
+    }
+    player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::available=false;settings->GSC_KeepSelectedAmmunition=true;
+    put(&selectedArrows,150,false,true);put(&wornAmmo,200,false,false,true);stores.KeepAmmunition();
+    assert(player->inventory[&selectedArrows].first==100 && player->inventory[&wornAmmo].first==100);
+    player->currentAmmo=&selectedBolts;put(&selectedBolts,180);stores.KeepAmmunition();assert(player->inventory[&selectedBolts].first==100);
+    RE::SCRIPT_FUNCTION::available=true;player->currentAmmo=nullptr;
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1050,4 +1113,4 @@ for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines():
 assert set(map_overrides) == {("Skyrim.esm", local) for local in
     (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
      0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)}
-print("PASS: Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+print("PASS: ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")

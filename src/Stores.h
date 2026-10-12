@@ -58,6 +58,8 @@ public:
     // Utility Functions
     void SortItems();
     void OffloadItems();
+    void KeepAmmunition(bool a_respectIgnores = false);
+    void TakeAmmunition();
     void IgnoreMenu(RE::TESObjectREFR* a_source);
     void FinishIgnorePicker();
     void ResetIgnorePicker() { ++ignoreSession_; }

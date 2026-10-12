@@ -69,6 +69,7 @@ std::set<std::string> ids;
 std::vector<std::string> scope;
 bool duplicate = false;
 bool toggleNotes = false;
+bool toggleSelectedAmmo = false;
 bool toggleLearning = false;
 bool waitKey = false;
 using ImGuiKey = int;
@@ -101,6 +102,7 @@ std::string ID(const char* label) {
 bool CollapsingHeader(const char* label, int) { assert(ids.insert(ID(label)).second); return true; }
 bool Checkbox(const char* label, bool* value) {
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
+    if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
     if (toggleLearning && value == &Settings::GetSingleton()->GSC_LearnDepositOverrides) { *value = !*value; return true; }
     if (toggleNotes && value == &Settings::GetSingleton()->GSC_OffloadNotes) { *value = !*value; return true; }
     if (value == &Settings::GetSingleton()->GSC_OffloadBooks) { *value = !*value; return true; }
@@ -187,6 +189,10 @@ int main() {
     assert(!settings->GSC_LearnDepositOverrides);inputs.clear();ids.clear();toggleLearning=true;
     const auto beforeLearning=settings->saves;RenderOptions();assert(settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+1);
     ids.clear();RenderOptions();assert(!settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+2);
+    const int beforeSelectedAmmo=settings->saves;
+    assert(!settings->GSC_KeepSelectedAmmunition);toggleSelectedAmmo=true;ids.clear();RenderOptions();
+    assert(settings->GSC_KeepSelectedAmmunition && settings->saves==beforeSelectedAmmo+1);
+    ids.clear();RenderOptions();assert(!settings->GSC_KeepSelectedAmmunition && settings->saves==beforeSelectedAmmo+2);
 
 }
 '''

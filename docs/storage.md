@@ -39,7 +39,7 @@ Alchemy Transfer All selects the Alchemy parent category, including Ingredients,
 
 Alchemy Keep N deposits only excess matching the full Alchemy category, and Take Up To N withdraws only its shortfall per base record. Both use Alchemy Keep Amount in Quantities, default 1. Store All still deposits all eligible Alchemy items. Scroll Keep N and Take Up To N use Scroll Keep Amount in Quantities, default 3. Keep N deposits only excess per base record; Take Up To N withdraws only the shortfall. Neither action empties the vault first. Zero deposits all eligible copies through Keep N and withdraws nothing through Take Up To N.
 
-Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take All, Open, and Exit. N comes from the Quantities setting described in [configuration.md](configuration.md). Keep N deposits only the excess above N per carried ammunition record; it never tops up smaller stacks from storage. Equipped, favorited, and quest entries remain untouched. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
+Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take Up To N, Take All, Open, and Exit. N comes from Ammunition Keep Amount in Quantities, default 100. Keep Selected Ammunition in Options selects the reserve policy below. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
 
 Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
 
@@ -214,6 +214,21 @@ The [published in-game record extraction](https://www.nexusmods.com/skyrimspecia
 | Fort Neugrad | Skyrim.esm | `0x0F33D2` |
 | Velehk Sain | Skyrim.esm | `0x0DDEFB` |
 | Deathbrand | Dragonborn.esm | `0x02BAAE` |
+
+## Ammunition reserve modes
+
+Keep Selected Ammunition defaults off. Selection is the union of current ammunition from `GetCurrentAmmo`, native worn/favourite inventory flags, and the standard GetEquipped condition. It is captured once at the beginning of an action. Being equipped and favourited gives one reserve per base record; several selected records each have their own reserve. No item-name or mod-specific rules are used.
+
+| Action | Toggle off | Toggle on |
+| --- | --- | --- |
+| Quick Transfer or Keep N | Leave selected stacks untouched; keep up to N of every other eligible type | Keep up to N of selected types; deposit every other eligible type completely |
+| Take Up To N | Top up each stored ammunition type to N carried copies | Top up only selected types to N carried copies |
+| No selection | Deposits keep N per type; withdrawal tops up all stored types | Deposit every eligible type; withdraw nothing |
+| N = 0 | Deposit unselected types completely; keep selected stacks; withdraw nothing | Deposit all eligible types, including selected; withdraw nothing |
+
+Quest items remain protected from player deposits. Quick Transfer always exempts ignored records entirely. Manual Keep N and Take Up To N disregard that ignore list. Neither deposit action withdraws to fill a reserve; withdrawal counts carried copies, takes only the shortfall and available stock, and never deposits excess. The engine may clear equipped/favourite state when the last copy is deposited at N = 0; the mod does not restore selection by recreating items.
+
+Store All is independent of the toggle and preserves quest, favourite, native worn, standard GetEquipped, and current-ammunition protections. Take All and Open retain their existing behavior. Sort moves deposited ammunition without a reserve, subject to Return Ignored Items. Shared transfers still preserve other item categories' equipment/favourite protections.
 
 ## Broad category overrides
 

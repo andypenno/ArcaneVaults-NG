@@ -32,6 +32,22 @@ namespace {
         }
     }
 
+    std::unordered_set<RE::FormID> SelectedAmmunition(RE::PlayerCharacter* player) {
+        std::unordered_set<RE::FormID> selected;
+        if (!player) return selected;
+        if (auto* ammo = player->GetCurrentAmmo()) selected.insert(ammo->GetFormID());
+        const auto* command = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+        const auto isEquipped = command ? command->conditionFunction : nullptr;
+        for (const auto& [item, data] : player->GetInventory()) {
+            if (!item || !data.second || !HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;
+            double equipped{};
+            if (data.second->IsFavorited() || data.second->IsWorn() ||
+                (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0))
+                selected.insert(item->GetFormID());
+        }
+        return selected;
+    }
+
     using OpenState = RE::BGSOpenCloseForm::OPEN_STATE;
 
     struct OpenStatePoll
@@ -167,6 +183,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
 
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
+    const auto* currentAmmo = player->GetCurrentAmmo();
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
         if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
@@ -175,6 +192,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
 
         // Ignore Quest, Favorited and Worn items
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
+        if (currentAmmo && item->GetFormID() == currentAmmo->GetFormID()) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
@@ -356,7 +374,7 @@ void Stores::OffloadItems() {
         PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount, true);
 
     if (settings->GSC_OffloadAmmunition)
-        PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, settings->GSC_AmmunitionKeepAmount, true);
+        KeepAmmunition(true);
 
     if (settings->GSC_OffloadKeys)
         PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne ? 1 : 0, true);
@@ -759,7 +777,7 @@ void Stores::ShowAmmunitionMenu(RE::TESObjectREFR* a_source) {
     std::vector<MenuOption> options;
 
     options.push_back({std::format("{} {}", Translate("Vault.KeepAmount"), Settings::GetSingleton()->GSC_AmmunitionKeepAmount), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, Settings::GetSingleton()->GSC_AmmunitionKeepAmount);
+        KeepAmmunition();
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
         if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
     }});
@@ -767,6 +785,12 @@ void Stores::ShowAmmunitionMenu(RE::TESObjectREFR* a_source) {
     options.push_back({Translate("Vault.AmmunitionStoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Ammunition, Container::Ammunition);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
+    }});
+
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), Settings::GetSingleton()->GSC_AmmunitionKeepAmount), [this, sourceHandle] {
+        TakeAmmunition();
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
     }});
 
@@ -2186,4 +2210,46 @@ void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
     }});
     const auto title = std::format("{} {}", Translate("Vault.Notes"), Translate("Vault.Vault"));
     ShowDynamicMessageBox(title, std::move(options), 4);
+}
+
+void Stores::KeepAmmunition(bool a_respectIgnores) {
+    auto* settings = Settings::GetSingleton();
+    const int target = settings->GSC_AmmunitionKeepAmount;
+    if (!settings->GSC_KeepSelectedAmmunition) {
+        PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, target, a_respectIgnores);
+        return;
+    }
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    auto* chest = Utility::GetSingleton()->GetContainer(Container::Ammunition);
+    if (!player || !chest || target < 0) return;
+    const auto selected = SelectedAmmunition(player);
+    for (const auto& [item, data] : player->GetInventory()) {
+        if (!item || !data.second || data.first <= 0 || data.second->IsQuestObject()) continue;
+        if (a_respectIgnores && settings->IsIgnored(item)) continue;
+        if (!HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;
+        const int keep = selected.contains(item->GetFormID()) ? target : 0;
+        MoveItems(player, chest, item, (std::max)(0, data.first - keep));
+    }
+}
+
+void Stores::TakeAmmunition() {
+    auto* settings = Settings::GetSingleton();
+    const int target = settings->GSC_AmmunitionKeepAmount;
+    if (target <= 0) return;
+    if (!settings->GSC_KeepSelectedAmmunition) {
+        StoreToPlayer(ItemCategory::Ammunition, Container::Ammunition, 0, target);
+        return;
+    }
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    auto* chest = Utility::GetSingleton()->GetContainer(Container::Ammunition);
+    if (!player || !chest) return;
+    const auto selected = SelectedAmmunition(player);
+    const auto carried = player->GetInventoryCounts();
+    for (const auto& [item, data] : chest->GetInventory()) {
+        if (!item || data.first <= 0 || !selected.contains(item->GetFormID())) continue;
+        if (!HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;
+        const auto existing = carried.find(item);
+        const int held = existing == carried.end() ? 0 : (std::max)(0, existing->second);
+        MoveItems(chest, player, item, (std::min)(data.first, (std::max)(0, target - held)));
+    }
 }

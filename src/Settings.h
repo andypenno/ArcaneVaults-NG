@@ -49,6 +49,7 @@ public:
 	int GSC_GoldKeepAmount{ 5000 };
 	bool GSC_OffloadGold{ true };
 	int GSC_AmmunitionKeepAmount{ 100 };
+	bool GSC_KeepSelectedAmmunition{ false };
 	int GSC_SalePercentage{ 30 };
 	bool GSC_OffloadAmmunition{ true };
 	bool GSC_OffloadKeys{ true };
