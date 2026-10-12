@@ -115,9 +115,11 @@ namespace AVEvents {
 }
 std::set<std::string> clicks;
 std::vector<std::string> shown;
+std::vector<std::string> wrapped;
 std::string query;
 bool Button(const char* key) { return clicks.erase(key)!=0; }
 void Text(const char*,const char* text) { shown.emplace_back(text); }
+void TextWrapped(const char* format,const char* text) { assert(std::string_view(format)=="%s"); wrapped.emplace_back(text); Text(format,text); }
 void InputText(const char*,char* text,std::size_t size) { query.copy(text,size-1); text[query.size()]=0; }
 bool BeginTable(const char*,int) { return true; }
 void TableSetupColumn(const char*) {} void TableHeadersRow() {} void TableNextRow() {} void TableNextColumn() {}
@@ -160,6 +162,7 @@ int main() {
     CSimpleIniA::fail=true; picker.inventory[&unstable]={1,7}; stores->FinishIgnorePicker();
     assert(picker.inventory[&unstable].first==0 && !settings->IsIgnored(&unstable)); CSimpleIniA::fail=false;
     query="Skeleton"; RenderIgnoredItems(); assert(std::ranges::find(shown,"Skeleton Key")!=shown.end() && std::ranges::find(shown,"Optional Item")==shown.end());
+    assert((wrapped==std::vector<std::string>{"Ignore.Help"}));
     clicks={"Override.ButtonRemove"}; RenderIgnoredItems(); assert(!settings->IsIgnored(&key) && settings->IsIgnored(&missing));
     query=""; clicks={"Ignore.ClearAll"}; RenderIgnoredItems(); assert(settings->IsIgnored(&missing));
     clicks={"Ignore.Cancel"}; RenderIgnoredItems(); assert(settings->IsIgnored(&missing));

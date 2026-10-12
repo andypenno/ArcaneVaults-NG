@@ -233,7 +233,7 @@ namespace AVUI {
         static std::array<char, 256> search{};
         static bool confirmClear = false;
         auto* settings = Settings::GetSingleton();
-        Text("%s", Translate("Ignore.Help"));
+        TextWrapped("%s", Translate("Ignore.Help"));
         InputText(Translate("Ignore.Search"), search.data(), search.size());
         std::optional<std::string> removal;
         if (BeginTable("IgnoredItems", 3)) {

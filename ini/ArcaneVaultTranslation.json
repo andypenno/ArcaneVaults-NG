@@ -142,7 +142,7 @@
 
 	"Ignore": "Ignore List",
 	"Options.ReturnIgnoredItems": "Return Ignored Items",
-	"Ignore.Help": "Sneak-activate an Arcane Vault or Sort chest, deposit items to ignore, then close it. All copies are returned. Quick Transfer skips every copy of those items.",
+	"Ignore.Help": "Sneak-open Arcane Vault or Sort.\nDeposit items, then close.\nItems return; Quick Transfer skips all copies.",
 	"Ignore.Search": "Search",
 	"Ignore.Identifier": "Plugin And Local ID",
 	"Ignore.Missing": "<Missing Record>",
