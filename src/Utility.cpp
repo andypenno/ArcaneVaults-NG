@@ -98,16 +98,23 @@ std::vector<Utility::ContainerChoice> Utility::GetVaultChoices() const {
     return choices;
 }
 
-std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices() const {
+std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices(RE::TESObjectREFR* source) const {
     std::vector<ContainerChoice> choices;
     choices.reserve(containerMap.size());
 
     for (const auto& [name, entry] : containerMap) {
         if (!entry.container || entry.a_group != ContainerGroup::Archive) continue;
-        choices.push_back(ContainerChoice{
+        ContainerChoice choice{
             .name = entry.container->GetDisplayFullName(),
             .formID = entry.container->GetFormID()
-        });
+        };
+        if (source && entry.action) {
+            const auto handle = source->GetHandle();
+            choice.action = [handle, action = entry.action] {
+                if (auto source = handle.get()) action(source.get());
+            };
+        }
+        if (!source || choice.action) choices.push_back(std::move(choice));
     }
 
     std::ranges::sort(choices, [](const ContainerChoice& lhs, const ContainerChoice& rhs) {

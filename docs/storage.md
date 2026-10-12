@@ -124,6 +124,8 @@ Assignment changes update memory immediately. Global redirects are written by th
 
 Main-vault pages retain their source handle and a callback to rebuild the originating page. Submenus append Back when that context exists, preserving their existing Exit/cancel index. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
 
+Arcane Vault's Open Archives action shows the registered archives in the scrolling SkyUILib list. Selecting one invokes its existing gathering and return handler; contextual Back returns to the archive list. Back or cancellation in the list returns to Arcane Vault, and Exit closes the source. Browse choices always carry actions and never create redirects.
+
 Direct bound-container activation clears navigation before running its action, so it shows no contextual Back. Assignment and pre-load/new-game handling also clear navigation. The stored callback resolves a handle rather than retaining a raw source pointer.
 
 ## Companion reference registry

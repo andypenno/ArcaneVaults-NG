@@ -14,6 +14,7 @@ python3 tools/release/check_soulgems.py
 python3 tools/release/check_trade.py
 python3 tools/release/check_misc.py
 python3 tools/release/check_navigation.py
+python3 tools/release/check_archives.py
 python3 tools/release/check_redirects.py
 python3 tools/release/check_ignores.py
 python3 tools/release/check_learning.py
@@ -69,7 +70,7 @@ The build validates Windows x64 PE format and the actual SKSE export table, ESP 
 
 `check_trade.py` compiles the actual sale and menu code with inventory stubs. It covers copy counts, variant prices, aggregate rounding, confirmation/cancellation, protected entries, failed and partial removal, repeat sale, and payment limits. Skyrim must verify engine-derived prices and item removal.
 
-`check_misc.py` exercises actual page registration, Quantities and Options controls, and Quick Transfer UI with ImGui ID/persistence stubs and the actual override loader with optional-plugin and malformed-entry cases. `check_navigation.py` runs the actual message-box, close, registry-dispatch, and page-return code with UI/task stubs, including direct binding, cancellation, cleanup, and expired handles.
+`check_misc.py` exercises actual page registration, Quantities and Options controls, and Quick Transfer UI with ImGui ID/persistence stubs and the actual override loader with optional-plugin and malformed-entry cases. `check_navigation.py` runs the actual message-box, close, registry-dispatch, and page-return code with UI/task stubs, including direct binding, cancellation, cleanup, and expired handles. `check_archives.py` runs the registered archive list and selection callbacks, including every archive handler, contextual returns, cancellation, and browsing without creating redirects.
 
 `check_redirects.py` compiles the actual manager, identifier code, INI persistence, and SKSE callbacks with stubs. It covers unloaded sources, dynamic save isolation, both persistence modes, changed load order, global precedence, linked activator blocking, and malformed records.
 

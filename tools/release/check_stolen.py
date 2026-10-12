@@ -128,7 +128,7 @@ struct Stores {
     void CloseStoreObject(RE::TESObjectREFR*){closed=true;returnToVault_={};}
     void OpenStorageMenu(Container c,RE::TESObjectREFR*,std::function<void(RE::TESObjectREFR*)> callback){opened=c;onClose=std::move(callback);}
     void VaultMenu(RE::TESObjectREFR*){closed=false;options.clear();returnToVault_={};}
-    void ShowVaultArchivesMenu(RE::TESObjectREFR*);void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*);void ShowStolenItemsMenu(RE::TESObjectREFR*);
+void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*);void ShowStolenItemsMenu(RE::TESObjectREFR*);
     void Click(int i){auto action=options[i].action;options.clear();action();SKSE::GetTaskInterface()->Run();}
 };
 #include "src/StolenItems.h"
@@ -136,7 +136,7 @@ struct Stores {
 source=(ROOT / "src/StolenItems.cpp").read_text()
 program += "\n".join(line for line in source.splitlines() if not line.startswith("#include"))
 source=(ROOT / "src/Stores.cpp").read_text()
-for name in ["ShowVaultArchivesMenu","StolenItemsMenu","OpenStolenItems","ShowStolenItemsMenu"]:
+for name in ["StolenItemsMenu","OpenStolenItems","ShowStolenItemsMenu"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}",start)+2]
 program += r'''
@@ -194,8 +194,12 @@ int main(){
     menu->Click(0);assert(count(archive,ingredient)==2);close=menu->onClose;close(&source);assert(menu->options.size()==3 && count(alchemy,ingredient)==2);
     menu->Click(2);assert(menu->cancel==0);menu->Click(1);assert(menu->options.size()==3 && count(alchemy,ingredient)==2 && StolenItems::GetStacks(&alchemy).empty());
     menu->Click(0);assert(count(archive,ingredient)==0);close=menu->onClose;close(&source);
-    menu->ShowVaultArchivesMenu(&source);menu->Click(0);assert(menu->options.size()==4 && menu->options[2].text=="Vault.Back" && menu->options[3].text=="Stolen.RemoveAllTags");menu->Click(2);assert(menu->options[0].text=="Vault.StolenItems");menu->returnToVault_={};
-    s->GSC_AllowRemovingStolenTags=false;menu->ShowVaultArchivesMenu(&source);assert(menu->options[0].text=="Vault.StolenItems");menu->Click(0);close=menu->onClose;close(&source);assert(menu->options[0].text=="Vault.StolenItems");
+    int returns=0;menu->returnToVault_=[&]{++returns;};
+    menu->StolenItemsMenu(&source);assert(menu->options.size()==4 && menu->options[2].text=="Vault.Back" && menu->options[3].text=="Stolen.RemoveAllTags");
+    menu->Click(2);assert(returns==1);
+    s->GSC_AllowRemovingStolenTags=false;menu->StolenItemsMenu(&source);close=menu->onClose;close(&source);assert(returns==2);
+    menu->returnToVault_={};
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

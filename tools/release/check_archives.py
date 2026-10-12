@@ -1,0 +1,185 @@
+"""Exercise registered archive browsing and selection without redirect assignment."""
+
+from pathlib import Path
+import re
+import json
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def body(file, signature):
+    source = (ROOT / file).read_text()
+    start = source.index(signature)
+    return source[start:source.index("\n}", start) + 2]
+
+
+registry = body("src/Utility.cpp", "void Utility::LoadContainers(")
+program = r'''
+#include <algorithm>
+#include <cassert>
+#include <deque>
+#include <functional>
+#include <map>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+namespace RE { struct TESBoundObject; }
+#include "src/ItemClass.h"
+namespace std {
+string format(const char*, const char* label) { return "[" + string(label) + "]"; }
+}
+namespace RE {
+using FormID = unsigned;
+struct TESObjectREFR;
+struct ObjectRefHandle {
+    TESObjectREFR* ref;
+    std::shared_ptr<TESObjectREFR> get() const;
+};
+struct TESObjectREFR {
+    unsigned id; bool alive = true; std::string name;
+    ObjectRefHandle GetHandle() { return {this}; }
+    unsigned GetFormID() const { return id; }
+    const char* GetDisplayFullName() const { return name.c_str(); }
+};
+std::shared_ptr<TESObjectREFR> ObjectRefHandle::get() const {
+    return ref && ref->alive ? std::shared_ptr<TESObjectREFR>(ref, [](auto*){}) : nullptr;
+}
+struct TESObjectREFRPtr {
+    std::shared_ptr<TESObjectREFR> pointer;
+    TESObjectREFRPtr() = default;
+    TESObjectREFRPtr(TESObjectREFR* ref) : pointer(ref, [](auto*){}) {}
+    TESObjectREFRPtr(std::shared_ptr<TESObjectREFR> ref) : pointer(std::move(ref)) {}
+    explicit operator bool() const { return bool(pointer); }
+    TESObjectREFR* get() const { return pointer.get(); }
+    void reset() { pointer.reset(); }
+};
+struct TESDataHandler {};
+struct TESForm {
+    inline static std::map<unsigned, TESObjectREFR*> forms;
+    template<class T> static T* LookupByID(unsigned id) { return forms.contains(id) ? forms[id] : nullptr; }
+};
+enum class UI_MESSAGE_TYPE { kShow };
+struct UIMessageQueue {
+    int shown = 0;
+    static UIMessageQueue* GetSingleton() { static UIMessageQueue q; return &q; }
+    void AddMessage(std::string_view, UI_MESSAGE_TYPE, void*) { ++shown; }
+};
+}
+namespace SKSE {
+struct Tasks {
+    std::deque<std::function<void()>> tasks;
+    void AddTask(std::function<void()> task) { tasks.push_back(std::move(task)); }
+    void Run() { while (!tasks.empty()) { auto task = tasks.front(); tasks.pop_front(); task(); } }
+};
+Tasks* GetTaskInterface() { static Tasks tasks; return &tasks; }
+}
+struct RedirectManager {
+    int assignments = 0;
+    static RedirectManager* GetSingleton() { static RedirectManager r; return &r; }
+    bool Add(RE::TESObjectREFR*, RE::TESObjectREFR*) { ++assignments; return true; }
+};
+const char* Translate(const char* key) { return key; }
+struct Stores {
+    RE::ObjectRefHandle navigationSource_{};
+    std::function<void()> returnToVault_;
+    std::string called;
+    bool closed = false;
+    static Stores* GetSingleton() { static Stores s; return &s; }
+    void ResetNavigation() { navigationSource_ = {}; returnToVault_ = {}; }
+    void CloseStoreObject(RE::TESObjectREFR*) { closed = true; }
+    void VaultMenu(RE::TESObjectREFR*) { ResetNavigation(); called = "VaultMenu"; }
+    void ShowVaultArchivesMenu(RE::TESObjectREFR*);
+    void OpenBookArchive(Container archive, Container, ItemCategory, RE::TESObjectREFR*) {
+        called = std::string(ContainerTranslationKey(archive));
+    }
+'''
+for method in sorted(set(re.findall(r"Stores::GetSingleton\(\)->(\w+)\(", registry))):
+    if method not in {"VaultMenu", "OpenBookArchive"}:
+        program += f'    void {method}(RE::TESObjectREFR*) {{ called = "{method}"; }}\n'
+program += r'''
+};
+struct Utility {
+    struct ContainerChoice { std::string name; unsigned formID = 0; std::function<void()> action{}; };
+    struct Entry { RE::TESObjectREFR* container; ContainerGroup a_group; std::function<void(RE::TESObjectREFR*)> action; };
+    std::map<Container, Entry> containerMap;
+    std::map<Container, RE::TESObjectREFR> references;
+    static Utility* GetSingleton() { static Utility u; return &u; }
+    void AddContainer(RE::TESDataHandler*, Container kind, unsigned id, ContainerGroup group,
+        std::function<void(RE::TESObjectREFR*)> action = {}) {
+        auto& ref = references[kind]; ref = {id, true, std::string(ContainerTranslationKey(kind))};
+        containerMap[kind] = {&ref, group, std::move(action)};
+    }
+    void LoadContainers(RE::TESDataHandler*);
+    std::vector<ContainerChoice> GetArchiveChoices(RE::TESObjectREFR* source = nullptr) const;
+};
+'''
+header = (ROOT / "src/ContainerMenu.h").read_text()
+program += header[header.index("class ContainerSelectionState"):header.index("class ContainerListMenu")]
+program += 'struct ContainerListMenu { static constexpr std::string_view MENU_NAME = "List"; };\n'
+program += registry
+program += body("src/Utility.cpp", "std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices(")
+for signature in ["ContainerSelectionState* ContainerSelectionState::GetSingleton(",
+                  "void ContainerSelectionState::Begin(", "bool ContainerSelectionState::Complete(",
+                  "void ContainerSelectionState::Reset("]:
+    program += body("src/ContainerMenu.cpp", signature)
+program += body("src/Stores.cpp", "void Stores::ShowVaultArchivesMenu(")
+program += r'''
+int main() {
+    auto* utility = Utility::GetSingleton(); utility->LoadContainers(nullptr);
+    auto* stores = Stores::GetSingleton(); auto* state = ContainerSelectionState::GetSingleton();
+    auto* tasks = SKSE::GetTaskInterface();
+    auto source = std::make_shared<RE::TESObjectREFR>(RE::TESObjectREFR{100, true, "Root"});
+    auto assignments = utility->GetArchiveChoices();
+    assert(assignments.size() == 27);
+    for (const auto& choice : assignments) assert(!choice.action);
+    stores->ShowVaultArchivesMenu(source.get());
+    assert(state->GetTitle() == "Vault.Archives");
+    assert(state->GetChoices().size() == assignments.size() + 2);
+    assert(state->GetChoices()[0].name == "[Vault.Back]" && state->GetChoices()[1].name == "[Vault.Exit]");
+    for (std::size_t i = 0; i < assignments.size(); ++i) {
+        assert(state->GetChoices()[i+2].formID == assignments[i].formID);
+        assert(state->GetChoices()[i+2].name == assignments[i].name);
+        assert(state->GetChoices()[i+2].action);
+        stores->called.clear();
+        assert(state->Complete(static_cast<int>(i+2)));
+        assert(stores->called.empty());
+        tasks->Run(); assert(!stores->called.empty() && stores->returnToVault_);
+        stores->returnToVault_(); assert(state->GetChoices().size() == assignments.size() + 2);
+    }
+    assert(state->Complete(0)); tasks->Run();
+    assert(stores->called == "VaultMenu" && !stores->returnToVault_);
+    stores->ShowVaultArchivesMenu(source.get()); assert(state->Complete(1)); tasks->Run();
+    assert(stores->closed && !stores->returnToVault_);
+    stores->ShowVaultArchivesMenu(source.get()); assert(!state->Complete(-1)); tasks->Run();
+    assert(stores->called == "VaultMenu" && !stores->returnToVault_);
+    stores->ShowVaultArchivesMenu(source.get()); source->alive = false; stores->called.clear();
+    assert(state->Complete(2)); tasks->Run(); assert(stores->called.empty());
+    assert(RedirectManager::GetSingleton()->assignments == 0);
+    state->Begin(source, {}); assert(state->GetTitle() == "Select destination");
+    assert(!state->Complete(-1)); assert(state->GetTitle().empty());
+    source->alive = true;
+    auto* target = utility->containerMap[Container::Crafting].container;
+    RE::TESForm::forms[target->id] = target;
+    state->Begin(source, utility->GetArchiveChoices());
+    assert(state->Complete(0) && RedirectManager::GetSingleton()->assignments == 1);
+    assert(state->GetChoices().empty());
+    int cancellations = 0;
+    state->Begin(source, {}, "Empty", [&]{ ++cancellations; });
+    assert(!state->Complete(99) && cancellations == 1);
+    utility->containerMap[Container::Crafting].container = nullptr;
+    assert(utility->GetArchiveChoices().size() == 26);
+}
+'''
+root_menu = body("src/Stores.cpp", "void Stores::ShowVaultMenu(")
+assert 'Translate("Vault.ArcaneArchives")' in root_menu
+assert json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())["Vault.ArcaneArchives"] == "Open Archives"
+with tempfile.TemporaryDirectory(prefix="arcanevault-archive-check-") as directory:
+    path = Path(directory)
+    (path / "check.cpp").write_text(program)
+    subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
+                    str(path / "check.cpp"), "-o", str(path / "check")], check=True)
+    subprocess.run([str(path / "check")], check=True)
+print("PASS: 27 registered archives, deferred handlers, contextual return, Back/Exit/cancel, expired source, and no browse assignments")

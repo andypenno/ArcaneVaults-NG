@@ -29,14 +29,19 @@ ContainerSelectionState* ContainerSelectionState::GetSingleton() {
     return std::addressof(singleton);
 }
 
-void ContainerSelectionState::Begin(RE::TESObjectREFRPtr source, std::vector<ContainerChoice> choices) {
+void ContainerSelectionState::Begin(RE::TESObjectREFRPtr source, std::vector<ContainerChoice> choices,
+    std::string title, std::function<void()> onCancel) {
     source_ = std::move(source);
     choices_ = std::move(choices);
+    title_ = std::move(title);
+    onCancel_ = std::move(onCancel);
 }
 
 bool ContainerSelectionState::Complete(std::int32_t selectedIndex) {
     if (!source_ || selectedIndex < 0 || static_cast<std::size_t>(selectedIndex) >= choices_.size()) {
+        auto onCancel = std::move(onCancel_);
         Reset();
+        if (onCancel) onCancel();
         return false;
     }
 
@@ -63,6 +68,8 @@ bool ContainerSelectionState::Complete(std::int32_t selectedIndex) {
 void ContainerSelectionState::Reset() {
     source_.reset();
     choices_.clear();
+    title_.clear();
+    onCancel_ = {};
 }
 
 //==================================
@@ -112,7 +119,7 @@ void ContainerListMenu::InitializeList() {
 
     // SkyUILib: listDialog.initListParams(title, start, default)
     std::array<RE::GFxValue, 3> parameterArgs;
-    parameterArgs[0].SetString("Select destination");
+    parameterArgs[0].SetString(ContainerSelectionState::GetSingleton()->GetTitle().c_str());
     parameterArgs[1].SetNumber(0);
     parameterArgs[2].SetNumber(0);
 

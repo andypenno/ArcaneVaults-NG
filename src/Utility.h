@@ -42,7 +42,7 @@ public:
     [[nodiscard]] Container GetContainerKind(RE::FormID formID) const;
     [[nodiscard]] std::vector<ContainerChoice> GetContainerChoices() const;
     [[nodiscard]] std::vector<ContainerChoice> GetVaultChoices() const;
-    [[nodiscard]] std::vector<ContainerChoice> GetArchiveChoices() const;
+    [[nodiscard]] std::vector<ContainerChoice> GetArchiveChoices(RE::TESObjectREFR* source = nullptr) const;
     [[nodiscard]] bool RunContainerAction(const RE::TESObjectREFR* container, RE::TESObjectREFR* source) const;
 
     // Container Setter

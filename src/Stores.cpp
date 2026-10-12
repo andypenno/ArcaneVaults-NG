@@ -471,7 +471,7 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) VaultDetail1Menu(source.get());
     }});
 
-    options.push_back({Translate("Vault.Archives"), [this, sourceHandle] {
+    options.push_back({Translate("Vault.ArcaneArchives"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) ShowVaultArchivesMenu(source.get());
     }});
 
@@ -1932,22 +1932,37 @@ void Stores::ShowValuablesMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowVaultArchivesMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    auto* queue = RE::UIMessageQueue::GetSingleton();
+    if (!queue) return;
     const auto handle = a_source->GetHandle();
     navigationSource_ = handle;
     returnToVault_ = [this, handle] {
         if (auto source = handle.get()) ShowVaultArchivesMenu(source.get());
     };
-    std::vector<MenuOption> options;
-    options.push_back({Translate("Vault.StolenItems"), [this, handle] {
-        if (auto source = handle.get()) StolenItemsMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.Back"), [this, handle] {
+    auto choices = Utility::GetSingleton()->GetArchiveChoices(a_source);
+    auto back = [this, handle] {
         if (auto source = handle.get()) VaultMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.Exit"), [this, handle] {
-        if (auto source = handle.get()) CloseStoreObject(source.get());
-    }});
-    ShowDynamicMessageBox(Translate("Vault.Archives"), std::move(options), 2);
+    };
+    choices.insert(choices.begin(), Utility::ContainerChoice{
+        .name = std::format("[{}]", Translate("Vault.Back")), .action = back
+    });
+    choices.insert(choices.begin() + 1, Utility::ContainerChoice{
+        .name = std::format("[{}]", Translate("Vault.Exit")), .action = [this, handle] {
+            ResetNavigation();
+            if (auto source = handle.get()) CloseStoreObject(source.get());
+        }
+    });
+    // Defer selection until SkyUILib has queued the current list's closure.
+    for (auto& choice : choices) {
+        choice.action = [action = std::move(choice.action)] {
+            SKSE::GetTaskInterface()->AddTask(action);
+        };
+    }
+    ContainerSelectionState::GetSingleton()->Begin(RE::TESObjectREFRPtr{a_source}, std::move(choices),
+        Translate("Vault.Archives"), [back = std::move(back)] {
+            SKSE::GetTaskInterface()->AddTask(back);
+        });
+    queue->AddMessage(ContainerListMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
 }
 
 void Stores::StolenItemsMenu(RE::TESObjectREFR* a_source) {
