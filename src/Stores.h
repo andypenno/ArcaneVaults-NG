@@ -141,7 +141,6 @@ private:
     void ShowFoodSaltMenu(RE::TESObjectREFR* a_source);
     void ShowBookMenu(RE::TESObjectREFR* a_source);
     void ShowNotesMenu(RE::TESObjectREFR* a_source);
-    void ShowBookArchives(Container a_parent, RE::TESObjectREFR* a_source);
     void ShowScrollMenu(RE::TESObjectREFR* a_source);
     void ShowArmorMenu(RE::TESObjectREFR* a_source);
     void ShowArmorLightMenu(RE::TESObjectREFR* a_source);

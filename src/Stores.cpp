@@ -2224,40 +2224,10 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
             AllToStore(a_archive, a_parent);
             if (a_returnToParent) {
                 if (a_parent == Container::Book) BookMenu(source);
-                else ShowBookArchives(a_parent, source);
+                else NotesMenu(source);
             } else CloseStoreObject(source);
         });
     });
-}
-
-void Stores::ShowBookArchives(Container a_parent, RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    const auto sourceHandle = a_source->GetHandle();
-    const bool books = a_parent == Container::Book;
-    std::vector<MenuOption> options;
-    const auto addArchive = [this, &options, sourceHandle, a_parent](Container archive, ItemCategory category) {
-        options.push_back({Translate(std::string{ContainerTranslationKey(archive)}), [this, sourceHandle, a_parent, archive, category] {
-            if (auto source = sourceHandle.get()) OpenBookArchive(archive, a_parent, category, source.get(), true);
-        }});
-    };
-    if (books) {
-        addArchive(Container::SpellTomes, ItemCategory::SpellTome);
-        addArchive(Container::SkillBooks, ItemCategory::SkillBook);
-    } else {
-        addArchive(Container::Recipes, ItemCategory::Recipe);
-        addArchive(Container::TreasureMaps, ItemCategory::TreasureMap);
-    }
-    options.push_back({Translate("Vault.Back"), [this, sourceHandle, books] {
-        if (auto source = sourceHandle.get()) {
-            if (books) BookMenu(source.get());
-            else NotesMenu(source.get());
-        }
-    }});
-    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
-    }});
-    const auto title = std::format("{} {}", Translate(books ? "Vault.Book" : "Vault.Notes"), Translate("Vault.Archives"));
-    ShowDynamicMessageBox(title, std::move(options), 3);
 }
 
 void Stores::NotesMenu(RE::TESObjectREFR* a_source) {
@@ -2280,8 +2250,13 @@ void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) NotesMenu(source.get());
     }});
-    options.push_back({Translate("Vault.Archives"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) ShowBookArchives(Container::Notes, source.get());
+    options.push_back({Translate("Vault.Recipes"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::Recipes, Container::Notes, ItemCategory::Recipe, source.get(), true);
+    }});
+    options.push_back({Translate("Vault.TreasureMaps"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::TreasureMaps, Container::Notes, ItemCategory::TreasureMap, source.get(), true);
     }});
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
@@ -2291,7 +2266,8 @@ void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
     }});
     const auto title = std::format("{} {}", Translate("Vault.Notes"), Translate("Vault.Vault"));
-    ShowDynamicMessageBox(title, std::move(options), 4);
+    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
+    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }
 
 void Stores::KeepAmmunition(bool a_respectIgnores) {

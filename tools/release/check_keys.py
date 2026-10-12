@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "ShowBookArchives", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -294,7 +294,6 @@ struct Stores {
     void ConsolidateBooks();
     void NotesMenu(RE::TESObjectREFR*);
     void ShowNotesMenu(RE::TESObjectREFR*);
-    void ShowBookArchives(Container,RE::TESObjectREFR*);
     void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool = false);
     void ShowBookMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);
@@ -1050,9 +1049,14 @@ int main() {
     stores.onClose();assert(utility->spellTomes.inventory[&spellBook].first==0 && chest.inventory[&spellBook].first==7 && stores.options.size()==6 && stores.options[3].text=="Vault.SkillBooks");
     click(3);assert(stores.opened==Container::SkillBooks && utility->skillBooks.inventory[&skillBook].first==7);
     stores.onClose();assert(utility->skillBooks.inventory[&skillBook].first==0 && chest.inventory[&skillBook].first==7 && stores.options.size()==6 && stores.options[2].text=="Vault.SpellTomes");
-    stores.NotesMenu(&source);click(2);assert(stores.options.size()==4 && stores.options[0].text=="Vault.Recipes" && stores.options[1].text=="Vault.TreasureMaps");
-    click(0);assert(stores.opened==Container::Recipes && utility->recipes.inventory[&recipeBook].first==7);stores.onClose();
-    click(1);assert(stores.opened==Container::TreasureMaps && utility->treasureMaps.inventory[&mapBook].first==7);stores.onClose();click(2);assert(stores.options.size()==5);
+    stores.NotesMenu(&source);assert(stores.options.size()==6);
+    assert(stores.options[2].text=="Vault.Recipes" && stores.options[3].text=="Vault.TreasureMaps" && stores.options[4].text=="Vault.Open" && stores.options[5].text=="Vault.Exit");
+    click(2);assert(stores.opened==Container::Recipes && utility->recipes.inventory[&recipeBook].first==7);
+    stores.onClose();assert(utility->recipes.inventory[&recipeBook].first==0 && stores.options.size()==6 && stores.options[3].text=="Vault.TreasureMaps");
+    click(3);assert(stores.opened==Container::TreasureMaps && utility->treasureMaps.inventory[&mapBook].first==7);
+    stores.onClose();assert(utility->treasureMaps.inventory[&mapBook].first==0 && stores.options.size()==6 && stores.options[2].text=="Vault.Recipes");
+    click(4);assert(stores.opened==Container::Notes);stores.onClose();assert(stores.options.size()==6);
+    stores.closed=false;click(5);assert(stores.closed);stores.NotesMenu(&source);
     player->inventory[&noteBook]=entry(2);click(1);assert(player->inventory[&noteBook].first==2 && player->inventory[&recipeBook].first==1 && player->inventory[&mapBook].first==1);
     click(0);assert(player->inventory[&noteBook].first==0 && utility->notes.inventory[&noteBook].first==11);
     stores.closed=false;stores.OpenBookArchive(Container::Recipes,Container::Notes,ItemCategory::Recipe,&source);stores.onClose();assert(stores.closed);
