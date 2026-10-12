@@ -26,8 +26,7 @@ These are observations from the named source, not confirmed game failures or fix
 | --- | --- |
 | `AVUI::RenderTransfer` | Staff label binds `GSC_OffloadTwoHand`; TwoHand label binds `GSC_OffloadStaffHand`. `OffloadItems` uses the members according to their actual names |
 | `Stores::ShowFoodMenu` | Spice action moves Reagent items to Reagent but opens RawFood; direct `ShowFoodSaltMenu` opens Reagent |
-| `Stores::ShowScrollMenu` | Keep One/Three deposits one/three per item after withdrawing storage; compare intended label with actual player/store counts |
-| `ClassifyItem` | No explicit native ScrollItem branch; misc Treasure/Gemstone classification depends on overrides |
+| `ClassifyItem` | Misc Treasure/Gemstone classification depends on overrides |
 | `AVTranslation::Install`, `Settings::get_value` | JSON/value conversion errors can throw without local handling |
 | `Utility::LoadAllForms` and consumers | Missing required forms only log; later code uses some pointers without guards. Campfire Creation Club lookup is also treated as required by default |
 | `CraftingLoanState`, `Soulgems` | Non-gem loans still return by category; gem loans preserve pre-loan counts but unrecognized form changes remain on the player. Carpenter bench detection is unchanged |

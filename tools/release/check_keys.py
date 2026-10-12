@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -57,6 +57,7 @@ namespace RE { struct TESBoundObject; }
 namespace RE {
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESAmmo {};
+struct ScrollItem {};
 struct TESObjectMISC {};
 struct TESSoulGem {};
 struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
@@ -92,12 +93,14 @@ struct TESBoundObject {
     IngredientItem ingredient{};
     TESObjectARMO armor{};
     bool nativeArmor = false;
+    bool nativeScroll = false;
     unsigned GetFormID() const { return formID; }
     bool IsGold() const { return formID == 0xF; }
     bool IsKey() const { return category == ItemCategory::Keys; }
     template<class T> T* As() {
         static T object;
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &object : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
         else if constexpr (std::is_same_v<T, IngredientItem>) return category == ItemCategory::Ingredient || category == ItemCategory::Catalyst || category == ItemCategory::Reagent ? &ingredient : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectARMO>) return nativeArmor ? &armor : nullptr;
@@ -237,6 +240,8 @@ struct Stores {
     void ShowKeysMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);
     void ShowBookMenu(RE::TESObjectREFR*);
+    void ScrollMenu(RE::TESObjectREFR*);
+    void ShowScrollMenu(RE::TESObjectREFR*);
     inline static Stores* instance = nullptr;
     Stores() { instance = this; }
     static Stores* GetSingleton() { return instance; }
@@ -260,7 +265,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -359,6 +364,7 @@ int main() {
     });
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
     assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
+    assert(options.at({"General", "ScrollKeepAmount"}) == 3);
     assert(options.at({"Offload", "Soulgems"}) == 1);
     assert(!options.contains({"Offload", "GrandSoulgem"}));
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
@@ -810,6 +816,45 @@ int main() {
     }
     ini.text="0";settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==0);
     ini.text="7";settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==7);
+    player->inventory.clear();chest.inventory.clear();
+    RE::TESBoundObject scrollA{ItemCategory::None}, scrollB{ItemCategory::None}, protectedScroll{ItemCategory::None};
+    for (auto* item : {&scrollA,&scrollB,&protectedScroll}) item->nativeScroll=true;
+    scrollA.formID=0x12345;scrollB.formID=0xFE123800;
+    assert(ClassifyItem(&scrollA)==ToMask(ItemCategory::Scroll) && ClassifyItem(&scrollB)==ToMask(ItemCategory::Scroll));
+    settings->GSC_ScrollKeepAmount=3;put(&scrollA,8);put(&scrollB,1);put(&protectedScroll,6,true);
+    chest.inventory[&scrollA]=entry(4);chest.inventory[&scrollB]=entry(1);
+    stores.ScrollMenu(&source);assert(stores.options.size()==5 && stores.options[1].text=="Keep 3" && stores.options[2].text=="Take Up To 3");
+    click(1);assert(player->inventory[&scrollA].first==3 && chest.inventory[&scrollA].first==9);
+    assert(player->inventory[&scrollB].first==1 && player->inventory[&protectedScroll].first==6);
+    click(2);assert(player->inventory[&scrollA].first==3 && chest.inventory[&scrollA].first==9);
+    assert(player->inventory[&scrollB].first==2 && chest.inventory[&scrollB].first==0);
+    settings->GSC_ScrollKeepAmount=5;stores.ScrollMenu(&source);click(2);
+    assert(player->inventory[&scrollA].first==5 && chest.inventory[&scrollA].first==7);
+    settings->GSC_ScrollKeepAmount=0;stores.ScrollMenu(&source);click(2);
+    assert(player->inventory[&scrollA].first==5);click(1);
+    assert(player->inventory[&scrollA].first==0 && player->inventory[&scrollB].first==0);
+    assert(player->inventory[&protectedScroll].first==6);
+    click(3);assert(stores.opened==Container::Scroll);stores.onClose();
+    stores.closed=false;click(4);assert(stores.closed);
+    for (const auto* text : {"bad","-1","2147483648","3junk",""}) {
+        ini.text=text;amount=8;settings->get_value(ini,amount,"General","ScrollKeepAmount");assert(amount==3);
+    }
+    ini.text="0";settings->get_value(ini,amount,"General","ScrollKeepAmount");assert(amount==0);
+    ini.text="6";settings->get_value(ini,amount,"General","ScrollKeepAmount");assert(amount==6);
+    player->inventory.clear();chest.inventory.clear();inbox.inventory.clear();utility->junk.inventory.clear();
+    inbox.inventory[&scrollA]=entry(12);inbox.inventory[&scrollB]=entry(7);stores.SortItems();
+    assert(inbox.inventory[&scrollA].first==0 && chest.inventory[&scrollA].first==12);
+    assert(inbox.inventory[&scrollB].first==0 && chest.inventory[&scrollB].first==7);
+    assert(!utility->junk.inventory.contains(&scrollA) && !utility->junk.inventory.contains(&scrollB));
+    chest.inventory.clear();settings->GSC_OffloadScrolls=false;put(&scrollA,9);stores.OffloadItems();
+    assert(player->inventory[&scrollA].first==9);
+    settings->GSC_OffloadScrolls=true;put(&scrollB,4,false,true);put(&protectedScroll,6,true);stores.OffloadItems();
+    assert(player->inventory[&scrollA].first==0 && chest.inventory[&scrollA].first==9);
+    assert(player->inventory[&scrollB].first==4 && player->inventory[&protectedScroll].first==6);
+    player->inventory[&scrollB].second->favorite=false;player->inventory[&scrollB].second->worn=true;stores.OffloadItems();
+    assert(player->inventory[&scrollB].first==4);
+    settings->overrides[&scrollA]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&scrollA)==ToMask(ItemCategory::Book));settings->overrides.erase(&scrollA);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -835,4 +880,4 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: native/standard GetEquipped protections, Alchemy and Welkynd sorting, Jewelry/Valuables filtering, Keys/ammunition/Septim reserves, 9999-capped removal retries, full crafting-loan return, INI validation, and ESP storage")
+print("PASS: native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")

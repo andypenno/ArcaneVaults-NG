@@ -109,6 +109,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int scrollKeepAmount = setting->GSC_ScrollKeepAmount;
+		if (InputInt(Translate("Options.ScrollKeepAmount"), &scrollKeepAmount)) {
+			setting->GSC_ScrollKeepAmount = (std::max)(0, scrollKeepAmount);
+			changeOption = true;
+		}
+
 		if (changeOption)
 			setting->SaveINI();
 	}

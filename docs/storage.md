@@ -37,7 +37,7 @@ Do not assume every parent menu consolidates exactly the same children. `ShowVau
 
 Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.
 
-Alchemy Keep N deposits only excess matching the full Alchemy category, and Take Up To N withdraws only its shortfall per base record. Both use Alchemy Keep Amount in Quantities, default 1. Store All still deposits all eligible Alchemy items. Scroll Keep One/Keep Three currently withdraw the entire store, then deposit one or three per item; their labels do not describe that code.
+Alchemy Keep N deposits only excess matching the full Alchemy category, and Take Up To N withdraws only its shortfall per base record. Both use Alchemy Keep Amount in Quantities, default 1. Store All still deposits all eligible Alchemy items. Scroll Keep N and Take Up To N use Scroll Keep Amount in Quantities, default 3. Keep N deposits only excess per base record; Take Up To N withdraws only the shortfall. Neither action empties the vault first. Zero deposits all eligible copies through Keep N and withdraws nothing through Take Up To N.
 
 Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take All, Open, and Exit. N comes from the Quantities setting described in [configuration.md](configuration.md). Keep N deposits only the excess above N per carried ammunition record; it never tops up smaller stacks from storage. Equipped, favorited, and quest entries remain untouched. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
 
@@ -81,6 +81,7 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 | Other `AlchemyItem` | Concoction plus Potion/Poison; adds Restorative if any effect matches health/magicka/stamina restoration |
 | Armor | Armor plus Jewelry by keyword or CommonLib accessory detection excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
+| Native spell scroll | Scroll through the engine ScrollItem type; explicit overrides still win |
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
 | Soul gem | Soulgem before miscellaneous items and overrides; filled/empty state belongs to inventory stacks |
 | Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
@@ -93,7 +94,7 @@ The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, ve
 
 Rare Curios Welkynd Stones use the bundled `ccBGSSSE037-Curios.esl|0x000800 = Treasure` override. The identity is documented by the [Rare Curios/The Cause patch author](https://www.nexusmods.com/skyrimspecialedition/mods/189779). Other plugins' stone records are not inferred from display names.
 
-Native `RE::ScrollItem` has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
+Native `RE::ScrollItem` records, including mod-added spell scrolls, classify as Scroll without per-form overrides. Dragonborn's throwable spider scrolls use the same path; a [published KID configuration and runtime log](https://www.nexusmods.com/skyrimspecialedition/mods/55728?comment_id=110378683&tab=posts) identifies `DLC2ExpSpider` items through its native Scroll filter. Book-style note scroll classification is unchanged. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 

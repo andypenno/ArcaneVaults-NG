@@ -158,6 +158,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (a_item->As<RE::TESAmmo>())
         return ToMask(ItemCategory::Ammunition);
 
+    if (a_item->As<RE::ScrollItem>())
+        return ToMask(ItemCategory::Scroll);
+
     // Crafting
     if (a_item->As<RE::TESObjectMISC>()) {
         if (a_item->GetFormID() == 0x0005AD9E || a_item->GetFormID() == 0x0005ACE3)

@@ -14,7 +14,7 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 | `ArcaneVaultRedirects.ini` | Global mappings; format and lifecycle in [storage.md](storage.md) |
 | `ArcaneVaultTranslation.json` | Flat translation object, supplied by [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) |
 
-Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount`, `GoldKeepAmount`, `SoulgemKeepAmount`, and `AlchemyKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100, 5000, 25, and 1 respectively. `SalePercentage` also requires fully consumed integer input, accepts 1..100, and falls back to 30 for invalid values. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
+Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount`, `GoldKeepAmount`, `SoulgemKeepAmount`, `AlchemyKeepAmount`, and `ScrollKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100, 5000, 25, 1, and 3 respectively. `SalePercentage` also requires fully consumed integer input, accepts 1..100, and falls back to 30 for invalid values. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
 
 ## Options
 
@@ -33,11 +33,12 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `GoldKeepAmount` | 5000 | Retain this many carried Septims; zero deposits all eligible Gold |
 | `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
 | `AlchemyKeepAmount` | 1 | Manual Alchemy Keep N and Take Up To N target per base record |
+| `ScrollKeepAmount` | 3 | Manual Scroll Keep N and Take Up To N target per base record |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
 In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
-Quantities also exposes Alchemy Keep Amount. It affects manual Alchemy actions; Quick Transfer retains its existing deposit-all policy for enabled Alchemy categories.
+Quantities also exposes Alchemy Keep Amount and Scroll Keep Amount. They affect manual vault actions; Quick Transfer retains its existing deposit-all policy for enabled Alchemy and Scroll categories.
 
 Options exposes Sale Percentage, clamped to 1..100 and saved in General. Trade is manual storage and has no Quick Transfer toggle. The default 30% offers less than a new character's unboosted merchant sale.
 
