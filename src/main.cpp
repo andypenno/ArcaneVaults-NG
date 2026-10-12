@@ -43,6 +43,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		AVEvents::ResetCraftingLoan();
 		AVEvents::CancelContainerMenuCloseCallback();
 		Stores::GetSingleton()->ResetIgnorePicker();
+		Stores::GetSingleton()->ResetSortFavorites();
 		if (message->type == SKSE::MessagingInterface::kNewGame)
 			SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); });
 		break;

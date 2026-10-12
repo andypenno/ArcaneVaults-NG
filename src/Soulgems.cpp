@@ -100,15 +100,16 @@ namespace Soulgems {
         }
     }
 
-    void Recover() {
+    void Recover(const std::unordered_set<RE::FormID>& a_sortExcluded) {
         Consolidate();
         auto* utility = Utility::GetSingleton();
         auto* bank = utility->GetContainer(Container::Soulgem);
         for (auto kind : {Container::Smithing, Container::Crafting, Container::Smelting,
             Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort})
-            MoveAll(utility->GetContainer(kind), bank, [kind](auto* gem) {
+            MoveAll(utility->GetContainer(kind), bank, [kind, &a_sortExcluded](auto* gem) {
                 auto* settings = Settings::GetSingleton();
-                return kind != Container::Sort || !settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem);
+                return kind != Container::Sort || (!a_sortExcluded.contains(gem->GetFormID()) &&
+                    (!settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem)));
             });
     }
 

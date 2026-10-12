@@ -64,6 +64,7 @@ public:
     void FinishIgnorePicker();
     void ResetIgnorePicker() { ++ignoreSession_; }
     void ReturnIgnoredItems();
+    void ResetSortFavorites() { sortFavorites_.clear(); }
     void BeginJunkLoan();
     void EndJunkLoan();
     void ResetJunkLoan() { junkLoan_.clear(); }
@@ -124,6 +125,9 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
+    std::unordered_set<RE::FormID> sortFavorites_;
+    void CaptureSortFavorites();
+    bool ReturnSortFavorites();
     std::uint64_t ignoreSession_{};
     std::unordered_map<RE::FormID, std::pair<int, int>> junkLoan_;
     RE::ObjectRefHandle navigationSource_;

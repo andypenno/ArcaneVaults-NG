@@ -20,9 +20,18 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
+start = source.index("bool Stores::ReturnSortFavorites(")
+extra_methods += source[start:source.index("\n}\n", start) + 3]
+start = source.index("void Stores::OpenStorageMenu(")
+opening = source[start:source.index("\n}\n", start) + 3]
+assert opening.index("if (a_chest == Container::Sort) CaptureSortFavorites();") < opening.index("ActivateRef(")
+for name in ("ShowVaultMenu", "ShowSortingMenu"):
+    start = source.index("void Stores::" + name + "(")
+    menu = source[start:source.index("\n}\n", start) + 3]
+    assert "OpenStorageMenu(Container::Sort" in menu and "SortItems();" in menu
 settings = (ROOT / "src/Settings.cpp").read_text()
 start = settings.index("template <class Func>\nvoid Settings::ForEachINIOption(")
 ini_options = settings[start:settings.index("\n}\n", start) + 3]
@@ -203,7 +212,7 @@ struct SCRIPT_FUNCTION {
         static SCRIPT_FUNCTION command{GetEquipped}; return available ? &command : nullptr;
     }
 };
-struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
+struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
 struct Utility {
     RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps;
@@ -253,7 +262,8 @@ program += item_source[item_source.index("bool HasCategory("):item_source.index(
 program += r'''
 namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
 namespace Soulgems {
-    void Recover() {} void Deposit(int, bool = false) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
+    std::unordered_set<RE::FormID> sortExcluded;
+    void Recover(const std::unordered_set<RE::FormID>& excluded = {}) { sortExcluded = excluded; } void Deposit(int, bool = false) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
     void Split() {} void Consolidate() {}
     std::optional<int> lastTarget;
     int withdrawals = 0;
@@ -274,6 +284,10 @@ struct Stores {
     void BeginJunkLoan();
     void EndJunkLoan();
     void ResetJunkLoan() { junkLoan_.clear(); }
+    std::unordered_set<RE::FormID> sortFavorites_;
+    void CaptureSortFavorites();
+    bool ReturnSortFavorites();
+    void ResetSortFavorites() { sortFavorites_.clear(); }
     void ReturnIgnoredItems();
     void FinishIgnorePicker();
     void OffloadItems();
@@ -946,6 +960,35 @@ int main() {
     inbox.inventory[&unknown]=entry(3);settings->GSC_ReturnIgnoredItems=false;stores.SortItems();assert(utility->junk.inventory[&unknown].first==3);
     settings->GSC_ReturnIgnoredItems=true;
     inbox.inventory.clear();settings->ignored.clear();
+    // Depositing the last copy may clear its favourite flag.
+    player->inventory.clear();chest.inventory.clear();utility->junk.inventory.clear();
+    scrollA.formID=0x1001;unknown.formID=0x1002;
+    player->inventory[&scrollA]=entry(25000);player->inventory[&scrollA].second->favorite=true;
+    stores.CaptureSortFavorites();
+    player->inventory.clear();inbox.inventory[&scrollA]=entry(25000);inbox.removeLimit=9999;
+    settings->GSC_ReturnIgnoredItems=false;stores.SortItems();
+    assert(player->inventory[&scrollA].first==25000 && inbox.inventory[&scrollA].first==0);
+    assert(chest.inventory[&scrollA].first==0 && RE::SendHUDMessage::last=="Vault.FavoritesReturned");
+    assert(Soulgems::sortExcluded.contains(scrollA.formID));
+    player->inventory.clear();stores.CaptureSortFavorites();
+    assert(!stores.sortFavorites_.contains(scrollA.formID));
+    inbox.inventory[&unknown]=entry(3);inbox.inventory[&unknown].second->favorite=true;
+    settings->ignored.insert(&unknown);stores.SortItems();
+    assert(player->inventory[&unknown].first==3 && utility->junk.inventory[&unknown].first==0);
+    assert(RE::SendHUDMessage::last=="Vault.FavoritesReturned");
+    inbox.inventory[&scrollA]=entry(8);inbox.inventory[&scrollA].second->favorite=true;
+    inbox.rejectMove=true;stores.SortItems();
+    assert(inbox.inventory[&scrollA].first==8 && chest.inventory[&scrollA].first==0);
+    assert(utility->junk.inventory[&scrollA].first==0 && RE::SendHUDMessage::last=="Vault.StoreAllMessage");
+    inbox.inventory[&scrollA].second->favorite=false;stores.CaptureSortFavorites();
+    assert(stores.sortFavorites_.contains(scrollA.formID));
+    settings->GSC_ReturnIgnoredItems=true;stores.SortItems();assert(inbox.inventory[&scrollA].first==8);
+    inbox.rejectMove=false;stores.SortItems();assert(player->inventory[&scrollA].first==8);
+    stores.ResetSortFavorites();assert(stores.sortFavorites_.empty());
+    player->inventory.clear();inbox.inventory.clear();settings->ignored.clear();inbox.removeLimit=INT_MAX;
+    inbox.inventory[&scrollA]=entry(2);stores.SortItems();
+    assert(chest.inventory[&scrollA].first==2 && RE::SendHUDMessage::last=="Vault.StoreAllMessage");
+    chest.inventory.clear();
     inbox.inventory[&scrollA]=entry(25000);inbox.inventory[&scrollB]=entry(2);settings->saveFails=true;
     stores.FinishIgnorePicker();assert(settings->IsIgnored(&scrollA) && settings->IsIgnored(&scrollB));
     assert(inbox.inventory[&scrollA].first==0 && inbox.inventory[&scrollB].first==0);

@@ -29,6 +29,7 @@
 	"Override.ButtonEdit": "Edit",
 	"Override.ButtonRemove": "Remove",
 	
+	"Vault.FavoritesReturned": "Favourited items returned to you",
 	"Vault.StoreAllMessage": "Your belongings have been transferred to the vaults",
 	"Vault.StoreMostMessage": "Most belongings have been transferred to the vaults",
 	"Vault.StoreGetMessage": "Your belongings have been retrieved",

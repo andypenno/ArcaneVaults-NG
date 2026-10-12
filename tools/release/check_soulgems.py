@@ -302,7 +302,10 @@ int main() {
     Soulgems::Deposit(0);assert(player->inventory[&gem].first==0 && bank->inventory[&gem].first==30);
     bank->inventory.clear();auto* sort=u->GetContainer(Container::Sort);sort->inventory.clear();sort->Put(&gem,3);
     Soulgems::Recover();assert(sort->inventory[&gem].first==3 && bank->inventory.empty());
-    Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;Soulgems::Recover();
+    Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;
+    Soulgems::Recover({gem.GetFormID()});
+    assert(sort->inventory[&gem].first==3 && bank->inventory.empty());
+    Soulgems::Recover();
     assert(sort->inventory[&gem].first==0 && bank->inventory[&gem].first==3);
 
 }

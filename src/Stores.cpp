@@ -243,8 +243,9 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
     for (const auto& [item, data] : inventory) {
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
-        if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems &&
-            Settings::GetSingleton()->IsIgnored(item)) continue;
+        if (a_source == Container::Sort &&
+            (sortFavorites_.contains(item->GetFormID()) || (data.second && data.second->IsFavorited()) ||
+             (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
@@ -259,9 +260,11 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
     auto* destination = utility->GetContainer(a_destination);
     if (!source || !destination || a_source == a_destination) return;
 
-    if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems) {
+    if (a_source == Container::Sort) {
         for (const auto& [item, data] : source->GetInventory()) {
-            if (item && data.first > 0 && !Settings::GetSingleton()->IsIgnored(item))
+            if (item && data.first > 0 && !sortFavorites_.contains(item->GetFormID()) &&
+                !(data.second && data.second->IsFavorited()) &&
+                !(Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))
                 MoveItems(source, destination, item, data.first);
         }
         return;
@@ -293,6 +296,8 @@ void Stores::OpenStorageMenu(Container a_chest, RE::TESObjectREFR* a_source, std
     auto* chest = Utility::GetSingleton()->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!chest || !player) return;
+
+    if (a_chest == Container::Sort) CaptureSortFavorites();
 
     const auto sourceHandle = a_source->GetHandle();
     auto returnToMenu = [sourceHandle, a_onClose = std::move(a_onClose)] {
@@ -345,8 +350,9 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     ConsolidateBooks();
+    const bool returnedFavorites = ReturnSortFavorites();
     ReturnIgnoredItems();
-    Soulgems::Recover();
+    Soulgems::Recover(sortFavorites_);
     // Sort all items in the sorting container
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
@@ -362,7 +368,7 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Weapon, Container::Sort, Container::Weapon);
     StoreToStore(ItemCategory::Concoction, Container::Sort, Container::Concoction);
     AllToStore(Container::Sort, Container::Junk);
-    RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+    RE::SendHUDMessage::ShowHUDMessage(Translate(returnedFavorites ? "Vault.FavoritesReturned" : "Vault.StoreAllMessage"));
 }
 
 void Stores::OffloadItems() {
@@ -2114,6 +2120,39 @@ void Stores::ShowTradeMenu(RE::TESObjectREFR* a_source) {
     }});
     const auto title = std::format("{} {}", Translate("Vault.Trade"), Translate("Vault.Vault"));
     ShowDynamicMessageBox(title, std::move(options), 1);
+}
+
+void Stores::CaptureSortFavorites() {
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return;
+    const auto counts = source->GetInventoryCounts();
+    std::erase_if(sortFavorites_, [&counts](auto id) {
+        return std::ranges::none_of(counts, [id](const auto& entry) {
+            return entry.first && entry.first->GetFormID() == id && entry.second > 0;
+        });
+    });
+    for (const auto& [item, data] : player->GetInventory()) {
+        if (item && data.first > 0 && data.second && data.second->IsFavorited())
+            sortFavorites_.insert(item->GetFormID());
+    }
+}
+
+bool Stores::ReturnSortFavorites() {
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return false;
+    bool returned = false;
+    for (const auto& [item, data] : source->GetInventory()) {
+        if (!item || data.first <= 0) continue;
+        if (data.second && data.second->IsFavorited()) sortFavorites_.insert(item->GetFormID());
+        if (!sortFavorites_.contains(item->GetFormID())) continue;
+        MoveItems(source, player, item, data.first);
+        const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+        const auto found = counts.find(item);
+        if (found == counts.end() || found->second < data.first) returned = true;
+    }
+    return returned;
 }
 
 void Stores::ReturnIgnoredItems() {
