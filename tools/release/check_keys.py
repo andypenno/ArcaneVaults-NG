@@ -562,6 +562,11 @@ int main() {
     click(0); assert(chest.inventory[&ordinary].first == 12);
 
     assert(utility->junk.inventory[&unmatched].first == 7);
+    RE::TESBoundObject welkynd{ItemCategory::None, false, 0xFE001800};
+    settings->overrides[&welkynd] = ToMask(ItemCategory::Treasure);
+    inbox.inventory.clear(); treasury.inventory.clear();
+    inbox.inventory[&welkynd] = entry(13); stores.SortItems();
+    assert(inbox.inventory[&welkynd].first == 0 && treasury.inventory[&welkynd].first == 13);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:

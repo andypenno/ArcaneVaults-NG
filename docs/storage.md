@@ -85,6 +85,8 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 
 The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, verified against [UESP](https://en.uesp.net/wiki/Skyrim:Ores_and_Ingots). Gemstones retain the bundled Gemstone overrides. Mods can classify additional records through Gemstone or PreciousIngot overrides.
 
+Rare Curios Welkynd Stones use the bundled `ccBGSSSE037-Curios.esl|0x000800 = Treasure` override. The identity is documented by the [Rare Curios/The Cause patch author](https://www.nexusmods.com/skyrimspecialedition/mods/189779). Other plugins' stone records are not inferred from display names.
+
 Native `RE::ScrollItem` has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.

@@ -64,7 +64,7 @@ Dragonborn.esm|0x017749 = Catalyst
 
 These two entries are present in the bundled file. The accepted, case-sensitive names come from `categoryNames` in [ItemClass.h](../src/ItemClass.h). It is a leaf-category list, not the entire ItemCategory enum. Category text parsing trims spaces/tabs and warns on unknown names; a zero mask can suppress classification. Parent expansion happens during classification, not during file parsing.
 
-The override loader resolves IDs to `TESBoundObject` forms and stores runtime FormIDs in memory. A malformed key, parse error, or unresolved item returns from the whole loader rather than skipping only that entry. Hex parsing there does not check full text consumption. Keep this difference from the stricter global redirect parser in mind when debugging partial loads.
+The override loader resolves IDs to `TESBoundObject` forms and stores runtime FormIDs in memory. The override loader reuses the global redirect identifier parser. Malformed identifiers, partially consumed hex IDs, and unresolved or non-item records skip only that entry. Missing optional plugins do not stop later overrides from loading.
 
 User edits replace one item's override. Save clears and rewrites only the Overrides section using stable file/local-ID identifiers, skips unstable forms, and preserves other sections. Deleting a user override reveals the bundled override or built-in classification. The UI accepts a full runtime FormID for lookup, while files store plugin-local identifiers. Its dropdown replaces the selection with one category; comma-separated files can represent multiple categories.
 

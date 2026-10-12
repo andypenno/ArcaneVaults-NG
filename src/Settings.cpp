@@ -228,26 +228,14 @@ void Settings::ProcessOverrideFile(const wchar_t* a_path , std::unordered_map<RE
 			auto rawCategories = it.second;
 			if (!rawCategories) continue;
 
-			// Process the key to find the form
-			auto separator = key.find('|');
-			if (separator == std::string::npos) return;
-
-			// Get the plugin name and form ID text
-			auto pluginName = key.substr(0, separator);
-			auto localIDText = key.substr(separator + 1);
-
-			if (localIDText.starts_with("0x") || localIDText.starts_with("0X"))
-				localIDText.remove_prefix(2);
-
-			// Make sure that the FormID is in the correct format
-			RE::FormID localID{ };
-			auto [end, error] = std::from_chars(localIDText.data(), localIDText.data() + localIDText.size(), localID, 16);
-			if (error != std::errc{}) return;
+			const auto identifier = ParseFormIdentifier(key);
+			if (!identifier) continue;
+			const auto& [pluginName, localID] = *identifier;
 
 			// Get the item
 			auto* form = RE::TESDataHandler::GetSingleton()->LookupForm(localID, pluginName);
 			auto* item = form ? form->As<RE::TESBoundObject>() : nullptr;
-			if (!item) return;
+			if (!item) continue;
 
 			// Add the item to the override list, and parse its categories
 			a_overrides.insert_or_assign(item->GetFormID(), ParseCategories(std::string_view{ rawCategories }));
