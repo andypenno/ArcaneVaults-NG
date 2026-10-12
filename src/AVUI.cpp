@@ -100,7 +100,6 @@ namespace AVUI {
 
 	void __stdcall RenderTransfer() {
 		auto* setting = Settings::GetSingleton();
-		auto* utility = Utility::GetSingleton();
 		bool changeOption = false;
 
 		if (CollapsingHeader(Translate("Vault.Alchemy"), ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -124,12 +123,14 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.Book"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			PushID("BookTransferOptions");
 			if (Checkbox(Translate("Vault.Book"), &setting->GSC_OffloadBooks))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Scroll"), &setting->GSC_OffloadScrolls))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.SpellTome"), &setting->GSC_OffloadSpelltomes))
 				changeOption = true;
+			PopID();
 		}
 
 		if (CollapsingHeader(Translate("Vault.Concoction"), ImGuiTreeNodeFlags_DefaultOpen)) {
