@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -31,6 +31,8 @@ get_value = settings[start:settings.index("\n}\n", start) + 3]
 classification = (ROOT / "src/ItemClass.cpp").read_text()
 start = classification.index("CategoryMask ClassifyItem(")
 classification = classification[start:classification.index("    // Food, Potions, and Poisons", start)]
+armor_source = (ROOT / "src/ItemClass.cpp").read_text()
+classification += armor_source[armor_source.index("    // Armor and Clothing"):armor_source.index("    // Weapons", armor_source.index("    // Armor and Clothing"))]
 classification += "\n    return categories | ToMask(a_item->category);\n}\n"
 settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
@@ -58,11 +60,38 @@ struct TESAmmo {};
 struct TESObjectMISC {};
 struct TESSoulGem {};
 struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
+struct BIPED_MODEL {
+    enum class BipedObjectSlot : unsigned { kHead=1, kHair=2, kBody=4, kHands=8, kAmulet=32, kRing=64, kFeet=128, kShield=512, kCirclet=4096 };
+    enum class ArmorType { kLightArmor, kHeavyArmor, kClothing };
+};
+struct TESObjectARMO {
+    using BipedObjectSlot = BIPED_MODEL::BipedObjectSlot;
+    using ArmorType = BIPED_MODEL::ArmorType;
+    struct SlotMask {
+        unsigned bits = 0;
+        template<class... Flags> bool all(Flags... flags) const { return (((bits & static_cast<unsigned>(flags)) == static_cast<unsigned>(flags)) && ...); }
+    };
+    struct { SlotMask bipedObjectSlots; ArmorType armorType = ArmorType::kClothing; } bipedModelData;
+    bool jewelryKeyword = false;
+    bool HasKeywordByEditorID(const char*) const { return jewelryKeyword; }
+    bool IsClothing() const;
+    bool IsLightArmor() const;
+    bool IsHeavyArmor() const;
+    bool IsAccessory() const;
+    bool IsHelmet() const;
+    bool IsCirclet() const;
+    bool IsChestpiece() const;
+    bool IsBoots() const;
+    bool IsGauntlets() const;
+    bool IsShield() const;
+};
 struct TESBoundObject {
     ItemCategory category;
     bool bolt = false;
     unsigned formID = 0;
     IngredientItem ingredient{};
+    TESObjectARMO armor{};
+    bool nativeArmor = false;
     unsigned GetFormID() const { return formID; }
     bool IsGold() const { return formID == 0xF; }
     bool IsKey() const { return category == ItemCategory::Keys; }
@@ -71,6 +100,7 @@ struct TESBoundObject {
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
         else if constexpr (std::is_same_v<T, IngredientItem>) return category == ItemCategory::Ingredient || category == ItemCategory::Catalyst || category == ItemCategory::Reagent ? &ingredient : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectARMO>) return nativeArmor ? &armor : nullptr;
         else return nullptr;
     }
 };
@@ -138,6 +168,11 @@ struct Utility {
     }
 };
 '''
+biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
+for name in ["IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
+    start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
+    body = biped_source[start:biped_source.index("\n\t}", start) + 3]
+    program += body.replace("BGSBipedObjectForm::", "RE::TESObjectARMO::") + "\n"
 item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
@@ -156,6 +191,8 @@ struct Stores {
     void SortItems();
     void StoreToPlayer(ItemCategory, Container, int = 0);
     void AllToStore(Container, Container);
+    void AllToPlayer(Container);
+    void ShowArmorJewelryMenu(RE::TESObjectREFR*);
     void ReturnValuables();
     void ShowValuablesMenu(RE::TESObjectREFR*);
     void ValuablesMenu(RE::TESObjectREFR*);
@@ -176,7 +213,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -562,11 +599,38 @@ int main() {
     click(0); assert(chest.inventory[&ordinary].first == 12);
 
     assert(utility->junk.inventory[&unmatched].first == 7);
+    chest.inventory.clear(); armorVault.inventory.clear(); valuables.inventory.clear();
+    RE::TESBoundObject helmet{ItemCategory::None}, hat{ItemCategory::None}, robe{ItemCategory::None}, nativeRing{ItemCategory::None}, circlet{ItemCategory::None};
+    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet}) item->nativeArmor = true;
+    helmet.armor.bipedModelData.bipedObjectSlots.bits = 1 | 2 | 4096;
+    helmet.armor.bipedModelData.armorType = RE::BIPED_MODEL::ArmorType::kHeavyArmor;
+    hat.armor.bipedModelData.bipedObjectSlots.bits = 2 | 4096;
+    robe.armor.bipedModelData.bipedObjectSlots.bits = 4 | 32;
+    nativeRing.armor.bipedModelData.bipedObjectSlots.bits = 64;
+    circlet.armor.bipedModelData.bipedObjectSlots.bits = 4096;
+    for (auto* item : {&helmet, &hat, &robe}) assert(!HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+    assert(HasCategory(ClassifyItem(&helmet), ItemCategory::HeavyArmor));
+    for (auto* item : {&hat, &robe}) assert(HasCategory(ClassifyItem(item), ItemCategory::Clothing));
+    for (auto* item : {&nativeRing, &circlet}) assert(HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet}) armorVault.inventory[item] = entry(3);
+    stores.ShowArmorJewelryMenu(&source);
+    for (auto* item : {&helmet, &hat, &robe}) assert(armorVault.inventory[item].first == 3 && chest.inventory[item].first == 0);
+    assert(chest.inventory[&nativeRing].first == 3 && chest.inventory[&circlet].first == 3);
+    auto closeJewelry = stores.onClose; closeJewelry();
+    stores.ValuablesMenu(&source); click(0);
+    for (auto* item : {&helmet, &hat, &robe}) assert(armorVault.inventory[item].first == 3 && valuables.inventory[item].first == 0);
+    assert(valuables.inventory[&nativeRing].first == 3 && valuables.inventory[&circlet].first == 3);
+    stores.ReturnValuables();
+    settings->overrides[&helmet] = ToMask(ItemCategory::Jewelry);
+    assert(HasCategory(ClassifyItem(&helmet), ItemCategory::Jewelry));
+    settings->overrides.erase(&helmet);
     RE::TESBoundObject welkynd{ItemCategory::None, false, 0xFE001800};
     settings->overrides[&welkynd] = ToMask(ItemCategory::Treasure);
     inbox.inventory.clear(); treasury.inventory.clear();
     inbox.inventory[&welkynd] = entry(13); stores.SortItems();
     assert(inbox.inventory[&welkynd].first == 0 && treasury.inventory[&welkynd].first == 13);
+
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -592,4 +656,4 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: actual transfers preserve counts/protections; Alchemy Ingredient/Catalyst/Reagent sorting, Keys/ammunition regressions, Septim reserves, Valuables menu/gather/return, INI validation, and ESP storage pass")
+print("PASS: transfers/protections, Alchemy and Welkynd sorting, Jewelry/Valuables filtering, Keys/ammunition/Septim reserves, INI validation, and ESP storage")

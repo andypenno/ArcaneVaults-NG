@@ -227,9 +227,8 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
 
         const bool isJewelry =
             armor->HasKeywordByEditorID("VendorItemJewelry") ||
-            armor->HasPartOf(RE::BIPED_MODEL::BipedObjectSlot::kRing) ||
-            armor->HasPartOf(RE::BIPED_MODEL::BipedObjectSlot::kAmulet) ||
-            armor->HasPartOf(RE::BIPED_MODEL::BipedObjectSlot::kCirclet);
+            (armor->IsAccessory() && !armor->IsHelmet() && !armor->IsChestpiece() &&
+                !armor->IsBoots() && !armor->IsGauntlets() && !armor->IsShield());
 
         if (isJewelry)
             categories |= ItemCategory::Jewelry;
