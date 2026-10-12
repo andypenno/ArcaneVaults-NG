@@ -186,11 +186,11 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     }
 }
 
-void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count) {
+void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count, std::optional<int> a_target) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player || !chest || i_count < 0) return;
+    if (!player || !chest || i_count < 0 || (a_target && *a_target <= 0)) return;
 
     const auto inventory = chest->GetInventory();
     for (const auto& [item, data] : inventory) {
@@ -199,7 +199,13 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
 
-        const int count = i_count == 0 ? data.first : (std::min)(data.first, i_count);
+        int count = i_count == 0 ? data.first : (std::min)(data.first, i_count);
+        if (a_target) {
+            const auto counts = player->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+            const auto found = counts.find(item);
+            const int held = found == counts.end() ? 0 : (std::max)(0, found->second);
+            count = (std::min)(count, (std::max)(0, *a_target - held));
+        }
         MoveItems(chest, player, item, count);
     }
 }
@@ -676,6 +682,12 @@ void Stores::ShowKeysMenu(RE::TESObjectREFR* a_source) {
     options.push_back({Translate("Vault.KeysStoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Keys, Container::Keys);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (auto source = sourceHandle.get()) KeysMenu(source.get());
+    }});
+
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), 1), [this, sourceHandle] {
+        StoreToPlayer(ItemCategory::Keys, Container::Keys, 0, 1);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
     }});
 

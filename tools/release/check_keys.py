@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -228,11 +228,13 @@ struct Stores {
     void OffloadItems();
     void StoreToStore(ItemCategory, Container, Container);
     void SortItems();
-    void StoreToPlayer(ItemCategory, Container, int = 0);
+    void StoreToPlayer(ItemCategory, Container, int = 0, std::optional<int> = std::nullopt);
     void AllToStore(Container, Container);
     void AllToPlayer(Container);
     void ShowArmorJewelryMenu(RE::TESObjectREFR*);
     void EmptySoulgemsMenu(RE::TESObjectREFR*);
+    void KeysMenu(RE::TESObjectREFR*);
+    void ShowKeysMenu(RE::TESObjectREFR*);
     inline static Stores* instance = nullptr;
     Stores() { instance = this; }
     static Stores* GetSingleton() { return instance; }
@@ -256,7 +258,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -752,6 +754,24 @@ int main() {
     click(2);assert(stores.opened==Container::EmptySoulgems);stores.onClose();
     assert(stores.options.size()==4);stores.closed=false;click(3);
     assert(stores.closed);
+    player->inventory.clear();chest.inventory.clear();
+    put(&a,0);put(&b,3);chest.inventory[&a]=entry(4);chest.inventory[&b]=entry(6);
+    stores.KeysMenu(&source);assert(stores.options.size()==6 && stores.options[2].text=="Take Up To 1");
+    click(2);assert(player->inventory[&a].first==1 && chest.inventory[&a].first==3);
+    assert(player->inventory[&b].first==3 && chest.inventory[&b].first==6);
+    click(2);assert(player->inventory[&a].first==1 && chest.inventory[&a].first==3);
+    click(0);assert(player->inventory[&b].first==1 && chest.inventory[&b].first==8);
+    click(3);assert(player->inventory[&a].first==4 && player->inventory[&b].first==9);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,0);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,-1);
+    assert(player->inventory[&a].first==4);
+    player->inventory.clear();chest.inventory.clear();chest.removeLimit=9999;
+    chest.inventory[&a]=entry(50000);put(&a,10000);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,40000);
+    assert(player->inventory[&a].first==40000 && chest.inventory[&a].first==20000);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,1000,45000);
+    assert(player->inventory[&a].first==41000 && chest.inventory[&a].first==19000);
+    chest.removeLimit=INT_MAX;
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
