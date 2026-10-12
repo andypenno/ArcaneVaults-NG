@@ -171,3 +171,9 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | FilledSoulgems | `0xDCB` | Archive | `FilledSoulgemsMenu` |
 | EmptySoulgems | `0xDCD` | Archive | `EmptySoulgemsMenu` |
 | Valuables | `0xDC9` | Archive | `ValuablesMenu` |
+
+## Ignore picker
+
+The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`. It is persistent, non-respawning, empty, and excluded from assignment choices. Sneaking is checked in the shared activation dispatcher for Master and Sort only. The close callback is target-specific; a session counter invalidates queued callbacks across game loads. Post-load and new-game tasks finish any residual picker inventory and return its contents. Failed returns stay in the persistent picker and prevent reopening it until recovery succeeds.
+
+Sort first returns ignored records when Return Ignored Items is enabled. Its category transfers, soul-gem recovery, and Junk fallback exclude any ignored copies left after a failed return. Disabling the option restores normal sorting. Player deposit helpers accept an explicit ignore flag; only Quick Transfer passes it, so manual deposits and crafting returns retain their existing policy.

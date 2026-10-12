@@ -138,5 +138,17 @@
 	"Vault.SpellTome": "Spell Tome",
 	"Vault.SoulgemEmpty": "Empty",
 	"Vault.SoulgemFilled": "Filled",
-	"Vault.SoulgemGrand": "Grand"
+	"Vault.SoulgemGrand": "Grand",
+
+	"Ignore": "Ignore List",
+	"Options.ReturnIgnoredItems": "Return Ignored Items",
+	"Ignore.Help": "Sneak-activate an Arcane Vault or Sort chest, deposit items to ignore, then close it. All copies are returned. Quick Transfer skips every copy of those items.",
+	"Ignore.Search": "Search",
+	"Ignore.Identifier": "Plugin And Local ID",
+	"Ignore.Missing": "<Missing Record>",
+	"Ignore.ClearAll": "Clear All",
+	"Ignore.ConfirmClear": "Confirm Clear All",
+	"Ignore.Cancel": "Cancel",
+	"Ignore.SaveFailed": "Ignore list could not be saved. Changes apply until the game closes.",
+	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list."
 }

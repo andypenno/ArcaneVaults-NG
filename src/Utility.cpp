@@ -40,7 +40,11 @@ bool Utility::RunContainerAction(const RE::TESObjectREFR* container, RE::TESObje
     for (const auto& [name, entry] : containerMap) {
         if (entry.container && entry.container->GetFormID() == container->GetFormID() && entry.action) {
             Stores::GetSingleton()->ResetNavigation();
-            entry.action(source);
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            if ((name == Container::Master || name == Container::Sort) && player && player->IsSneaking())
+                Stores::GetSingleton()->IgnoreMenu(source);
+            else
+                entry.action(source);
             return true;
         }
     }
@@ -53,7 +57,7 @@ std::vector<Utility::ContainerChoice> Utility::GetContainerChoices() const {
     choices.reserve(containerMap.size());
 
     for (const auto& [name, entry] : containerMap) {
-        if (!entry.container)
+        if (!entry.container || name == Container::Ignore)
             continue;
 
         choices.push_back(ContainerChoice{
@@ -306,6 +310,8 @@ void Utility::LoadAllForms() {
 }
 
 void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
+    AddContainer(dataHandler, Container::Ignore, RE::FormID(0xDD3), ContainerGroup::Special);
+
     // Sorting Chest
     AddContainer(dataHandler, Container::Master, RE::FormID(0xD93), ContainerGroup::Special, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->VaultMenu(a_source); }); 
     AddContainer(dataHandler, Container::Sort, RE::FormID(0xDB9), ContainerGroup::Special, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->SortingMenu(a_source); }); 

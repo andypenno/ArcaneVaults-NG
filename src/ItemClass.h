@@ -42,7 +42,8 @@ enum class Container : std::uint8_t {
     FilledSoulgems,
     EmptySoulgems,
     Junk,
-    Trade
+    Trade,
+    Ignore
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -135,6 +136,7 @@ enum class ContainerGroup {
     case Container::EmptySoulgems: return "Vault.EmptySoulgems";
     case Container::Trade:        return "Vault.Trade";
     case Container::Junk:         return "Vault.Junk";
+    case Container::Ignore:       return "Ignore";
     case Container::None:         return {};
     }
     return {};

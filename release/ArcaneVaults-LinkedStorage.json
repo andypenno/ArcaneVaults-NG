@@ -11,7 +11,7 @@
       "fields": [
         {
           "type": "HEDR",
-          "hex": "48e1da3f5b000000d20d0000"
+          "hex": "48e1da3f5d000000d40d0000"
         },
         {
           "type": "CNAM",
@@ -1534,6 +1534,40 @@
               "hex": "0000000000"
             }
           ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
+          "form_id": "0x01000DD2",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_IgnorePicker"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Ignore List"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
         }
       ]
     },
@@ -2461,6 +2495,28 @@
                             {
                               "type": "DATA",
                               "hex": "0000c8440000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
+                          "form_id": "0x01000DD3",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_IgnorePicker"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DD2"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "0000dc440000000000000000000000000000000000000000"
                             }
                           ]
                         }

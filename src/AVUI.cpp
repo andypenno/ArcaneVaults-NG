@@ -15,6 +15,7 @@ namespace AVUI {
 		SKSEMenuFramework::AddSectionItem(Translate("Quantities"), RenderQuantities);
 		SKSEMenuFramework::AddSectionItem("Quick Transfer", RenderTransfer);
 		SKSEMenuFramework::AddSectionItem(Translate("Override"), RenderOverrides);
+		SKSEMenuFramework::AddSectionItem(Translate("Ignore"), RenderIgnoredItems);
 	}
 
 	void __stdcall RenderOptions() {
@@ -59,6 +60,9 @@ namespace AVUI {
 		if (Checkbox(Translate("Options.CraftLoan"), &setting->GSC_CraftingLoan))
 			changeOption = true;
 		if (Checkbox(Translate("Options.OnlyOwn"), &setting->GSC_AssignOnlyOwn))
+			changeOption = true;
+
+		if (Checkbox(Translate("Options.ReturnIgnoredItems"), &setting->GSC_ReturnIgnoredItems))
 			changeOption = true;
 
 		int salePercentage = setting->GSC_SalePercentage;
@@ -212,6 +216,49 @@ namespace AVUI {
 
 		if (changeOption)
 			setting->SaveINI();
+	}
+
+	void __stdcall RenderIgnoredItems() {
+        static std::array<char, 256> search{};
+        static bool confirmClear = false;
+        auto* settings = Settings::GetSingleton();
+        Text("%s", Translate("Ignore.Help"));
+        InputText(Translate("Ignore.Search"), search.data(), search.size());
+        std::optional<std::string> removal;
+        if (BeginTable("IgnoredItems", 3)) {
+            TableSetupColumn(Translate("Override.Record"));
+            TableSetupColumn(Translate("Ignore.Identifier"));
+            TableSetupColumn("");
+            TableHeadersRow();
+            for (const auto& identifier : settings->GetIgnoredItems()) {
+                const auto* item = Settings::ResolveIgnoredItem(identifier);
+                const std::string name = item && item->GetName() ? item->GetName() : Translate("Ignore.Missing");
+                if (search[0] && name.find(search.data()) == std::string::npos &&
+                    identifier.find(search.data()) == std::string::npos) continue;
+                PushID(identifier.c_str());
+                TableNextRow();
+                TableNextColumn(); Text("%s", name.c_str());
+                TableNextColumn(); Text("%s", identifier.c_str());
+                TableNextColumn();
+                if (Button(Translate("Override.ButtonRemove"))) removal = identifier;
+                PopID();
+            }
+            EndTable();
+        }
+        bool changed = removal && settings->RemoveIgnoredItem(*removal);
+        if (Button(Translate("Ignore.ClearAll"))) confirmClear = true;
+        if (confirmClear) {
+            if (Button(Translate("Ignore.ConfirmClear"))) {
+                const auto entries = settings->GetIgnoredItems();
+                for (const auto& identifier : entries) settings->RemoveIgnoredItem(identifier);
+                changed = true;
+                confirmClear = false;
+            }
+            SameLine();
+            if (Button(Translate("Ignore.Cancel"))) confirmClear = false;
+        }
+        if (changed && !settings->SaveIgnoredItems())
+            RE::SendHUDMessage::ShowHUDMessage(Translate("Ignore.SaveFailed"));
 	}
 
 	void __stdcall RenderOverrides() {

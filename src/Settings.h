@@ -15,6 +15,7 @@ public:
 	int GSC_QuickKeyCode{ -1 };
 	bool GSC_GlobalRedirects{ true };
 	bool GSC_CraftingLoan{ false };
+	bool GSC_ReturnIgnoredItems{ true };
 	bool GSC_AssignOnlyOwn{ true };
 	bool GSC_AssignSpell{ true };
 	bool GSC_SortSpell{ true };
@@ -63,6 +64,13 @@ public:
 	void LoadRedirects();
 	void SaveRedirects() const;
 	[[nodiscard]] static std::optional<std::string> MakeFormIdentifier(const RE::TESForm* a_form);
+	void LoadIgnoredItems();
+	bool SaveIgnoredItems() const;
+	bool AddIgnoredItem(RE::TESBoundObject* a_item);
+	bool RemoveIgnoredItem(const std::string& a_identifier);
+	[[nodiscard]] bool IsIgnored(const RE::TESBoundObject* a_item) const;
+	[[nodiscard]] const std::unordered_set<std::string>& GetIgnoredItems() const { return ignoredItems_; }
+	[[nodiscard]] static RE::TESBoundObject* ResolveIgnoredItem(std::string_view a_identifier);
 
 	// Overrides
 	void ProcessOverrides();
@@ -78,12 +86,14 @@ public:
 private:
 	std::unordered_map<RE::FormID, CategoryMask> overrides_;
 	std::unordered_map<RE::FormID, CategoryMask> userOverrides_;
+	std::unordered_set<std::string> ignoredItems_;
 
     // cannot use auto for class member declaration
 	static constexpr const wchar_t* setting_path = L"Data/SKSE/Plugins/ArcaneVault/ArcaneVaultSettings.ini";
 	static constexpr const wchar_t* override_path = L"Data/SKSE/Plugins/ArcaneVault/ArcaneVaultOverrides.ini";
 	static constexpr const wchar_t* useroverride_path = L"Data/SKSE/Plugins/ArcaneVault/ArcaneVaultUserOverrides.ini";
 	static constexpr const wchar_t* redirect_path = L"Data/SKSE/Plugins/ArcaneVault/ArcaneVaultRedirects.ini";
+	static constexpr const wchar_t* ignore_path = L"Data/SKSE/Plugins/ArcaneVault/ArcaneVaultIgnoredItems.ini";
 
 	void ProcessOverrideFile(const wchar_t* a_path , std::unordered_map<RE::FormID, CategoryMask> &a_overrides);
 

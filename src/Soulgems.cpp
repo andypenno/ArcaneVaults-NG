@@ -1,5 +1,6 @@
 #include "Soulgems.h"
 #include "Utility.h"
+#include "Settings.h"
 #include <array>
 #include <unordered_set>
 
@@ -105,7 +106,10 @@ namespace Soulgems {
         auto* bank = utility->GetContainer(Container::Soulgem);
         for (auto kind : {Container::Smithing, Container::Crafting, Container::Smelting,
             Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort})
-            MoveAll(utility->GetContainer(kind), bank, [](auto*) { return true; });
+            MoveAll(utility->GetContainer(kind), bank, [kind](auto* gem) {
+                auto* settings = Settings::GetSingleton();
+                return kind != Container::Sort || !settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem);
+            });
     }
 
     void Split() {
@@ -126,7 +130,7 @@ namespace Soulgems {
         }
     }
 
-    void Deposit(int a_keepEmpty) {
+    void Deposit(int a_keepEmpty, bool a_respectIgnores) {
         if (a_keepEmpty < 0) return;
         Recover();
         auto* utility = Utility::GetSingleton();
@@ -139,6 +143,7 @@ namespace Soulgems {
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
             if (!gem || !data.second || Protected(gem, *data.second)) continue;
+            if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(gem)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
             int keep = a_keepEmpty;
             for (const auto& stack : stacks) {

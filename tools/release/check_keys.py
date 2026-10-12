@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "ReturnIgnoredItems", "FinishIgnorePicker"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -193,6 +193,7 @@ struct Utility {
         case Container::None: return nullptr;
         case Container::Junk: return &junk;
         case Container::Sort: return &inbox;
+        case Container::Ignore: return &inbox;
         case Container::Ammunition: return &ammunition;
         case Container::Treasure: return &treasure;
         case Container::Smithing: return missingSmithing ? nullptr : &smithing;
@@ -213,7 +214,7 @@ program += item_source[item_source.index("CategoryMask ToMask("):item_source.ind
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
 namespace Soulgems {
-    void Recover() {} void Deposit(int) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
+    void Recover() {} void Deposit(int, bool = false) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
     void Split() {} void Consolidate() {}
     std::optional<int> lastTarget;
     int withdrawals = 0;
@@ -227,7 +228,9 @@ const char* Translate(const char* key) {
 }
 struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
-    void PlayerToStore(ItemCategory, Container, int = 0, int = 0);
+    void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false);
+    void ReturnIgnoredItems();
+    void FinishIgnorePicker();
     void OffloadItems();
     void StoreToStore(ItemCategory, Container, Container);
     void SortItems();
@@ -297,6 +300,11 @@ program += "struct Settings {\n" + settings_fields + r'''
         if (overrides.contains(item)) return overrides.at(item);
         return std::nullopt;
     }
+    std::unordered_set<const RE::TESBoundObject*> ignored;
+    bool saveFails = false;
+    bool IsIgnored(const RE::TESBoundObject* item) const { return ignored.contains(item); }
+    bool AddIgnoredItem(RE::TESBoundObject* item) { if (item->formID == 0xFF000001) return false; ignored.insert(item); return true; }
+    bool SaveIgnoredItems() const { return !saveFails; }
     std::map<RE::TESBoundObject*, CategoryMask> overrides;
     static Settings* GetSingleton() { static Settings settings; return &settings; }
     template <class Func> void ForEachINIOption(Settings&, Func&&);
@@ -365,6 +373,7 @@ int main() {
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
     assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
     assert(options.at({"General", "ScrollKeepAmount"}) == 3);
+    assert(options.at({"General", "ReturnIgnoredItems"}) == 1);
     assert(options.at({"Offload", "Soulgems"}) == 1);
     assert(!options.contains({"Offload", "GrandSoulgem"}));
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
@@ -855,6 +864,28 @@ int main() {
     assert(player->inventory[&scrollB].first==4);
     settings->overrides[&scrollA]=ToMask(ItemCategory::Book);
     assert(ClassifyItem(&scrollA)==ToMask(ItemCategory::Book));settings->overrides.erase(&scrollA);
+    player->inventory.clear();chest.inventory.clear();inbox.inventory.clear();utility->junk.inventory.clear();
+    settings->ignored.insert(&scrollA);put(&scrollA,15);put(&scrollB,4);player->inventory[&scrollB].second->worn=false;
+    stores.OffloadItems();assert(player->inventory[&scrollA].first==15 && player->inventory[&scrollB].first==0);
+    stores.PlayerToStore(ItemCategory::Scroll,Container::Scroll);assert(player->inventory[&scrollA].first==0);
+    inbox.inventory[&scrollA]=entry(15000);inbox.inventory[&scrollB]=entry(4);
+    inbox.removeLimit=9999;stores.SortItems();assert(player->inventory[&scrollA].first==15000 && inbox.inventory[&scrollA].first==0);
+    assert(chest.inventory[&scrollB].first==8);
+    inbox.inventory[&scrollA]=entry(5);inbox.rejectMove=true;stores.SortItems();
+    assert(inbox.inventory[&scrollA].first==5 && !utility->junk.inventory.contains(&scrollA));inbox.rejectMove=false;
+    settings->GSC_ReturnIgnoredItems=false;stores.SortItems();assert(inbox.inventory[&scrollA].first==0 && chest.inventory[&scrollA].first==20);
+    RE::TESBoundObject unknown{ItemCategory::None};settings->ignored.insert(&unknown);inbox.inventory[&unknown]=entry(6);
+    settings->GSC_ReturnIgnoredItems=true;stores.SortItems();assert(player->inventory[&unknown].first==6 && !utility->junk.inventory.contains(&unknown));
+    inbox.inventory[&unknown]=entry(3);settings->GSC_ReturnIgnoredItems=false;stores.SortItems();assert(utility->junk.inventory[&unknown].first==3);
+    settings->GSC_ReturnIgnoredItems=true;
+    inbox.inventory.clear();settings->ignored.clear();
+    inbox.inventory[&scrollA]=entry(25000);inbox.inventory[&scrollB]=entry(2);settings->saveFails=true;
+    stores.FinishIgnorePicker();assert(settings->IsIgnored(&scrollA) && settings->IsIgnored(&scrollB));
+    assert(inbox.inventory[&scrollA].first==0 && inbox.inventory[&scrollB].first==0);
+    unknown.formID=0xFF000001;inbox.inventory[&unknown]=entry(4);stores.FinishIgnorePicker();
+    assert(!settings->IsIgnored(&unknown) && inbox.inventory[&unknown].first==0);
+    settings->saveFails=false;
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -864,10 +895,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 84
+assert validate_esp(ROOT, generate_esp(working)) == 86
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 39
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA")]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 40
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA")]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:

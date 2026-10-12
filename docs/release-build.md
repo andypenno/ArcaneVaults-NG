@@ -15,6 +15,7 @@ python3 tools/release/check_trade.py
 python3 tools/release/check_misc.py
 python3 tools/release/check_navigation.py
 python3 tools/release/check_redirects.py
+python3 tools/release/check_ignores.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -73,3 +74,5 @@ The build validates Windows x64 PE format and the actual SKSE export table, ESP 
 `check_keys.py` also tests the shared player-transfer protection with ten virtual worn items exposed through `GetEquipped`, unequipped copies, changed condition hooks, non-armor items, and missing or failed condition checks alongside native protections.
 
 The package root corresponds to Skyrim's `Data` directory. It has no enclosing `Data` or project-name directory. Runtime prerequisites such as SKSE, Address Library, and SKSE Menu Framework remain external game dependencies described in [build.md](build.md). No Skyrim launch or gameplay scenario is verified by these artifact checks.
+
+`check_ignores.py` runs the actual ignore loader/saver, activation dispatcher, picker completion, and SKSE management page with engine/UI/INI stubs. It checks unresolved-plugin preservation, rejected dynamic forms, metadata-carrying returns, failed activation/removal/saving, stale callbacks, name search, removal, and confirmed clearing. `check_keys.py` covers ignore-aware Sort/Quick Transfer and partial returns; `check_soulgems.py` covers the physical-gem path. Gameplay remains unverified.

@@ -51,6 +51,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_AssignKeyCode, "General", "AssignKeyCode");
 	option(settings.GSC_QuickKeyCode, "General", "QuickKeyCode");
 	option(settings.GSC_CraftingLoan, "General", "CraftingLoan");
+	option(settings.GSC_ReturnIgnoredItems, "General", "ReturnIgnoredItems");
 	option(settings.GSC_AssignOnlyOwn, "General", "AssignOnlyOwn");
 	option(settings.GSC_AssignSpell, "General", "AssignSpell");
 	option(settings.GSC_SortSpell, "General", "SortSpell");
@@ -101,6 +102,7 @@ void Settings::Init() {
 	LoadINI();
 	ProcessOverrides();
 	ProcessUserOverrides();
+	LoadIgnoredItems();
 }
 
 void Settings::LoadINI() {
@@ -348,4 +350,56 @@ void Settings::get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, 
 	} else {
 		set_value(a_ini, a_value, a_section, a_key);
 	}
+}
+
+RE::TESBoundObject* Settings::ResolveIgnoredItem(std::string_view a_identifier) {
+    const auto identifier = ParseFormIdentifier(a_identifier);
+    if (!identifier) return nullptr;
+    const auto& [plugin, localID] = *identifier;
+    auto* form = RE::TESDataHandler::GetSingleton()->LookupForm(localID, plugin);
+    return form ? form->As<RE::TESBoundObject>() : nullptr;
+}
+
+void Settings::LoadIgnoredItems() {
+    ignoredItems_.clear();
+    CSimpleIniA ini;
+    ini.SetUnicode();
+    ini.LoadFile(ignore_path);
+    if (const auto* section = ini.GetSection("IgnoredItems")) {
+        for (const auto& [key, value] : *section) {
+            if (!key.pItem || !ParseFormIdentifier(key.pItem)) continue;
+            const auto canonical = MakeFormIdentifier(ResolveIgnoredItem(key.pItem));
+            ignoredItems_.insert(canonical ? *canonical : key.pItem);
+        }
+    }
+}
+
+bool Settings::SaveIgnoredItems() const {
+    CSimpleIniA ini;
+    ini.SetUnicode();
+    ini.LoadFile(ignore_path);
+    ini.Delete("IgnoredItems", nullptr);
+    for (const auto& identifier : ignoredItems_)
+        ini.SetValue("IgnoredItems", identifier.c_str(), "true");
+    if (ini.SaveFile(ignore_path) < 0) {
+        logger::error("Failed to save ignored items INI");
+        return false;
+    }
+    return true;
+}
+
+bool Settings::AddIgnoredItem(RE::TESBoundObject* a_item) {
+    const auto identifier = MakeFormIdentifier(a_item);
+    if (!identifier) return false;
+    ignoredItems_.insert(*identifier);
+    return true;
+}
+
+bool Settings::RemoveIgnoredItem(const std::string& a_identifier) {
+    return ignoredItems_.erase(a_identifier) != 0;
+}
+
+bool Settings::IsIgnored(const RE::TESBoundObject* a_item) const {
+    const auto identifier = MakeFormIdentifier(a_item);
+    return identifier && ignoredItems_.contains(*identifier);
 }

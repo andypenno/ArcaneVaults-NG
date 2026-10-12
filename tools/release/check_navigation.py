@@ -33,6 +33,10 @@ struct TESObjectREFR {
     ObjectRefHandle GetHandle() { return {this}; }
 };
 ObjectRefHandle::Pointer ObjectRefHandle::get() const { return {object && object->alive ? object : nullptr}; }
+struct PlayerCharacter {
+    static PlayerCharacter* GetSingleton() { static PlayerCharacter p; return &p; }
+    bool IsSneaking() const { return false; }
+};
 struct BGSOpenCloseForm {
     enum class OPEN_STATE { kClosed, kClosing, kOpen, kOpening };
     static OPEN_STATE GetOpenState(TESObjectREFR* source) { return source->open ? OPEN_STATE::kOpen : OPEN_STATE::kClosed; }
@@ -92,6 +96,7 @@ struct Stores {
     void VaultDetail2Menu(RE::TESObjectREFR*) { ++page2; }
     void OpenStoreObject(RE::TESObjectREFR* source, AnimationCallback action) { source->open = true; ++page3; action(source); }
     void PersonalMenu(RE::TESObjectREFR* source) { CloseStoreObject(source); archiveCleaned = true; }
+    void IgnoreMenu(RE::TESObjectREFR*) {}
     void JunkMenu(RE::TESObjectREFR* source) { PersonalMenu(source); }
     void TradeMenu(RE::TESObjectREFR* source) {
         ShowDynamicMessageBox("Trade", {{"Open", [] {}}, {"Vault.Exit", [this, source] { CloseStoreObject(source); }}}, 1);
@@ -100,7 +105,7 @@ struct Stores {
 void WaitForOpenState(RE::TESObjectREFR* source, RE::BGSOpenCloseForm::OPEN_STATE, Stores::AnimationCallback action) {
     if (action) action(source);
 }
-enum class Container { Trade };
+enum class Container { Trade, Master, Sort };
 struct Utility {
     struct Entry { RE::TESObjectREFR* container; std::function<void(RE::TESObjectREFR*)> action; };
     std::map<Container, Entry> containerMap;

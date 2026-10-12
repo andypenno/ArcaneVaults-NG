@@ -26,6 +26,7 @@ namespace AVUI {
     void __stdcall RenderQuantities();
     void __stdcall RenderTransfer();
 	void __stdcall RenderOverrides();
+    void __stdcall RenderIgnoredItems();
 
     // Additional Functions
 	void LookupOverrideItem();

@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-implementation = (ROOT / "src/Soulgems.cpp").read_text().replace('#include "Utility.h"', '')
+implementation = (ROOT / "src/Soulgems.cpp").read_text().replace('#include "Utility.h"', '').replace('#include "Settings.h"', '')
 program = r'''
 #include <algorithm>
 #include <array>
@@ -123,14 +123,20 @@ struct Utility {
     BenchType GetBenchType(RE::TESObjectREFR*) const { return bench; }
 };
 '''
+program += r'''
+struct Settings {
+    bool GSC_CraftingLoan = true;
+    bool GSC_ReturnIgnoredItems = true;
+    std::unordered_set<const RE::TESBoundObject*> ignored;
+    bool IsIgnored(const RE::TESBoundObject* item) const { return ignored.contains(item); }
+    static Settings* GetSingleton() { static Settings s;return &s; }
+};
+'''
 program += implementation
 loan = (ROOT / "src/Events.cpp").read_text()
 loan = loan[loan.index("class CraftingLoanState {"):loan.index("class FurnitureActivation {")]
 program += r'''
-struct Settings {
-    bool GSC_CraftingLoan = true;
-    static Settings* GetSingleton() { static Settings s;return &s; }
-};
+
 struct Stores {
     static Stores* GetSingleton() { static Stores s;return &s; }
     void AllToPlayer(Container) {}
@@ -287,6 +293,15 @@ int main() {
     assert(bank->inventory[&modStar].first==3 && player->inventory.empty());
     reset();player->Put(&gem,25000);bank->Put(&gem,35000);Soulgems::TakeEmpty(30000);
     assert(player->inventory[&gem].first==30000 && bank->inventory[&gem].first==30000);
+    player->inventory.clear();bank->inventory.clear();
+    Settings::GetSingleton()->ignored.insert(&gem);player->Put(&gem,30);
+    Soulgems::Deposit(0,true);assert(player->inventory[&gem].first==30 && bank->inventory.empty());
+    Soulgems::Deposit(0);assert(player->inventory[&gem].first==0 && bank->inventory[&gem].first==30);
+    bank->inventory.clear();auto* sort=u->GetContainer(Container::Sort);sort->inventory.clear();sort->Put(&gem,3);
+    Soulgems::Recover();assert(sort->inventory[&gem].first==3 && bank->inventory.empty());
+    Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;Soulgems::Recover();
+    assert(sort->inventory[&gem].first==0 && bank->inventory[&gem].first==3);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-soulgem-check-") as temporary:

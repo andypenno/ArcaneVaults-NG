@@ -42,7 +42,7 @@ public:
     void ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuOption> a_options, std::int32_t a_cancelOption = -1);
 
     // Storage Functions
-    void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0, int a_keepCount = 0);
+    void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0, int a_keepCount = 0, bool a_respectIgnores = false);
     void StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count = 0, std::optional<int> a_target = std::nullopt);
     void StoreToStore(ItemCategory a_category, Container a_source, Container a_destination);
     void AllToStore(Container a_source, Container a_destination);
@@ -58,6 +58,10 @@ public:
     // Utility Functions
     void SortItems();
     void OffloadItems();
+    void IgnoreMenu(RE::TESObjectREFR* a_source);
+    void FinishIgnorePicker();
+    void ResetIgnorePicker() { ++ignoreSession_; }
+    void ReturnIgnoredItems();
     void ResetNavigation();
     void VaultAssignment(RE::TESObjectREFRPtr a_source);
     
@@ -107,6 +111,7 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
+    std::uint64_t ignoreSession_{};
     RE::ObjectRefHandle navigationSource_;
     MenuAction returnToVault_;
     void ShowVaultMenu(RE::TESObjectREFR* a_source);

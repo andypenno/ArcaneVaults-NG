@@ -81,6 +81,7 @@ bool IsKeyPressed(int) { return false; }
 void Text(const char*) {}
 void RenderOptions(); void RenderQuantities(); void RenderTransfer();
 void RenderOverrides() {}
+void RenderIgnoredItems() {}
 namespace SKSEMenuFramework {
     bool installed = true;
     std::vector<std::pair<std::string,void(*)()>> sections;
@@ -129,7 +130,7 @@ int main() {
     assert(!duplicate && !settings->GSC_OffloadBooks && settings->saves == 2);
     SKSEMenuFramework::installed=false;Register();assert(SKSEMenuFramework::sections.empty());
     SKSEMenuFramework::installed=true;Register();
-    assert(SKSEMenuFramework::sections.size()==4);
+    assert(SKSEMenuFramework::sections.size()==5);
     assert(SKSEMenuFramework::sections[1].first=="Quantities" && SKSEMenuFramework::sections[1].second==RenderQuantities);
     ids.clear();RenderOptions();
     assert((shownInputs==std::vector<std::string>{"Options.SalePercentage"}));

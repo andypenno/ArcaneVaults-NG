@@ -12,6 +12,7 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 | `ArcaneVaultOverrides.ini` | Bundled overrides, supplied by [ini/ArcaneVaultOverrides.ini](../ini/ArcaneVaultOverrides.ini) |
 | `ArcaneVaultUserOverrides.ini` | User overrides edited by framework UI; takes precedence over bundled data |
 | `ArcaneVaultRedirects.ini` | Global mappings; format and lifecycle in [storage.md](storage.md) |
+| `ArcaneVaultIgnoredItems.ini` | Global ignore list, generated at runtime; stable `Plugin|0xLocalID` keys under `[IgnoredItems]` |
 | `ArcaneVaultTranslation.json` | Flat translation object, supplied by [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) |
 
 Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount`, `GoldKeepAmount`, `SoulgemKeepAmount`, `AlchemyKeepAmount`, and `ScrollKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100, 5000, 25, 1, and 3 respectively. `SalePercentage` also requires fully consumed integer input, accepts 1..100, and falls back to 30 for invalid values. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
@@ -34,6 +35,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
 | `AlchemyKeepAmount` | 1 | Manual Alchemy Keep N and Take Up To N target per base record |
 | `ScrollKeepAmount` | 3 | Manual Scroll Keep N and Take Up To N target per base record |
+| `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
 In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
@@ -92,3 +94,9 @@ User edits replace one item's override. Save clears and rewrites only the Overri
 Framework wrappers come from its submodule's resources header and resolve `SKSEMenuFramework` DLL exports at runtime. Installation detection only checks `Data/SKSE/Plugins/SKSEMenuFramework.dll` existence. Do not treat that check as an API version handshake.
 
 [Compatibility.h](../src/Compatibility.h) stops QuickLoot opening when its event container has a redirect. It does not redirect QuickLoot inventory itself. The QuickLoot submodule supplies request-client headers; the plugin does not link or build the QuickLoot DLL. Papyrus natives call the same shared assignment and offload operations as hotkeys.
+
+## Ignore list
+
+Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ignore List picker. Items remaining when it closes are added by base record, and every deposited copy is returned. Removing an item before closing cancels that addition. Normal activation, manual vault actions, and crafting loans do not use the list. Quick Transfer, its hotkey, and its spell always skip ignored records, including physical soul gems.
+
+The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
