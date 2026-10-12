@@ -218,6 +218,8 @@ namespace AVUI {
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Treasure"), &setting->GSC_OffloadTreasure))
 				changeOption = true;
+			if (Checkbox(Translate("Vault.Personal"), &setting->GSC_OffloadPersonal))
+				changeOption = true;
 		}
 
 		if (changeOption)

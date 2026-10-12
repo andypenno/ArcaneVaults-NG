@@ -1,5 +1,6 @@
 """Exercise deposit learning with real session, event, queue, and rollback code."""
 from pathlib import Path
+import json
 import subprocess
 import tempfile
 
@@ -112,7 +113,7 @@ int main() {
     auto open=[&](Container kind){u->kind=kind;DepositLearning::MenuOpened();};
     DepositLearning::Register();open(Container::Alchemy);send(a);tasks->Run();assert(menu->prompts==0);
     s->GSC_LearnDepositOverrides=true;
-    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Personal,Container::Valuables,Container::Soulgem,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems}) {
+    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Valuables,Container::Soulgem,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems}) {
         open(kind);send(a);tasks->Run();assert(menu->prompts==0);
     }
     for(auto [name,cat]:categoryNames) assert(ParseCategories(FormatCategories(ToMask(cat)))==ToMask(cat));
@@ -136,6 +137,18 @@ int main() {
     open(Container::Notes);send(a);tasks->Run();auto old=menu->options[1].action;DepositLearning::Reset();
     open(Container::Scroll);send(b);tasks->Run();old();tasks->Run();assert(s->overrides[a.id]==ToMask(ItemCategory::Jewelry));menu->Answer(true);assert(s->overrides[b.id]==ToMask(ItemCategory::Scroll));
     open(Container::Food);send(a);tasks->Run();s->GSC_LearnDepositOverrides=false;menu->Answer(true);assert(s->overrides[a.id]==ToMask(ItemCategory::Jewelry));
+    s->GSC_LearnDepositOverrides=true;
+    open(Container::Personal);send(a);tasks->Run();menu->Answer(false);
+    assert(s->overrides[a.id]==ToMask(ItemCategory::Jewelry));
+    open(Container::Personal);send(a);tasks->Run();menu->Answer(true);
+    assert(s->overrides[a.id]==ToMask(ItemCategory::Personal) && s->disk==s->overrides);
+    assert(ClassifyItem(&a)==ToMask(ItemCategory::Personal));
+    s->overrides.clear();s->overrides=s->disk;
+    assert(ClassifyItem(&a)==ToMask(ItemCategory::Personal));
+    const auto prompts=menu->prompts;
+    open(Container::Personal);send(a);send(gem);send(dynamic);tasks->Run();assert(menu->prompts==prompts);
+    s->RemoveUserOverride(a.id);assert(ClassifyItem(&a)==a.natural);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
@@ -145,3 +158,7 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run(["g++", "-std=c++23", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), str(source), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print("PASS: deposit mismatches, exclusions, broad categories, automatic event counts, queued prompts, decline suppression, persistence rollback, close/load invalidation")
+
+prompt = json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())["Learning.Confirm"]
+rendered = prompt.format("Test item", "Personal")
+assert "Test item" in rendered and "Personal" in rendered and "SKSE Overrides" in rendered

@@ -96,7 +96,8 @@ enum class ItemCategory : std::uint8_t {
     Note,
     SkillBook,
     Recipe,
-    TreasureMap
+    TreasureMap,
+    Personal
 };
 
 enum class ContainerGroup {
@@ -158,7 +159,7 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 40> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 41> categoryNames{{
     { "Alchemy", ItemCategory::Alchemy },
     { "Armor", ItemCategory::Armor },
     { "Weapon", ItemCategory::Weapon },
@@ -198,7 +199,8 @@ inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 40> categ
     { "Staff", ItemCategory::Staff },
     { "Tanning", ItemCategory::Tanning },
     { "Treasure", ItemCategory::Treasure },
-    { "TwoHand", ItemCategory::TwoHand }
+    { "TwoHand", ItemCategory::TwoHand },
+    { "Personal", ItemCategory::Personal }
 }};
 
 enum class BenchType : std::uint8_t {

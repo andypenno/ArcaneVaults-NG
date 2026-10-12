@@ -354,6 +354,7 @@ void Stores::SortItems() {
     ReturnIgnoredItems();
     Soulgems::Recover(sortFavorites_);
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Personal, Container::Sort, Container::Personal);
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
     StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
@@ -374,6 +375,9 @@ void Stores::SortItems() {
 void Stores::OffloadItems() {
     ConsolidateBooks();
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadPersonal)
+        PlayerToStore(ItemCategory::Personal, Container::Personal, 0, 0, true);
 
     if (settings->GSC_OffloadSoulgems) Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
 

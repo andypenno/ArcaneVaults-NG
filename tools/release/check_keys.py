@@ -215,7 +215,7 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps;
+    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal;
     RE::TESObjectREFR* scrollContainer = nullptr;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
     void CacheSkillBooks(RE::TESDataHandler*);
@@ -227,6 +227,7 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container container) {
         switch (container) {
         case Container::None: return nullptr;
+        case Container::Personal: return &personal;
         case Container::Junk: return &junk;
         case Container::Notes: return &notes;
         case Container::SpellTomes: return &spellTomes;
@@ -444,6 +445,7 @@ int main() {
     assert(options.at({"General", "ScrollKeepAmount"}) == 3);
     assert(options.at({"General", "ReturnIgnoredItems"}) == 1);
     assert(options.at({"Offload", "Notes"}) == 0);
+    assert(options.at({"Offload", "Personal"}) == 0);
     assert(options.at({"Offload", "Soulgems"}) == 1);
     assert(!options.contains({"Offload", "GrandSoulgem"}));
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
@@ -1180,6 +1182,29 @@ int main() {
     settings->ignored.insert(&broadArmor);put(&broadArmor,3);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
     settings->ignored.clear();put(&broadArmor,3,false,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
     put(&broadArmor,3,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+
+    player->inventory.clear();inbox.inventory.clear();chest.inventory.clear();settings->ignored.clear();stores.ResetSortFavorites();
+    auto& personal=utility->personal;
+    RE::TESBoundObject personalKey{ItemCategory::Keys,false,0x150001};
+    settings->overrides[&personalKey]=ToMask(ItemCategory::Personal);
+    assert(ClassifyItem(&personalKey)==ToMask(ItemCategory::Personal));
+    put(&personalKey,30000);stores.OffloadItems();
+    assert(player->inventory[&personalKey].first==30000 && personal.inventory.empty());
+    settings->GSC_OffloadPersonal=true;stores.OffloadItems();
+    assert(player->inventory[&personalKey].first==0 && personal.inventory[&personalKey].first==30000);
+    for(int protection=0;protection<5;++protection) {
+        put(&personalKey,4,protection==0,protection==1,protection==2);
+        if(protection==3) settings->ignored.insert(&personalKey);
+        if(protection==4) RE::SCRIPT_FUNCTION::equipped.insert(&personalKey);
+        stores.OffloadItems();assert(player->inventory[&personalKey].first==4);
+        settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.erase(&personalKey);
+    }
+    player->inventory.clear();personal.inventory.clear();inbox.inventory[&personalKey]=entry(7);
+    stores.SortItems();assert(personal.inventory[&personalKey].first==7 && inbox.inventory[&personalKey].first==0);
+    assert(!chest.inventory.contains(&personalKey));
+    settings->overrides.erase(&personalKey);assert(ClassifyItem(&personalKey)==ToMask(ItemCategory::Keys));
+    inbox.inventory[&personalKey]=entry(2);stores.SortItems();
+    assert(chest.inventory[&personalKey].first==2 && personal.inventory[&personalKey].first==7);
 
 }
 '''

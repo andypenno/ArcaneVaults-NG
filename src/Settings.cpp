@@ -74,6 +74,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadJewelry, "Offload", "Jewelry");
 	option(settings.GSC_OffloadBooks, "Offload", "Books");
 	option(settings.GSC_OffloadNotes, "Offload", "Notes");
+	option(settings.GSC_OffloadPersonal, "Offload", "Personal");
 	option(settings.GSC_OffloadScrolls, "Offload", "Scrolls");
 	option(settings.GSC_OffloadSpelltomes, "Offload", "Spelltomes");
 	option(settings.GSC_OffloadCrafting, "Offload", "Crafting");

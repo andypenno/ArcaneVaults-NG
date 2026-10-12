@@ -18,6 +18,7 @@ namespace {
 
     ItemCategory DestinationCategory(Container kind) {
         switch (kind) {
+        case Container::Personal: return ItemCategory::Personal;
         case Container::Alchemy: return ItemCategory::Alchemy;
         case Container::Armor: return ItemCategory::Armor;
         case Container::Clothing: return ItemCategory::Clothing;
@@ -106,10 +107,8 @@ namespace {
             const auto ticket = ++dialog;
             const auto* name = item->GetName();
             auto proposedName = FormatCategories(ToMask(proposed));
-            auto currentName = FormatCategories(ClassifyItem(item));
-            if (currentName.empty()) currentName = AVTranslation::Translate("Learning.Unclassified");
             const auto message = std::vformat(AVTranslation::Translate("Learning.Confirm"),
-                std::make_format_args(name, proposedName, currentName));
+                std::make_format_args(name, proposedName));
             showing = true;
             Stores::GetSingleton()->ShowDynamicMessageBox(message, {
                 { AVTranslation::Translate("Learning.No"), [session, ticket, id, proposed] {
