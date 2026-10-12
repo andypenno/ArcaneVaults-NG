@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -209,10 +209,17 @@ item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
-namespace Soulgems { void Recover() {} void Deposit(int) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {} }
+namespace Soulgems {
+    void Recover() {} void Deposit(int) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
+    void Split() {} void Consolidate() {}
+    std::optional<int> lastTarget;
+    int withdrawals = 0;
+    void TakeEmpty(std::optional<int> target = std::nullopt) { lastTarget=target; ++withdrawals; }
+}
 const char* Translate(const char* key) {
     if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
     if (std::string_view{key} == "Vault.Septims") return "Septims";
+    if (std::string_view{key} == "Vault.TakeUpToAmount") return "Take Up To";
     return key;
 }
 struct MenuOption { std::string text; std::function<void()> action; };
@@ -225,6 +232,7 @@ struct Stores {
     void AllToStore(Container, Container);
     void AllToPlayer(Container);
     void ShowArmorJewelryMenu(RE::TESObjectREFR*);
+    void EmptySoulgemsMenu(RE::TESObjectREFR*);
     inline static Stores* instance = nullptr;
     Stores() { instance = this; }
     static Stores* GetSingleton() { return instance; }
@@ -248,7 +256,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -732,6 +740,18 @@ int main() {
     RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
     stores.PlayerToStore(ItemCategory::Book,Container::Book);
     assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
+    settings->GSC_SoulgemKeepAmount=25;stores.EmptySoulgemsMenu(&source);
+    assert(stores.options.size()==4 && stores.options[0].text=="Take Up To 25");
+    const int beforeWithdrawals=Soulgems::withdrawals;
+    settings->GSC_SoulgemKeepAmount=10;click(0);
+    assert(Soulgems::withdrawals==beforeWithdrawals+1 && Soulgems::lastTarget==25);
+    assert(stores.options[0].text=="Take Up To 10");
+    click(1);assert(!Soulgems::lastTarget);
+    settings->GSC_SoulgemKeepAmount=0;stores.EmptySoulgemsMenu(&source);click(0);
+    assert(Soulgems::lastTarget==0 && stores.options[0].text=="Take Up To 0");
+    click(2);assert(stores.opened==Container::EmptySoulgems);stores.onClose();
+    assert(stores.options.size()==4);stores.closed=false;click(3);
+    assert(stores.closed);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:

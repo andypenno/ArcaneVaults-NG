@@ -252,6 +252,41 @@ int main() {
     reset();
     player->Put(&gem,25000);Soulgems::Deposit(25);
     assert(player->inventory[&gem].first==25 && bank->inventory[&gem].first==24975);
+    reset();
+    RE::TESSoulGem lesser(104,RE::SOUL_LEVEL::kNone);
+    player->Put(&gem,5);player->Put(&gem,7,RE::SOUL_LEVEL::kGrand,"Carried filled",true);
+    bank->Put(&gem,40);bank->Put(&gem,10,RE::SOUL_LEVEL::kLesser,"Stored filled",true);
+    player->Put(&lesser,2);bank->Put(&lesser,3);
+    player->Put(&varla,30);bank->Put(&varla,8);
+    player->Put(&prefilled,3,RE::SOUL_LEVEL::kNone,"Carried empty",true);player->Put(&prefilled,2);
+    bank->Put(&prefilled,50,RE::SOUL_LEVEL::kNone,"Stored empty",true);bank->Put(&prefilled,12);
+    Soulgems::TakeEmpty(25);
+    assert((counts(player,&gem)==std::array{25,7}));assert((counts(bank,&gem)==std::array{20,10}));
+    assert((counts(player,&lesser)==std::array{5,0}));assert((counts(bank,&lesser)==std::array{0,0}));
+    assert((counts(player,&varla)==std::array{30,0}));assert((counts(bank,&varla)==std::array{8,0}));
+    assert((counts(player,&prefilled)==std::array{25,2}));assert((counts(bank,&prefilled)==std::array{28,12}));
+    assert(player->inventory[&prefilled].second->lists.back()->owner=="Stored empty");
+    assert(empty->inventory[&gem].first==0 && filled->inventory[&gem].first==0);
+    Soulgems::TakeEmpty(25);assert((counts(player,&gem)==std::array{25,7}));
+    Soulgems::TakeEmpty(0);Soulgems::TakeEmpty(-1);Soulgems::TakeEmpty(5);
+    assert((counts(player,&gem)==std::array{25,7}));assert((counts(bank,&gem)==std::array{20,10}));
+    Soulgems::TakeEmpty();assert((counts(player,&gem)==std::array{45,7}));
+    assert((counts(bank,&gem)==std::array{0,10}));
+    reset();
+    player->Put(&gem,3,RE::SOUL_LEVEL::kGrand,{},true);player->inventory[&gem].first=2;
+    bank->Put(&gem,40);Soulgems::TakeEmpty(25);
+    assert(player->inventory[&gem].first==2 && bank->inventory[&gem].first==40);
+    player->inventory[&gem].second.reset();Soulgems::TakeEmpty(25);
+    assert(player->inventory[&gem].first==2 && bank->inventory[&gem].first==40);
+    for (int protection=0;protection<3;++protection) {
+        reset();bank->Put(&gem,3);auto& entry=*bank->inventory[&gem].second;
+        entry.quest=protection==0;entry.favorite=protection==1;entry.worn=protection==2;
+        Soulgems::TakeEmpty(25);assert(bank->inventory[&gem].first==3 && player->inventory.empty());
+    }
+    reset();bank->Put(&modStar,3);Soulgems::TakeEmpty(25);
+    assert(bank->inventory[&modStar].first==3 && player->inventory.empty());
+    reset();player->Put(&gem,25000);bank->Put(&gem,35000);Soulgems::TakeEmpty(30000);
+    assert(player->inventory[&gem].first==30000 && bank->inventory[&gem].first==30000);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-soulgem-check-") as temporary:
@@ -260,4 +295,4 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-soulgem-check-") as tempora
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "src"),
                     "-I", str(ROOT), str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
-print("PASS: actual soul gem code handles mixed stacks, explicit zero souls, metadata, reserves, archives, protections, recipe loans, reusable transformations, and uncertain leftovers")
+print("PASS: actual soul gem code handles mixed stacks, explicit zero souls, metadata, deposit/top-up reserves, archives, protections, recipe loans, reusable transformations, and uncertain leftovers")

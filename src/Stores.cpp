@@ -853,6 +853,11 @@ void Stores::EmptySoulgemsMenu(RE::TESObjectREFR* a_source) {
     Soulgems::Recover();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
+    const int takeAmount = Settings::GetSingleton()->GSC_SoulgemKeepAmount;
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), takeAmount), [this, sourceHandle, takeAmount] {
+        Soulgems::TakeEmpty(takeAmount);
+        if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());
+    }});
     options.push_back({Translate("Vault.TakeAllEmptySoulgems"), [this, sourceHandle] {
         Soulgems::TakeEmpty();
         if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());

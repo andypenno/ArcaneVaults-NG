@@ -31,7 +31,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `SortSpell` | true | Enable external sorting/offload spell |
 | `AmmunitionKeepAmount` | 100 | Retain this many per carried arrow or bolt record; zero retains none |
 | `GoldKeepAmount` | 5000 | Retain this many carried Septims; zero deposits all eligible Gold |
-| `SoulgemKeepAmount` | 25 | Retain this many empty soul gems per base record; filled gems have no reserve |
+| `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
 In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.

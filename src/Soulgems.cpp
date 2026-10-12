@@ -153,11 +153,38 @@ namespace Soulgems {
         }
     }
 
-    void TakeEmpty() {
+    void TakeEmpty(std::optional<int> a_target) {
+        if (a_target && *a_target <= 0) return;
         Recover();
         Split();
-        MoveAll(Utility::GetSingleton()->GetContainer(Container::EmptySoulgems),
-            RE::PlayerCharacter::GetSingleton(), [](auto*) { return true; });
+        auto* source = Utility::GetSingleton()->GetContainer(Container::EmptySoulgems);
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (source && player) {
+            if (!a_target) {
+                MoveAll(source, player, [](auto*) { return true; });
+            } else {
+                const auto carried = CountGems(player);
+                const auto playerInventory = player->GetInventory();
+                const auto inventory = source->GetInventory();
+                std::vector<Stack> stacks;
+                for (const auto& [item, data] : inventory) {
+                    auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
+                    if (!gem || !data.second || Protected(gem, *data.second)) continue;
+                    const auto id = gem->GetFormID();
+                    const auto existing = playerInventory.find(item);
+                    // Unparseable carried stacks must not count as zero toward the reserve.
+                    if (existing != playerInventory.end() && existing->second.first > 0 && !carried.contains(id)) continue;
+                    int take = *a_target - (carried.contains(id) ? carried.at(id)[0] : 0);
+                    if (take <= 0 || !ReadStacks(gem, data.first, *data.second, stacks)) continue;
+                    for (const auto& stack : stacks) {
+                        if (stack.filled) continue;
+                        const int count = (std::min)(take, stack.count);
+                        Move(source, player, gem, stack, count);
+                        take -= count;
+                    }
+                }
+            }
+        }
         Consolidate();
     }
 
