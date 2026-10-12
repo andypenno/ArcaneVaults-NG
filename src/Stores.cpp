@@ -163,6 +163,8 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!player || !chest || i_count < 0 || a_keepCount < 0) return;
 
+    const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+    const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
         if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
@@ -172,6 +174,10 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
+
+        // Equipment mods can expose virtual worn items through the standard condition.
+        double equipped{};
+        if (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0) continue;
 
         int count = data.first - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);

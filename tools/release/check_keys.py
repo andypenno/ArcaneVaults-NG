@@ -160,6 +160,22 @@ Handle::Pointer Handle::get() const { return {object && object->alive ? object :
 struct PlayerCharacter : TESObjectREFR {
     static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
 };
+struct SCRIPT_FUNCTION {
+    using Condition_t = bool(TESObjectREFR*, void*, void*, double&);
+    Condition_t* conditionFunction = nullptr;
+    inline static bool available = true, succeeds = true;
+    inline static int calls = 0;
+    inline static std::unordered_set<TESBoundObject*> equipped;
+    static bool GetEquipped(TESObjectREFR* actor, void* item, void* other, double& result) {
+        assert(actor == PlayerCharacter::GetSingleton() && !other);
+        ++calls; result = equipped.contains(static_cast<TESBoundObject*>(item)) ? 1.0 : 0.0;
+        return succeeds;
+    }
+    static SCRIPT_FUNCTION* LocateScriptCommand(std::string_view name) {
+        assert(name == "GetEquipped");
+        static SCRIPT_FUNCTION command{GetEquipped}; return available ? &command : nullptr;
+    }
+};
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
@@ -677,6 +693,45 @@ int main() {
     assert(player->inventory[&ironIngot].first == 0 && smithing.inventory[&ironIngot].first == 30000);
     player->removeLimit = INT_MAX; treasury.removeLimit = INT_MAX; inbox.removeLimit = INT_MAX;
 
+    player->inventory.clear(); armorVault.inventory.clear();
+    std::array<RE::TESBoundObject,10> virtualRings{};
+    RE::TESBoundObject spare{ItemCategory::Jewelry}, equippedSpare{ItemCategory::Jewelry},
+        vanillaWorn{ItemCategory::Jewelry}, protectedQuest{ItemCategory::Jewelry}, protectedFavorite{ItemCategory::Jewelry};
+    for (auto& ring : virtualRings) {
+        ring.category=ItemCategory::Jewelry; put(&ring,2); RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+    }
+    put(&spare,3); put(&equippedSpare,4); RE::SCRIPT_FUNCTION::equipped.insert(&equippedSpare);
+    put(&vanillaWorn,2,false,false,true); put(&protectedQuest,2,true); put(&protectedFavorite,2,false,true);
+    settings->GSC_OffloadJewelry=true; stores.OffloadItems();
+    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==2 && armorVault.inventory[&ring].first==0);
+    assert(player->inventory[&equippedSpare].first==4 && armorVault.inventory[&equippedSpare].first==0);
+    assert(player->inventory[&spare].first==0 && armorVault.inventory[&spare].first==3);
+    for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
+    // Replacing the standard condition between transfers must be observed.
+    auto* command=RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+    command->conditionFunction=[](RE::TESObjectREFR*,void*,void*,double& result) { result=0; return true; };
+    stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
+    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==0 && armorVault.inventory[&ring].first==2);
+    assert(player->inventory[&equippedSpare].first==0 && armorVault.inventory[&equippedSpare].first==4);
+    command->conditionFunction=RE::SCRIPT_FUNCTION::GetEquipped;
+    // Missing or failed conditions retain the existing vanilla protections.
+    for (int failure=0; failure<3; ++failure) {
+        put(&equippedSpare,2);
+        RE::SCRIPT_FUNCTION::available=failure!=0;
+        command->conditionFunction=failure==1 ? nullptr : RE::SCRIPT_FUNCTION::GetEquipped;
+        RE::SCRIPT_FUNCTION::succeeds=false;
+        stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
+        assert(player->inventory[&equippedSpare].first==0);
+        for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
+    }
+    RE::SCRIPT_FUNCTION::succeeds=true;
+    // The condition applies to any matching inventory form, not just rings or armor.
+    put(&nonkey,5); RE::SCRIPT_FUNCTION::equipped.insert(&nonkey);
+    stores.PlayerToStore(ItemCategory::Book,Container::Book);
+    assert(player->inventory[&nonkey].first==5);
+    RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
+    stores.PlayerToStore(ItemCategory::Book,Container::Book);
+    assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -702,4 +757,4 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: transfers/protections, Alchemy and Welkynd sorting, Jewelry/Valuables filtering, Keys/ammunition/Septim reserves, 9999-capped removal retries, full crafting-loan return, INI validation, and ESP storage")
+print("PASS: native/standard GetEquipped protections, Alchemy and Welkynd sorting, Jewelry/Valuables filtering, Keys/ammunition/Septim reserves, 9999-capped removal retries, full crafting-loan return, INI validation, and ESP storage")

@@ -16,6 +16,8 @@ Start with [docs/README.md](docs/README.md). Read the document for the area bein
 
 Change shared operations after checking their callers. Preserve inventory protections, save-format validation, reference lifetimes, and game-thread access rules described in the docs.
 
+Harden compatibility through standard engine or public API contracts while preserving vanilla behavior. Avoid mod-specific branches and private mod state when a shared contract can solve the problem.
+
 Read the working ESP definition and script sources before changing records or wiring. Preserve the imported upstream baseline for three-way updates. Keep dependency changes explicit; do not update submodule pins as routine setup.
 
 Check build installation environment variables before compiling because CommonLib can auto-install. A Linux static check does not verify this Windows SKSE plugin. Report build and game checks actually performed, and identify verification that could not run.

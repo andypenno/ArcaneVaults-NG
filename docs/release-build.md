@@ -70,4 +70,6 @@ The build validates Windows x64 PE format and the actual SKSE export table, ESP 
 
 `check_redirects.py` compiles the actual manager, identifier code, INI persistence, and SKSE callbacks with stubs. It covers unloaded sources, dynamic save isolation, both persistence modes, changed load order, global precedence, linked activator blocking, and malformed records.
 
+`check_keys.py` also tests the shared player-transfer protection with ten virtual worn items exposed through `GetEquipped`, unequipped copies, changed condition hooks, non-armor items, and missing or failed condition checks alongside native protections.
+
 The package root corresponds to Skyrim's `Data` directory. It has no enclosing `Data` or project-name directory. Runtime prerequisites such as SKSE, Address Library, and SKSE Menu Framework remain external game dependencies described in [build.md](build.md). No Skyrim launch or gameplay scenario is verified by these artifact checks.
