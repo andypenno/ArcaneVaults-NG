@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 settings = (ROOT / "src/Settings.cpp").read_text()
@@ -235,6 +235,8 @@ struct Stores {
     void EmptySoulgemsMenu(RE::TESObjectREFR*);
     void KeysMenu(RE::TESObjectREFR*);
     void ShowKeysMenu(RE::TESObjectREFR*);
+    void BookMenu(RE::TESObjectREFR*);
+    void ShowBookMenu(RE::TESObjectREFR*);
     inline static Stores* instance = nullptr;
     Stores() { instance = this; }
     static Stores* GetSingleton() { return instance; }
@@ -258,7 +260,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys);
+        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -772,6 +774,18 @@ int main() {
     stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,1000,45000);
     assert(player->inventory[&a].first==41000 && chest.inventory[&a].first==19000);
     chest.removeLimit=INT_MAX;
+    player->inventory.clear();chest.inventory.clear();
+    RE::TESBoundObject duplicateBook{ItemCategory::Book};
+    chest.inventory[&nonkey]=entry(4);chest.inventory[&duplicateBook]=entry(8);put(&duplicateBook,2);
+    stores.BookMenu(&source);assert(stores.options.size()==5 && stores.options[1].text=="Take Up To 1");
+    click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
+    assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
+    click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
+    player->inventory[&duplicateBook].second->favorite=true;
+    click(0);assert(player->inventory[&nonkey].first==0 && chest.inventory[&nonkey].first==4);
+    assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
+    click(3);assert(stores.opened==Container::Book);stores.onClose();
+    stores.closed=false;click(4);assert(stores.closed);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:

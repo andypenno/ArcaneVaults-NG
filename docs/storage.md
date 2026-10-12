@@ -37,11 +37,13 @@ Do not assume every parent menu consolidates exactly the same children. `ShowVau
 
 Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.
 
-Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Book Transfer One Copy and Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
+Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
 
 Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take All, Open, and Exit. N comes from the Quantities setting described in [configuration.md](configuration.md). Keep N deposits only the excess above N per carried ammunition record; it never tops up smaller stacks from storage. Equipped, favorited, and quest entries remain untouched. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
 
 Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
+
+Books offers Take Up To 1 in place of Transfer One Copy. It withdraws only missing book records, without emptying the vault or depositing carried duplicates. Store All, Gather Spell Tomes, Open, and Exit retain their existing actions.
 
 Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Exit, Keep N Septims, Store All Septims, and Take All Septims. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N uses Gold Keep Amount in Quantities. Take All Septims selects Gold only and handles counts above 9999.
 

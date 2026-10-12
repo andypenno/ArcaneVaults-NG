@@ -1039,10 +1039,9 @@ void Stores::ShowBookMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) BookMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.StoreOne"), [this, sourceHandle] {
-        AllToPlayer(Container::Book);
-        PlayerToStore(ItemCategory::Book, Container::Book, 1);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), 1), [this, sourceHandle] {
+        StoreToPlayer(ItemCategory::Book, Container::Book, 0, 1);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) BookMenu(source.get());
     }});
 
