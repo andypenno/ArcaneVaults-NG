@@ -318,6 +318,7 @@ void Utility::LoadAllForms() {
     // Storage Containers
     LoadContainers(dataHandler);
     CacheTemperRecipes(dataHandler);
+    CacheSkillBooks(dataHandler);
 
     logger::info("All forms are loaded.");
 }
@@ -451,4 +452,14 @@ void Utility::CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandle
     logger::info("Loaded: {} Tanning Items", TanningMap.size());
     logger::info("Loaded: {} Construction Items", ConstructionMap.size());
     logger::info("Loaded: {} Raw Food Items", RawFoodMap.size());
+}
+
+void Utility::CacheSkillBooks(RE::TESDataHandler* dataHandler) {
+    SkillBookMap.clear();
+    if (!dataHandler) return;
+    // Reading consumes skill-teaching data, so retain the loaded record identities.
+    for (auto* book : dataHandler->GetFormArray<RE::TESObjectBOOK>()) {
+        if (book && book->TeachesSkill() && !book->TeachesSpell())
+            SkillBookMap.insert(book->GetFormID());
+    }
 }

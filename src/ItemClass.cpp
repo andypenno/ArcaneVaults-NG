@@ -289,7 +289,7 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (auto* book = a_item->As<RE::TESObjectBOOK>()) {
         if (book->TeachesSpell())
             categories |= ItemCategory::Book | ItemCategory::SpellTome;
-        else if (book->TeachesSkill())
+        else if (book->TeachesSkill() || utility->SkillBookMap.contains(book->GetFormID()))
             categories |= ItemCategory::Book | ItemCategory::SkillBook;
         else if (book->HasKeywordByEditorID("VendorItemRecipe"))
             categories |= ItemCategory::Note | ItemCategory::Recipe;

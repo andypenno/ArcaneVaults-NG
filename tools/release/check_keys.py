@@ -64,10 +64,16 @@ struct TESAmmo {};
 struct ScrollItem {};
 struct TESObjectBOOK {
     bool note=false, spell=false, skill=false, recipe=false;
+    unsigned formID=0;
+    unsigned GetFormID() const { return formID; }
     bool IsNoteScroll() const { return note; }
     bool TeachesSpell() const { return spell; }
     bool TeachesSkill() const { return skill; }
     bool HasKeywordByEditorID(std::string_view key) const { return recipe && key=="VendorItemRecipe"; }
+};
+struct TESDataHandler {
+    std::vector<TESObjectBOOK*> books;
+    template<class T> const auto& GetFormArray() const { return books; }
 };
 struct TESObjectMISC {};
 struct TESSoulGem {};
@@ -201,7 +207,8 @@ struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 struct Utility {
     RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps;
     RE::TESObjectREFR* scrollContainer = nullptr;
-    std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap;
+    std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
+    void CacheSkillBooks(RE::TESDataHandler*);
     bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
     BenchType bench = BenchType::Smithing;
     BenchType GetBenchType(RE::TESObjectREFR*) { return bench; }
@@ -229,6 +236,11 @@ struct Utility {
     }
 };
 '''
+utility_source = (ROOT / "src/Utility.cpp").read_text()
+cache_start = utility_source.index("void Utility::CacheSkillBooks(")
+program += utility_source[cache_start:utility_source.index("\n}", cache_start) + 2]
+assert "CacheSkillBooks(dataHandler);" in utility_source
+assert "LoadAllForms();" in (ROOT / "src/main.cpp").read_text()
 biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
 for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
     start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
@@ -986,6 +998,21 @@ int main() {
     RE::TESBoundObject plainBook{ItemCategory::None,false,0x120001}, spellBook{ItemCategory::None,false,0x120002}, skillBook{ItemCategory::None,false,0x120003}, noteBook{ItemCategory::None,false,0x120004}, recipeBook{ItemCategory::None,false,0x120005}, mapBook{ItemCategory::None,false,0x120006};
     for (auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook}) item->nativeBook=true;
     spellBook.book.spell=true;skillBook.book.skill=true;noteBook.book.note=true;recipeBook.book.note=true;recipeBook.book.recipe=true;mapBook.book.note=true;
+    RE::TESBoundObject modSkillBook{ItemCategory::None,false,0xFE789800};
+    modSkillBook.nativeBook=true;modSkillBook.book.skill=true;
+    RE::TESDataHandler bookData;
+    for (auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook,&modSkillBook}) {
+        item->book.formID=item->GetFormID();bookData.books.push_back(&item->book);
+    }
+    bookData.books.push_back(nullptr);
+    utility->CacheSkillBooks(nullptr);assert(utility->SkillBookMap.empty());
+    utility->CacheSkillBooks(&bookData);
+    assert(utility->SkillBookMap.size()==2 && utility->SkillBookMap.contains(skillBook.formID) && utility->SkillBookMap.contains(modSkillBook.formID));
+    skillBook.book.skill=false;modSkillBook.book.skill=false;
+    assert(ClassifyItem(&modSkillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    settings->overrides[&skillBook]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&skillBook)==ToMask(ItemCategory::Book));settings->overrides.erase(&skillBook);
+    assert(!skillBook.book.TeachesSkill() && ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
     settings->overrides[&mapBook]=ToMask(ItemCategory::TreasureMap);
     assert(ClassifyItem(&plainBook)==ToMask(ItemCategory::Book));
     assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
@@ -1023,6 +1050,10 @@ int main() {
     put(&noteBook,5);put(&plainBook,5);stores.OffloadItems();assert(player->inventory[&noteBook].first==5 && player->inventory[&plainBook].first==0);
     settings->GSC_OffloadNotes=true;settings->ignored.clear();settings->ignored.insert(&mapBook);put(&mapBook,4);stores.OffloadItems();
     assert(player->inventory[&noteBook].first==0 && player->inventory[&mapBook].first==4);
+    utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());
+    skillBook.book.skill=true;utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.size()==1);
+    skillBook.book.spell=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SpellTome));
+    utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());skillBook.book.spell=false;
     utility->scrollContainer=nullptr;
 
     player->inventory.clear();ammoChest.inventory.clear();settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.clear();

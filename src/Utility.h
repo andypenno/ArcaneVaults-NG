@@ -25,10 +25,12 @@ public:
     std::unordered_set<RE::FormID> ConstructionMap;
     std::unordered_set<RE::FormID> RawFoodMap;
     std::unordered_set<RE::FormID> CookingMap;
+    std::unordered_set<RE::FormID> SkillBookMap;
 
     // Load Forms
     void LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler);
     void LoadAllForms();
+    void CacheSkillBooks(RE::TESDataHandler* dataHandler);
     void CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandler);
 
     // Smithing/Enchanting Functions

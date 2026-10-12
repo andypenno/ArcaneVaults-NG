@@ -198,7 +198,9 @@ Books owns Spell Tomes and Skill Books. Notes owns Recipes and Treasure Maps. Ea
 
 `ConsolidateBooks` returns child contents to parents and migrates Note/Book records from legacy Scroll storage, plus Note records from Books. It runs before Books/Notes/archive menus, Sort, and Quick Transfer. Native scrolls remain in Scroll. If a source disappears before the close callback runs, the next consolidation recovers the archive contents. Player protections and the ignore list still apply through their existing transfer paths.
 
-Spell/skill-teaching flags take precedence over the recipe keyword and note-style flag. Recipes use `VendorItemRecipe`; no translated item names are matched. Treasure Maps use bundled plugin-local overrides. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns TreasureMap.
+Skill-book identities are captured from loaded native book records during `kDataLoaded`, before saved read state is applied. Skyrim consumes skill-teaching data when a book is read, so classification also checks that cache. It survives save loads and new games, requires no save record, and includes mod-added native skill books. Explicit overrides still win; spell tomes retain priority.
+
+Spell/skill-teaching flags and cached skill-book identity take precedence over the recipe keyword and note-style flag. Recipes use `VendorItemRecipe`; no translated item names are matched. Treasure Maps use bundled plugin-local overrides. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns TreasureMap.
 
 The [published in-game record extraction](https://www.nexusmods.com/skyrimspecialedition/mods/32763?tab=docs) identifies the bundled map records:
 
