@@ -23,6 +23,7 @@ namespace AVUI {
 
     // Render Functions
     void __stdcall RenderOptions();
+    void __stdcall RenderQuantities();
     void __stdcall RenderTransfer();
 	void __stdcall RenderOverrides();
 

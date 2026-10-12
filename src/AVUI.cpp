@@ -12,6 +12,7 @@ namespace AVUI {
 		// Render Menu
 		SKSEMenuFramework::SetSection(Translate("Settings.ModName"));
 		SKSEMenuFramework::AddSectionItem(Translate("Options"), RenderOptions);
+		SKSEMenuFramework::AddSectionItem(Translate("Quantities"), RenderQuantities);
 		SKSEMenuFramework::AddSectionItem("Quick Transfer", RenderTransfer);
 		SKSEMenuFramework::AddSectionItem(Translate("Override"), RenderOverrides);
 	}
@@ -60,6 +61,30 @@ namespace AVUI {
 		if (Checkbox(Translate("Options.OnlyOwn"), &setting->GSC_AssignOnlyOwn))
 			changeOption = true;
 
+		int salePercentage = setting->GSC_SalePercentage;
+		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
+			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);
+			changeOption = true;
+		}
+
+		// Configuration Spells
+		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
+			changeOption = true;
+			utility->ConfigurationSpells();
+		}
+		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
+			changeOption = true;
+			utility->ConfigurationSpells();
+		}
+
+		if (changeOption)
+			setting->SaveINI();
+	}
+
+	void __stdcall RenderQuantities() {
+		auto* setting = Settings::GetSingleton();
+		bool changeOption = false;
+
 		int keepAmount = setting->GSC_AmmunitionKeepAmount;
 		if (InputInt(Translate("Options.AmmunitionKeepAmount"), &keepAmount)) {
 			setting->GSC_AmmunitionKeepAmount = (std::max)(0, keepAmount);
@@ -78,22 +103,6 @@ namespace AVUI {
 			changeOption = true;
 		}
 
-		int salePercentage = setting->GSC_SalePercentage;
-		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
-			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);
-			changeOption = true;
-		}
-
-		// Configuration Spells
-		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
-			changeOption = true;
-			utility->ConfigurationSpells();
-		}
-		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
-			changeOption = true;
-			utility->ConfigurationSpells();
-		}
-		
 		if (changeOption)
 			setting->SaveINI();
 	}

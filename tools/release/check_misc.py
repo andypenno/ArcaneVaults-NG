@@ -1,4 +1,4 @@
-"""Exercise the actual Quick Transfer UI and optional-plugin override loader."""
+"""Exercise actual settings pages, Quick Transfer UI, and override loading."""
 
 from pathlib import Path
 import subprocess
@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
 program = r'''
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <charconv>
@@ -58,12 +59,37 @@ program += "struct Settings {\n" + settings_fields + r'''
     void SaveINI() { ++saves; }
     void ProcessOverrideFile(const wchar_t*, std::unordered_map<RE::FormID, CategoryMask>&);
 };
-struct Utility { static Utility* GetSingleton() { static Utility utility; return &utility; } };
+struct Utility {
+    static Utility* GetSingleton() { static Utility utility; return &utility; }
+    void ConfigurationSpells() {}
+};
 const char* Translate(const char* key) { return key; }
 constexpr int ImGuiTreeNodeFlags_DefaultOpen = 1;
 std::set<std::string> ids;
 std::vector<std::string> scope;
 bool duplicate = false;
+bool waitKey = false;
+using ImGuiKey = int;
+constexpr int ImGuiKey_NamedKey_BEGIN = 0, ImGuiKey_NamedKey_END = 1;
+namespace HelperFunctions {
+    int IDCodeToImGuiKey(int key) { return key; }
+    int ImGuiKeyToIDCode(int key) { return key; }
+}
+const char* GetKeyName(ImGuiKey) { return "Key"; }
+bool Button(const char*) { return false; }
+bool IsKeyPressed(int) { return false; }
+void Text(const char*) {}
+void RenderOptions(); void RenderQuantities(); void RenderTransfer();
+void RenderOverrides() {}
+namespace SKSEMenuFramework {
+    bool installed = true;
+    std::vector<std::pair<std::string,void(*)()>> sections;
+    bool IsInstalled() { return installed; }
+    void SetSection(const char*) {}
+    void AddSectionItem(const char* label, void(*render)()) { sections.emplace_back(label,render); }
+}
+std::map<std::string,int> inputs;
+std::vector<std::string> shownInputs;
 std::string ID(const char* label) {
     std::string result;
     for (const auto& part : scope) result += part + "/";
@@ -78,10 +104,17 @@ bool Checkbox(const char* label, bool* value) {
 void SameLine() {}
 void PushID(const char* id) { scope.emplace_back(id); }
 void PopID() { assert(!scope.empty()); scope.pop_back(); }
+bool InputInt(const char* label, int* value) {
+    assert(ids.insert(ID(label)).second); shownInputs.emplace_back(label);
+    auto found=inputs.find(label); if (found==inputs.end()) return false;
+    *value=found->second; return true;
+}
 '''
 ui = (ROOT / "src/AVUI.cpp").read_text()
-start = ui.index("\tvoid __stdcall RenderTransfer()")
-program += ui[start:ui.index("\n\t}", start) + 3].replace("__stdcall ", "")
+for signature in ["\tvoid Register()", "\tvoid __stdcall RenderOptions()",
+                  "\tvoid __stdcall RenderQuantities()", "\tvoid __stdcall RenderTransfer()"]:
+    start = ui.index(signature)
+    program += ui[start:ui.index("\n\t}", start) + 3].replace("__stdcall ", "")
 settings = (ROOT / "src/Settings.cpp").read_text()
 parse_start = settings.index("\tstd::optional<std::pair<std::string_view, RE::FormID>> ParseFormIdentifier(")
 program += settings[parse_start:settings.index("\n\t}", parse_start) + 3]
@@ -94,6 +127,30 @@ int main() {
     assert(!duplicate && scope.empty() && settings->GSC_OffloadBooks && settings->saves == 1);
     ids.clear(); RenderTransfer();
     assert(!duplicate && !settings->GSC_OffloadBooks && settings->saves == 2);
+    SKSEMenuFramework::installed=false;Register();assert(SKSEMenuFramework::sections.empty());
+    SKSEMenuFramework::installed=true;Register();
+    assert(SKSEMenuFramework::sections.size()==4);
+    assert(SKSEMenuFramework::sections[1].first=="Quantities" && SKSEMenuFramework::sections[1].second==RenderQuantities);
+    ids.clear();RenderOptions();
+    assert((shownInputs==std::vector<std::string>{"Options.SalePercentage"}));
+    ids.clear();shownInputs.clear();RenderQuantities();
+    assert((shownInputs==std::vector<std::string>{"Options.AmmunitionKeepAmount","Options.GoldKeepAmount","Options.SoulgemKeepAmount"}));
+    assert(settings->GSC_AmmunitionKeepAmount==100 && settings->GSC_GoldKeepAmount==5000 && settings->GSC_SoulgemKeepAmount==25);
+    assert(settings->saves==2);
+    inputs={{"Options.AmmunitionKeepAmount",150},{"Options.GoldKeepAmount",4200},{"Options.SoulgemKeepAmount",7}};
+    ids.clear();RenderQuantities();
+    assert(settings->GSC_AmmunitionKeepAmount==150 && settings->GSC_GoldKeepAmount==4200 && settings->GSC_SoulgemKeepAmount==7);
+    assert(settings->saves==3 && settings->GSC_SalePercentage==30);
+    inputs={{"Options.AmmunitionKeepAmount",-1},{"Options.GoldKeepAmount",-100},{"Options.SoulgemKeepAmount",-25}};
+    ids.clear();RenderQuantities();
+    assert(settings->GSC_AmmunitionKeepAmount==0 && settings->GSC_GoldKeepAmount==0 && settings->GSC_SoulgemKeepAmount==0);
+    assert(settings->saves==4);
+    inputs={{"Options.SalePercentage",0}};ids.clear();RenderOptions();
+    assert(settings->GSC_SalePercentage==1 && settings->saves==5);
+    inputs["Options.SalePercentage"]=101;ids.clear();RenderOptions();
+    assert(settings->GSC_SalePercentage==100 && settings->saves==6);
+    assert(settings->GSC_AmmunitionKeepAmount==0 && settings->GSC_GoldKeepAmount==0 && settings->GSC_SoulgemKeepAmount==0);
+    inputs.clear();ids.clear();RenderQuantities();assert(settings->saves==6 && !duplicate && scope.empty());
     RE::TESBoundObject stone{0xFE001800}, ingredient{0x123};
     auto* data = RE::TESDataHandler::GetSingleton();
     data->forms[{"ccBGSSSE037-Curios.esl", 0x800}] = {&stone};
@@ -122,4 +179,4 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-misc-check-") as directory:
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
-print("PASS: Books UI IDs, toggling/persistence, Welkynd override, optional plugins, and malformed override recovery")
+print("PASS: Quantities registration/controls/validation, unchanged defaults, Options sale percentage, Books UI IDs/persistence, optional plugins, and malformed override recovery")

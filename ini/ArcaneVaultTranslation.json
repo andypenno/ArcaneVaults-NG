@@ -2,6 +2,7 @@
 	"Settings.ModName": "Arcane Vaults",
 
 	"Options": "Options",
+	"Quantities": "Quantities",
 	"Options.CraftLoan": "Transfer Stored Materials When Crafting",
 	"Options.Redirect": "Persistent Storage Redirects",
 	"Options.OnlyOwn": "Assign Only in Owned Cells or NonRespawn Containers",
