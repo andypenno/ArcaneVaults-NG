@@ -13,6 +13,23 @@
 #include <thread>
 
 namespace {
+    void MoveItems(RE::TESObjectREFR* source, RE::TESObjectREFR* destination, RE::TESBoundObject* item, int count) {
+        if (!source || !destination || source == destination || !item || count <= 0) return;
+        const auto countItems = [source, item] {
+            const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+            const auto found = counts.find(item);
+            return found == counts.end() ? 0 : (std::max)(0, found->second);
+        };
+        int available = countItems();
+        while (count > 0 && available > 0) {
+            source->RemoveItem(item, (std::min)(count, available), RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+            const int after = countItems();
+            if (after >= available) return;
+            count -= (std::min)(count, available - after);
+            available = after;
+        }
+    }
+
     using OpenState = RE::BGSOpenCloseForm::OPEN_STATE;
 
     struct OpenStatePoll
@@ -139,7 +156,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         int count = data.first - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);
         if (count > 0)
-            player->RemoveItem(item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
+            MoveItems(player, chest, item, count);
     }
 }
 
@@ -157,7 +174,7 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
         if (!HasCategory(categories, a_category)) continue;
 
         const int count = i_count == 0 ? data.first : (std::min)(data.first, i_count);
-        chest->RemoveItem(item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player);
+        MoveItems(chest, player, item, count);
     }
 }
 
@@ -174,7 +191,7 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
         
-        source->RemoveItem(item, data.first, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+        MoveItems(source, destination, item, data.first);
     }
 }
 

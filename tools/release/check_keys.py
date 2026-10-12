@@ -121,6 +121,8 @@ struct Handle {
     Pointer get() const;
 };
 struct TESObjectREFR {
+    int removeLimit = INT_MAX, removeCalls = 0;
+    bool rejectMove = false;
     bool alive = true;
     Handle GetHandle() { return {this}; }
     struct Changes {
@@ -129,16 +131,29 @@ struct TESObjectREFR {
             const auto snapshot = owner->inventory;
             for (const auto& [item, entry] : snapshot)
                 if (item && entry.first > 0)
-                    owner->RemoveItem(item, entry.first, ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+                    {
+                        owner->inventory[item].first -= entry.first;
+                        destination->inventory[item].first += entry.first;
+                        if (!destination->inventory[item].second) destination->inventory[item].second = std::make_shared<InventoryEntryData>();
+                    }
         }
     } changes{this};
     Changes* GetInventoryChanges() { return &changes; }
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
     auto GetInventory() const { return inventory; }
+    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter) const {
+        std::map<TESBoundObject*, int> counts;
+        for (auto& [item, data] : inventory) if (filter(*item)) counts[item] = data.first;
+        return counts;
+    }
     void RemoveItem(TESBoundObject* item, int count, ITEM_REMOVE_REASON, void*, TESObjectREFR* destination) {
         assert(count > 0 && count <= inventory.at(item).first);
+        ++removeCalls;
+        if (rejectMove) return;
+        count = std::min(count, removeLimit);
         inventory.at(item).first -= count;
         destination->inventory[item].first += count;
+        if (!destination->inventory[item].second) destination->inventory[item].second = std::make_shared<InventoryEntryData>();
     }
 };
 Handle::Pointer Handle::get() const { return {object && object->alive ? object : nullptr}; }
@@ -151,6 +166,7 @@ struct Utility {
     RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap;
     bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
+    BenchType GetBenchType(RE::TESObjectREFR*) { return BenchType::Smithing; }
     bool missingSmithing = false;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
     RE::TESObjectREFR* GetContainer(Container container) {
@@ -177,7 +193,7 @@ item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
-namespace Soulgems { void Recover() {} void Deposit(int) {} }
+namespace Soulgems { void Recover() {} void Deposit(int) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {} }
 const char* Translate(const char* key) {
     if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
     if (std::string_view{key} == "Vault.Septims") return "Septims";
@@ -193,6 +209,9 @@ struct Stores {
     void AllToStore(Container, Container);
     void AllToPlayer(Container);
     void ShowArmorJewelryMenu(RE::TESObjectREFR*);
+    inline static Stores* instance = nullptr;
+    Stores() { instance = this; }
+    static Stores* GetSingleton() { return instance; }
     void ReturnValuables();
     void ShowValuablesMenu(RE::TESObjectREFR*);
     void ValuablesMenu(RE::TESObjectREFR*);
@@ -254,7 +273,12 @@ program += "struct Settings {\n" + settings_fields + r'''
     }
 };
 '''
+move_start = source.index("    void MoveItems(")
+program += source[move_start:source.index("\n    }", move_start) + 6]
 program += classification + method + offload + store_to_store + sort_items + extra_methods + ini_options + get_value
+events = (ROOT / "src/Events.cpp").read_text()
+loan_start = events.index("class CraftingLoanState {")
+program += events[loan_start:events.index("\n};", loan_start) + 3]
 program += r'''
 int main() {
     static_assert(static_cast<unsigned>(Container::Staff) == 32);
@@ -631,6 +655,28 @@ int main() {
     assert(inbox.inventory[&welkynd].first == 0 && treasury.inventory[&welkynd].first == 13);
 
 
+    player->inventory.clear(); chest.inventory.clear(); treasury.inventory.clear(); inbox.inventory.clear();
+    player->removeLimit = 9999; treasury.removeLimit = 9999; inbox.removeLimit = 9999;
+    put(&gold, 30000); stores.PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, 5000);
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 25000);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure);
+    assert(player->inventory[&gold].first == 30000 && treasury.inventory[&gold].first == 0);
+    inbox.inventory[&gold] = entry(30000); stores.SortItems();
+    assert(inbox.inventory[&gold].first == 0 && treasury.inventory[&gold].first == 30000);
+    player->rejectMove = true; const int beforeCalls = player->removeCalls;
+    stores.PlayerToStore(ItemCategory::Gold, Container::Treasure);
+    assert(player->removeCalls == beforeCalls + 1 && player->inventory[&gold].first == 30000);
+    player->rejectMove = false;
+
+    smithing.inventory.clear(); player->inventory.clear(); chest.inventory.clear();
+    smithing.inventory[&ironIngot] = entry(30000);
+    settings->GSC_CraftingLoan = true;
+    CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+    assert(player->inventory[&ironIngot].first == 30000 && smithing.inventory[&ironIngot].first == 0);
+    CraftingLoanState::GetSingleton()->ExitCrafting();
+    assert(player->inventory[&ironIngot].first == 0 && smithing.inventory[&ironIngot].first == 30000);
+    player->removeLimit = INT_MAX; treasury.removeLimit = INT_MAX; inbox.removeLimit = INT_MAX;
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -656,4 +702,4 @@ for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, 
         pass
     else:
         raise AssertionError("Unsafe storage accepted")
-print("PASS: transfers/protections, Alchemy and Welkynd sorting, Jewelry/Valuables filtering, Keys/ammunition/Septim reserves, INI validation, and ESP storage")
+print("PASS: transfers/protections, Alchemy and Welkynd sorting, Jewelry/Valuables filtering, Keys/ammunition/Septim reserves, 9999-capped removal retries, full crafting-loan return, INI validation, and ESP storage")
