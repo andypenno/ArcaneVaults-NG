@@ -86,6 +86,7 @@ struct TESObjectARMO {
     struct { SlotMask bipedObjectSlots; ArmorType armorType = ArmorType::kClothing; } bipedModelData;
     bool jewelryKeyword = false;
     bool HasKeywordByEditorID(const char*) const { return jewelryKeyword; }
+    bool HasPartOf(BipedObjectSlot) const;
     bool IsClothing() const;
     bool IsLightArmor() const;
     bool IsHeavyArmor() const;
@@ -229,7 +230,7 @@ struct Utility {
 };
 '''
 biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
-for name in ["IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
+for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
     start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
     body = biped_source[start:biped_source.index("\n\t}", start) + 3]
     program += body.replace("BGSBipedObjectForm::", "RE::TESObjectARMO::") + "\n"
@@ -712,26 +713,35 @@ int main() {
 
     assert(utility->junk.inventory[&unmatched].first == 7);
     chest.inventory.clear(); armorVault.inventory.clear(); valuables.inventory.clear();
-    RE::TESBoundObject helmet{ItemCategory::None}, hat{ItemCategory::None}, robe{ItemCategory::None}, nativeRing{ItemCategory::None}, circlet{ItemCategory::None};
-    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet}) item->nativeArmor = true;
+    RE::TESBoundObject helmet{ItemCategory::None}, hat{ItemCategory::None}, robe{ItemCategory::None}, nativeRing{ItemCategory::None}, circlet{ItemCategory::None}, amulet{ItemCategory::None}, ironPlate{ItemCategory::None}, keywordHelmet{ItemCategory::None};
+    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet, &amulet, &ironPlate, &keywordHelmet}) item->nativeArmor = true;
     helmet.armor.bipedModelData.bipedObjectSlots.bits = 1 | 2 | 4096;
     helmet.armor.bipedModelData.armorType = RE::BIPED_MODEL::ArmorType::kHeavyArmor;
     hat.armor.bipedModelData.bipedObjectSlots.bits = 2 | 4096;
     robe.armor.bipedModelData.bipedObjectSlots.bits = 4 | 32;
     nativeRing.armor.bipedModelData.bipedObjectSlots.bits = 64;
     circlet.armor.bipedModelData.bipedObjectSlots.bits = 4096;
-    for (auto* item : {&helmet, &hat, &robe}) assert(!HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+    amulet.armor.bipedModelData.bipedObjectSlots.bits = 32;
+    for (auto* item : {&ironPlate, &keywordHelmet}) {
+        item->armor.bipedModelData.bipedObjectSlots.bits = 1 | 4096;
+        item->armor.bipedModelData.armorType = RE::BIPED_MODEL::ArmorType::kHeavyArmor;
+        assert(item->armor.IsCirclet() && !item->armor.IsHelmet());
+        assert(HasCategory(ClassifyItem(item), ItemCategory::HeavyArmor));
+    }
+    keywordHelmet.armor.jewelryKeyword = true;
+    assert(HasCategory(ClassifyItem(&keywordHelmet), ItemCategory::HeavyArmor));
+    for (auto* item : {&helmet, &hat, &robe, &ironPlate, &keywordHelmet}) assert(!HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
     assert(HasCategory(ClassifyItem(&helmet), ItemCategory::HeavyArmor));
     for (auto* item : {&hat, &robe}) assert(HasCategory(ClassifyItem(item), ItemCategory::Clothing));
-    for (auto* item : {&nativeRing, &circlet}) assert(HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
-    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet}) armorVault.inventory[item] = entry(3);
+    for (auto* item : {&nativeRing, &circlet, &amulet}) assert(HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet, &amulet, &ironPlate, &keywordHelmet}) armorVault.inventory[item] = entry(3);
     stores.ShowArmorJewelryMenu(&source);
-    for (auto* item : {&helmet, &hat, &robe}) assert(armorVault.inventory[item].first == 3 && chest.inventory[item].first == 0);
-    assert(chest.inventory[&nativeRing].first == 3 && chest.inventory[&circlet].first == 3);
+    for (auto* item : {&helmet, &hat, &robe, &ironPlate, &keywordHelmet}) assert(armorVault.inventory[item].first == 3 && chest.inventory[item].first == 0);
+    assert(chest.inventory[&nativeRing].first == 3 && chest.inventory[&circlet].first == 3 && chest.inventory[&amulet].first == 3);
     auto closeJewelry = stores.onClose; closeJewelry();
     stores.ValuablesMenu(&source); click(0);
-    for (auto* item : {&helmet, &hat, &robe}) assert(armorVault.inventory[item].first == 3 && valuables.inventory[item].first == 0);
-    assert(valuables.inventory[&nativeRing].first == 3 && valuables.inventory[&circlet].first == 3);
+    for (auto* item : {&helmet, &hat, &robe, &ironPlate, &keywordHelmet}) assert(armorVault.inventory[item].first == 3 && valuables.inventory[item].first == 0);
+    assert(valuables.inventory[&nativeRing].first == 3 && valuables.inventory[&circlet].first == 3 && valuables.inventory[&amulet].first == 3);
     stores.ReturnValuables();
     settings->overrides[&helmet] = ToMask(ItemCategory::Jewelry);
     assert(HasCategory(ClassifyItem(&helmet), ItemCategory::Jewelry));

@@ -79,7 +79,7 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 | `IngredientItem` | Alchemy plus Reagent if food or a cooking input; otherwise Catalyst if a smithing input; otherwise Ingredient |
 | `AlchemyItem` food | Food plus RawFood when raw keyword or cooking cache matches, otherwise CookedFood |
 | Other `AlchemyItem` | Concoction plus Potion/Poison; adds Restorative if any effect matches health/magicka/stamina restoration |
-| Armor | Armor plus Jewelry by keyword or CommonLib accessory detection excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
+| Armor | Armor plus Jewelry when the Head slot is absent and either the jewelry keyword or CommonLib accessory detection matches. Accessory detection also excludes helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Native spell scroll | Scroll through the engine ScrollItem type; explicit overrides still win |
 | Book | Spell-teaching forms become Book/SpellTome; skill-teaching forms become Book/SkillBook; recipe-keyword forms become Note/Recipe; other note-style forms become Note; remaining forms become Book |
