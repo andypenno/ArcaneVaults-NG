@@ -62,7 +62,7 @@ Choose checks relevant to the change and record runtime, load order, starting in
 | Classification/overrides | Built-in item, bundled override, user replacement/removal, comma-separated categories, unknown category, and malformed/unresolved form entry |
 | Crafting | Each changed bench, consumed/remaining materials, protected player items, failed activation, and disabling the option during crafting; check inventory on exit |
 | Per-save persistence | GlobalRedirect off; save/reload, another save, revert/new game, and changed load order; mappings must resolve through SKSE |
-| Global persistence | GlobalRedirect on; save/reload and another character; stable reference IDs restore, dynamic forms do not persist; verify linked blocking after removal/revert |
+| Global persistence | GlobalRedirect on; save/reload and another character; static references restore across saves even when unloaded; dynamic assignments survive their own save reload but never appear on another character; verify linked blocking after removal/revert |
 | Mode switch | Switch both directions and save/reload; document current behavior rather than assume migration |
 | Optional APIs | Test without each optional DLL and with supported installed versions; QuickLoot stops redirected containers and continues ordinary ones |
 | Configuration/translation | Save/reload options, test hotkeys/spells, check missing/malformed data according to the intended contract, and confirm container names |

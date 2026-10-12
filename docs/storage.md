@@ -97,10 +97,10 @@ Native `RE::ScrollItem` has no explicit built-in branch. Gemstone and Treasure r
 
 | Mode | Save | Load/revert |
 | --- | --- | --- |
-| GlobalRedirect enabled, default | Write global redirects INI; no per-save redirect record | Clear mappings and load global INI |
+| GlobalRedirect enabled, default | Write static mappings to global INI and all mappings to the SKSE record | Load global INI, then restore only dynamic sources from the save; revert reloads only global mappings |
 | GlobalRedirect disabled | Write SKSE record | Load clears mappings, reads records, resolves saved FormIDs; revert clears mappings |
 
-The per-save record contains a 32-bit entry count followed by pairs of source and destination FormIDs. Load checks record type/version and truncation, caps count to record capacity, resolves both IDs through SKSE, and requires reference forms before adding mappings. Preserve these checks and plan migration before changing the format/version.
+The per-save record contains a 32-bit entry count followed by pairs of source and destination FormIDs. Load checks record type/version and truncation, caps count to record capacity, resolves both IDs through SKSE, and requires a reference destination. A source may be unloaded; an already loaded non-reference source is rejected. Preserve these checks and plan migration before changing the format/version.
 
 Global mode uses `[Redirects]` entries with stable plugin-local identifiers. Example syntax:
 
@@ -109,9 +109,9 @@ Global mode uses `[Redirects]` entries with stable plugin-local identifiers. Exa
 ExampleHouse.esp|0x123 = ArcaneVaults-LinkedStorage.esp|0xD95
 ```
 
-This is illustrative, not a real source reference. `MakeFormIdentifier` refuses dynamic forms and forms without a file identity. Loading requires valid fully consumed hexadecimal IDs and resolvable reference forms, skips invalid entries, and re-adds mappings so activator-linked containers are blocked again. Saving replaces the Redirects section while preserving other sections.
+This is illustrative, not a real source reference. `MakeFormIdentifier` refuses dynamic forms and forms without a file identity. Loading requires fully consumed hexadecimal IDs, a plugin-resolved source ID, and a reference destination. Source references may be unloaded. Assignment and global loading cache stable identifiers so subsequent saves do not erase unloaded mappings. Saving replaces the Redirects section while preserving other sections. Linked activator containers are blocked on assignment and when a restored source is next queried.
 
-Assignment changes update memory immediately. Global redirects are written by the SKSE save callback, not by every assignment. Switching persistence mode in the settings UI does not migrate existing records or INI data. Global refers to the mapping across saves, not item inventories shared across games.
+Assignment changes update memory immediately. Global redirects are written by the SKSE save callback, not by every assignment. Switching persistence mode in the settings UI does not migrate existing records or INI data. Plugin-backed mappings are global across saves. Dynamic placed or constructed references are saved with the character and never shared across games. Global-mode saves from earlier builds contain no dynamic redirect snapshot; lost assignments must be made again once. Item inventories remain owned by the game save.
 
 ## Menu navigation
 

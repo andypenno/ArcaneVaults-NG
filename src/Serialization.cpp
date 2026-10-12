@@ -7,10 +7,8 @@ namespace Serialization
     void SaveCallback(SKSE::SerializationInterface* a_skse) {
         if (!a_skse) return;
 
-        // Global redirects are shared through the INI instead of stored per save.
         if (Settings::GetSingleton()->GSC_GlobalRedirects) {
             Settings::GetSingleton()->SaveRedirects();
-            return;
         }
 
         if (!a_skse->OpenRecord(SerializationType, SerializationVersion)) return;
@@ -33,14 +31,13 @@ namespace Serialization
     void LoadCallback(SKSE::SerializationInterface* a_skse) {
         if (!a_skse) return;
 
-        // Global redirects are shared through the INI instead of stored per save.
-        if (Settings::GetSingleton()->GSC_GlobalRedirects) {
-            Settings::GetSingleton()->LoadRedirects();
-            return;
-        }
-
+        const bool global = Settings::GetSingleton()->GSC_GlobalRedirects;
         auto* manager = RedirectManager::GetSingleton();
-        manager->Clear();
+        if (global) {
+            Settings::GetSingleton()->LoadRedirects();
+        } else {
+            manager->Clear();
+        }
 
         std::uint32_t type{};
         std::uint32_t version{};
@@ -87,14 +84,14 @@ namespace Serialization
                     continue;
                 }
 
-                auto* source = RE::TESForm::LookupByID<RE::TESObjectREFR>(resolvedSource);
+                if (global && resolvedSource < 0xFF000000) continue;
                 auto* destination = RE::TESForm::LookupByID<RE::TESObjectREFR>(resolvedDestination);
-                if (!source || !destination) {
+                if (!destination) {
                     logger::warn("Could not find resolved redirect {:08X} -> {:08X}", resolvedSource, resolvedDestination);
                     continue;
                 }
 
-                if (manager->Add(source, destination)) ++restored;
+                if (manager->Restore(resolvedSource, destination)) ++restored;
             }
         }
 

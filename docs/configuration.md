@@ -22,7 +22,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 
 | General key | Default | Meaning |
 | --- | --- | --- |
-| `GlobalRedirect` | true | Select global INI rather than per-save mapping persistence |
+| `GlobalRedirect` | true | Share static mappings through global INI; dynamic mappings always belong to the save |
 | `AssignKeyCode` | -1 | Assignment input code; disabled by default |
 | `QuickKeyCode` | -1 | Quick offload input code; disabled by default |
 | `CraftingLoan` | false | Lend and return crafting materials |

@@ -27,18 +27,18 @@ namespace
 		return std::pair{ plugin, localID };
 	}
 
-	std::optional<std::string> MakeFormIdentifier(const RE::TESForm* a_form)
-	{
-		if (!a_form || a_form->IsDynamicForm())
-			return std::nullopt;
+}
 
-		const auto* file = a_form->GetFile(0);
-		if (!file || file->GetFilename().empty())
-			return std::nullopt;
+std::optional<std::string> Settings::MakeFormIdentifier(const RE::TESForm* a_form)
+{
+	if (!a_form || a_form->IsDynamicForm())
+		return std::nullopt;
 
-		return std::format("{}|0x{:X}", file->GetFilename(), a_form->GetLocalFormID());
-	}
+	const auto* file = a_form->GetFile(0);
+	if (!file || file->GetFilename().empty())
+		return std::nullopt;
 
+	return std::format("{}|0x{:X}", file->GetFilename(), a_form->GetLocalFormID());
 }
 
 // =============================================================
@@ -135,17 +135,8 @@ void Settings::SaveRedirects() const {
 
 	std::size_t saved{};
 	for (const auto& [sourceID, redirect] : RedirectManager::GetSingleton()->GetRedirects()) {
-		const auto* source = RE::TESForm::LookupByID<RE::TESObjectREFR>(sourceID);
-		const auto* destination = RE::TESForm::LookupByID<RE::TESObjectREFR>(redirect.destinationID);
-		const auto sourceIdentifier = MakeFormIdentifier(source);
-		const auto destinationIdentifier = MakeFormIdentifier(destination);
-		if (!sourceIdentifier || !destinationIdentifier) {
-			logger::warn("Could not save global redirect {:08X} -> {:08X}; dynamic or unresolved forms are not stable across games",
-				sourceID, redirect.destinationID);
-			continue;
-		}
-
-		ini.SetValue(redirectSection.data(), sourceIdentifier->c_str(), destinationIdentifier->c_str());
+		if (redirect.sourceIdentifier.empty() || redirect.destinationIdentifier.empty()) continue;
+		ini.SetValue(redirectSection.data(), redirect.sourceIdentifier.c_str(), redirect.destinationIdentifier.c_str());
 		++saved;
 	}
 
@@ -188,16 +179,15 @@ void Settings::LoadRedirects() {
 
 		const auto& [sourcePlugin, sourceLocalID] = *sourceIdentifier;
 		const auto& [destinationPlugin, destinationLocalID] = *destinationIdentifier;
-		auto* sourceForm = dataHandler->LookupForm(sourceLocalID, sourcePlugin);
+		const auto sourceID = dataHandler->LookupFormID(sourceLocalID, sourcePlugin);
 		auto* destinationForm = dataHandler->LookupForm(destinationLocalID, destinationPlugin);
-		auto* source = sourceForm ? sourceForm->As<RE::TESObjectREFR>() : nullptr;
 		auto* destination = destinationForm ? destinationForm->As<RE::TESObjectREFR>() : nullptr;
-		if (!source || !destination) {
+		if (!sourceID || sourceID >= 0xFF000000 || !destination) {
 			logger::warn("Could not resolve global redirect '{}' -> '{}'", sourceText, destinationText);
 			continue;
 		}
 
-		if (manager->Add(source, destination))
+		if (manager->Restore(sourceID, destination, std::string(sourceText)))
 			++loaded;
 	}
 
