@@ -358,6 +358,7 @@ int main() {
         options[{section, key}] = value;
     });
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
+    assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
     assert(options.at({"Offload", "Soulgems"}) == 1);
     assert(!options.contains({"Offload", "GrandSoulgem"}));
     assert(options.at({"General", "GoldKeepAmount"}) == 5000);
@@ -786,6 +787,29 @@ int main() {
     assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
     click(3);assert(stores.opened==Container::Book);stores.onClose();
     stores.closed=false;click(4);assert(stores.closed);
+    player->inventory.clear();chest.inventory.clear();settings->GSC_AlchemyKeepAmount=6;
+    for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient}) {
+        put(item,8);chest.inventory[item]=entry(10);
+    }
+    put(&favoriteIngredient,8,false,true);
+    stores.AlchemyMenu(&source);assert(stores.options.size()==7 && stores.options[1].text=="Keep 6" && stores.options[2].text=="Take Up To 6");
+    click(1);
+    for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient})
+        assert(player->inventory[item].first==6 && chest.inventory[item].first==12);
+    assert(player->inventory[&favoriteIngredient].first==8);
+    put(&ordinary,2);put(&craftingIngredient,9);chest.inventory[&ordinary].first=1;
+    click(2);assert(player->inventory[&ordinary].first==3 && chest.inventory[&ordinary].first==0);
+    assert(player->inventory[&craftingIngredient].first==9 && chest.inventory[&craftingIngredient].first==12);
+    settings->GSC_AlchemyKeepAmount=0;stores.AlchemyMenu(&source);click(2);
+    assert(player->inventory[&ordinary].first==3);click(1);
+    for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient})
+        assert(player->inventory[item].first==0);
+    assert(player->inventory[&favoriteIngredient].first==8);
+    for (const auto* text : {"bad","-1","2147483648","3junk",""}) {
+        ini.text=text;amount=8;settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==1);
+    }
+    ini.text="0";settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==0);
+    ini.text="7";settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==7);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:

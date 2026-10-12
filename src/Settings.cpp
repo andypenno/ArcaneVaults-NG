@@ -55,6 +55,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_AssignSpell, "General", "AssignSpell");
 	option(settings.GSC_SortSpell, "General", "SortSpell");
 	option(settings.GSC_SoulgemKeepAmount, "General", "SoulgemKeepAmount");
+	option(settings.GSC_AlchemyKeepAmount, "General", "AlchemyKeepAmount");
 	option(settings.GSC_GoldKeepAmount, "General", "GoldKeepAmount");
 	option(settings.GSC_AmmunitionKeepAmount, "General", "AmmunitionKeepAmount");
 	option(settings.GSC_SalePercentage, "General", "SalePercentage");
@@ -323,8 +324,8 @@ void Settings::get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, 
 			);
 		} else if constexpr (std::is_integral_v<T>) {
 			const bool salePercentage = std::string_view{ a_key } == "SalePercentage";
-			if (salePercentage || std::string_view{ a_key } == "AmmunitionKeepAmount" || std::string_view{ a_key } == "GoldKeepAmount" || std::string_view{ a_key } == "SoulgemKeepAmount") {
-				const int fallback = salePercentage ? 30 : std::string_view{ a_key } == "GoldKeepAmount" ? 5000 : std::string_view{ a_key } == "SoulgemKeepAmount" ? 25 : 100;
+			if (salePercentage || std::string_view{ a_key } == "AmmunitionKeepAmount" || std::string_view{ a_key } == "GoldKeepAmount" || std::string_view{ a_key } == "SoulgemKeepAmount" || std::string_view{ a_key } == "AlchemyKeepAmount") {
+				const int fallback = salePercentage ? 30 : std::string_view{ a_key } == "GoldKeepAmount" ? 5000 : std::string_view{ a_key } == "SoulgemKeepAmount" ? 25 : std::string_view{ a_key } == "AlchemyKeepAmount" ? 1 : 100;
 				const std::string_view text{ a_ini.GetValue(a_section, a_key, "") };
 				int amount{};
 				const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), amount);

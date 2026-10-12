@@ -103,6 +103,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int alchemyKeepAmount = setting->GSC_AlchemyKeepAmount;
+		if (InputInt(Translate("Options.AlchemyKeepAmount"), &alchemyKeepAmount)) {
+			setting->GSC_AlchemyKeepAmount = (std::max)(0, alchemyKeepAmount);
+			changeOption = true;
+		}
+
 		if (changeOption)
 			setting->SaveINI();
 	}

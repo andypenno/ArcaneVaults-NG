@@ -15,6 +15,7 @@
 	"Options.GoldKeepAmount": "Gold Keep Amount",
 	"Options.SalePercentage": "Sale Percentage",
 	"Options.SoulgemKeepAmount": "Empty Soulgems Keep Amount",
+	"Options.AlchemyKeepAmount": "Alchemy Keep Amount",
 
 	"Override": "Overrides",
 	"Override.Lookup": "Override Lookup",

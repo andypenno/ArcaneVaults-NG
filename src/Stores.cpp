@@ -767,6 +767,7 @@ void Stores::ShowAlchemyMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
+    const int keepAmount = Settings::GetSingleton()->GSC_AlchemyKeepAmount;
 
     options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Alchemy, Container::Alchemy);
@@ -774,10 +775,15 @@ void Stores::ShowAlchemyMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) AlchemyMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.KeepOne"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::Ingredient, Container::Alchemy);
-        StoreToPlayer(ItemCategory::Ingredient, Container::Alchemy, 1);
+    options.push_back({std::format("{} {}", Translate("Vault.KeepAmount"), keepAmount), [this, sourceHandle, keepAmount] {
+        PlayerToStore(ItemCategory::Alchemy, Container::Alchemy, 0, keepAmount);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
+        if (auto source = sourceHandle.get()) AlchemyMenu(source.get());
+    }});
+
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), keepAmount), [this, sourceHandle, keepAmount] {
+        StoreToPlayer(ItemCategory::Alchemy, Container::Alchemy, 0, keepAmount);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) AlchemyMenu(source.get());
     }});
 

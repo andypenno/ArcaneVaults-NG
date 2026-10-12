@@ -37,7 +37,7 @@ Do not assume every parent menu consolidates exactly the same children. `ShowVau
 
 Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.
 
-Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
+Alchemy Keep N deposits only excess matching the full Alchemy category, and Take Up To N withdraws only its shortfall per base record. Both use Alchemy Keep Amount in Quantities, default 1. Store All still deposits all eligible Alchemy items. Scroll Keep One/Keep Three currently withdraw the entire store, then deposit one or three per item; their labels do not describe that code.
 
 Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take All, Open, and Exit. N comes from the Quantities setting described in [configuration.md](configuration.md). Keep N deposits only the excess above N per carried ammunition record; it never tops up smaller stacks from storage. Equipped, favorited, and quest entries remain untouched. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
 
