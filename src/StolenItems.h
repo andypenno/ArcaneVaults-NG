@@ -1,13 +1,8 @@
 #pragma once
+#include "InventoryStacks.h"
 
 namespace StolenItems {
-    struct Stack {
-        RE::TESObjectREFR* source;
-        RE::TESBoundObject* item;
-        RE::ExtraDataList* extra;
-        int count;
-    };
-
+    using Stack = InventoryStacks::Stack;
     [[nodiscard]] std::vector<Stack> GetStacks(RE::TESObjectREFR* source);
     [[nodiscard]] std::vector<Stack> GetStoredStacks();
     void Init();

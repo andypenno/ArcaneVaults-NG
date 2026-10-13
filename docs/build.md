@@ -90,3 +90,7 @@ CommonLib requires DirectXMath `2024.02`, DirectXTK `24.2.0`, and spdlog `v1.16.
 CommonLib normally compiles its source. A `lib/commonlibsse-ng.lib` bundle beside its build file selects prebuilt mode. With `GITHUB_ACTIONS` or `COMMONLIB_PREBUILT`, a clean release tag can trigger tag fetching and a SHA256-checked release download. Cache and failure markers live under CommonLib's `build/.prebuilt/<tag>`; a failed fetch falls back to source compilation.
 
 That prebuilt requires SE, AE, and VR all enabled, with `rex_json` and `rex_toml` disabled. The root explicitly forbids that combined runtime set. Do not assume the pinned prebuilt can be used by this root target. Keep prebuilt-triggering environment variables unset for the source recipe and check for an existing bundle if configuration reports a prebuilt mismatch.
+
+## Vendor diagnostics and Windows macros
+
+`src/pch.h` scopes CommonLib's intentional layout-extension warnings C4200/C4201 to dependency headers. The pinned SKSE Menu Framework header has a struct/class declaration mismatch, deprecated UTF conversion and mixed-enum operations; C4099/C4996/C5054 are suppressed only while including that header. The CommonLib target disables C4100 only for Trampoline.cpp, whose API retains unused compatibility parameters. Project warning levels remain unchanged. The PCH also removes Windows GDI's GetObject macro after vendor includes so CommonLib's GetObject method retains its name.

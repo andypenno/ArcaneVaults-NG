@@ -21,6 +21,9 @@ namespace {
         case Container::Personal: return ItemCategory::Personal;
         case Container::Gear: return ItemCategory::Gear;
         case Container::Instruments: return ItemCategory::Instrument;
+        case Container::HealthPotions: return ItemCategory::HealthPotion;
+        case Container::MagickaPotions: return ItemCategory::MagickaPotion;
+        case Container::StaminaPotions: return ItemCategory::StaminaPotion;
         case Container::Alchemy: return ItemCategory::Alchemy;
         case Container::Armor: return ItemCategory::Armor;
         case Container::Clothing: return ItemCategory::Clothing;

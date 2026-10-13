@@ -99,7 +99,7 @@ CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept {
 }
 '''
 item = (ROOT / "src/ItemClass.cpp").read_text()
-program += item[item.index("CategoryMask ToMask("):item.index("CategoryMask ClassifyItem(")]
+program += item[item.index("CategoryMask ToMask("):item.index("namespace {\n    CategoryMask PotionAttribute(")]
 module = (ROOT / "src/DepositLearning.cpp").read_text()
 program += "\n".join(line for line in module.splitlines() if not line.startswith("#include"))
 program += r'''
@@ -113,7 +113,7 @@ int main() {
     auto open=[&](Container kind){u->kind=kind;DepositLearning::MenuOpened();};
     DepositLearning::Register();open(Container::Alchemy);send(a);tasks->Run();assert(menu->prompts==0);
     s->GSC_LearnDepositOverrides=true;
-    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Valuables,Container::Soulgem,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems}) {
+    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Valuables,Container::Soulgem,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems,Container::EnchantedItems}) {
         open(kind);send(a);tasks->Run();assert(menu->prompts==0);
     }
     for(auto [name,cat]:categoryNames) assert(ParseCategories(FormatCategories(ToMask(cat)))==ToMask(cat));
@@ -155,6 +155,14 @@ int main() {
     assert(ClassifyItem(&a)==(ItemCategory::Gear|ItemCategory::Instrument));
     const auto gearPrompts=menu->prompts;
     open(Container::Gear);send(a);send(gem);send(dynamic);tasks->Run();assert(menu->prompts==gearPrompts);
+    for(auto [kind,cat]:std::array{std::pair{Container::HealthPotions,ItemCategory::HealthPotion},
+        std::pair{Container::MagickaPotions,ItemCategory::MagickaPotion},std::pair{Container::StaminaPotions,ItemCategory::StaminaPotion}}) {
+        open(kind);send(a);tasks->Run();menu->Answer(true);
+        assert(s->overrides[a.id]==ToMask(cat) && s->disk==s->overrides);
+        assert(ClassifyItem(&a)==(cat|ItemCategory::Potion|ItemCategory::Concoction));
+        const auto previous=menu->prompts;open(kind);send(a);tasks->Run();assert(menu->prompts==previous);
+    }
+
 
 
 }

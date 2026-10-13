@@ -141,9 +141,46 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
     if (HasAnyCategory(categories, ItemCategory::Recipe | ItemCategory::TreasureMap))
         categories |= ItemCategory::Note;
 
+    if (HasAnyCategory(categories, ItemCategory::HealthPotion | ItemCategory::MagickaPotion | ItemCategory::StaminaPotion))
+        categories |= ItemCategory::Potion | ItemCategory::Concoction;
+
     if (HasAnyCategory(categories, ItemCategory::Lockpick | ItemCategory::Instrument))
         categories |= ItemCategory::Gear;
 
+    return categories;
+}
+
+namespace {
+    CategoryMask PotionAttribute(RE::ActorValue value) {
+        switch (value) {
+        case RE::ActorValue::kHealth:
+        case RE::ActorValue::kHealRate:
+        case RE::ActorValue::kHealRateMult: return ToMask(ItemCategory::HealthPotion);
+        case RE::ActorValue::kMagicka:
+        case RE::ActorValue::kMagickaRate:
+        case RE::ActorValue::kMagickaRateMult: return ToMask(ItemCategory::MagickaPotion);
+        case RE::ActorValue::kStamina:
+        case RE::ActorValue::kStaminaRate:
+        case RE::ActorValue::kStaminaRateMult: return ToMask(ItemCategory::StaminaPotion);
+        default: return 0;
+        }
+    }
+}
+
+CategoryMask ClassifyPotionEffects(RE::AlchemyItem* potion) {
+    if (!potion || potion->IsFood() || potion->IsPoison()) return 0;
+    CategoryMask categories{};
+    for (auto* effect : potion->effects) {
+        auto* base = effect ? effect->baseEffect : nullptr;
+        if (!base || base->IsHostile() || base->IsDetrimental() || !(effect->GetMagnitude() > 0)) continue;
+        const auto type = base->GetArchetype();
+        if (type != RE::EffectArchetypes::ArchetypeID::kValueModifier &&
+            type != RE::EffectArchetypes::ArchetypeID::kPeakValueModifier &&
+            type != RE::EffectArchetypes::ArchetypeID::kDualValueModifier) continue;
+        categories |= PotionAttribute(base->data.primaryAV);
+        if (type == RE::EffectArchetypes::ArchetypeID::kDualValueModifier && base->data.secondAVWeight > 0)
+            categories |= PotionAttribute(base->data.secondaryAV);
+    }
     return categories;
 }
 
@@ -235,6 +272,8 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
                 categories |= ItemCategory::Poison;
             else
                 categories |= ItemCategory::Potion;
+
+            categories |= ClassifyPotionEffects(potion);
         }
 
         return categories;

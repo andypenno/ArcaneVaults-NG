@@ -175,15 +175,14 @@ void Utility::ContainerRedirect() {
 }
 
 bool Utility::FoundRestore(RE::AlchemyItem* a_potion) {
-    // Loop through all of the magic effects on the potion
-    for (auto& eEffect : a_potion->effects) {
-        RE::FormID effectFormID = eEffect->baseEffect->GetFormID();
-
-        // Is it a restor effect
-        if (effectFormID == RestoreHealth->formID || effectFormID == RestoreMagicka->formID || effectFormID == RestoreStamina->formID)
-            return true;
+    if (!a_potion) return false;
+    for (auto* effect : a_potion->effects) {
+        if (!effect || !effect->baseEffect) continue;
+        const auto id = effect->baseEffect->GetFormID();
+        if ((RestoreHealth && id == RestoreHealth->formID) ||
+            (RestoreMagicka && id == RestoreMagicka->formID) ||
+            (RestoreStamina && id == RestoreStamina->formID)) return true;
     }
-
     return false;
 }
 
@@ -393,6 +392,10 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Personal, RE::FormID(0xDA1), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PersonalMenu(a_source); });
     AddContainer(dataHandler, Container::Gear, RE::FormID(0xDE2), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->GearMenu(source); });
     AddContainer(dataHandler, Container::Instruments, RE::FormID(0xDE4), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Instruments, Container::Gear, ItemCategory::Instrument, source); });
+    AddContainer(dataHandler, Container::HealthPotions, RE::FormID(0xDE6), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::HealthPotions, Container::Concoction, ItemCategory::HealthPotion, source); });
+    AddContainer(dataHandler, Container::MagickaPotions, RE::FormID(0xDE8), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::MagickaPotions, Container::Concoction, ItemCategory::MagickaPotion, source); });
+    AddContainer(dataHandler, Container::StaminaPotions, RE::FormID(0xDEA), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::StaminaPotions, Container::Concoction, ItemCategory::StaminaPotion, source); });
+    AddContainer(dataHandler, Container::EnchantedItems, RE::FormID(0xDEC), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->EnchantedItemsMenu(source); });
 }
 
 void Utility::CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandler) {

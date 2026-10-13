@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
@@ -41,7 +41,7 @@ classification = (ROOT / "src/ItemClass.cpp").read_text()
 start = classification.index("CategoryMask ClassifyItem(")
 classification = classification[start:classification.index("    // Food, Potions, and Poisons", start)]
 armor_source = (ROOT / "src/ItemClass.cpp").read_text()
-classification += armor_source[armor_source.index("    // Armor and Clothing"):armor_source.index("    // Weapons", armor_source.index("    // Armor and Clothing"))]
+classification += armor_source[armor_source.index("    // Food, Potions, and Poisons"):armor_source.index("    // Weapons", armor_source.index("    // Armor and Clothing"))]
 book_source = (ROOT / "src/ItemClass.cpp").read_text()
 classification += book_source[book_source.index("    // Books, Scrolls, and Spell Tomes"):book_source.rindex("    return categories;")]
 classification += "\n    return categories | ToMask(a_item->category);\n}\n"
@@ -85,6 +85,25 @@ struct TESDataHandler {
     std::vector<TESObjectBOOK*> books;
     template<class T> const auto& GetFormArray() const { return books; }
 };
+enum class ActorValue { kNone,kHealth,kMagicka,kStamina,kHealRate,kMagickaRate,kStaminaRate,kHealRateMult,kMagickaRateMult,kStaminaRateMult,kOther };
+namespace EffectArchetypes { enum class ArchetypeID { kValueModifier,kPeakValueModifier,kDualValueModifier,kScript }; }
+struct EffectSetting {
+    unsigned formID=0;
+    unsigned GetFormID() const {return formID;}
+    bool hostile=false,detrimental=false;
+    EffectArchetypes::ArchetypeID archetype=EffectArchetypes::ArchetypeID::kValueModifier;
+    struct Data { ActorValue primaryAV=ActorValue::kNone,secondaryAV=ActorValue::kNone;float secondAVWeight=0; } data;
+    bool IsHostile() const {return hostile;}
+    bool IsDetrimental() const {return detrimental;}
+    auto GetArchetype() const {return archetype;}
+};
+struct Effect { EffectSetting* baseEffect=nullptr;float magnitude=0;float GetMagnitude() const{return magnitude;} };
+struct AlchemyItem {
+    bool food=false,poison=false;
+    std::vector<Effect*> effects;
+    bool IsFood() const{return food;}
+    bool IsPoison() const{return poison;}
+};
 struct TESObjectMISC {};
 struct TESObjectLIGH { bool carryable = true; bool CanBeCarried() const { return carryable; } };
 struct TESSoulGem {};
@@ -122,6 +141,8 @@ struct TESBoundObject {
     IngredientItem ingredient{};
     TESObjectARMO armor{};
     bool nativeArmor = false;
+    bool nativeAlchemy = false;
+    AlchemyItem alchemy{};
     bool nativeLight = false;
     TESObjectLIGH light{};
     bool nativeScroll = false;
@@ -130,9 +151,11 @@ struct TESBoundObject {
     unsigned GetFormID() const { return formID; }
     bool IsGold() const { return formID == 0xF; }
     bool IsKey() const { return category == ItemCategory::Keys; }
+    bool HasKeywordByEditorID(const char*) const { return false; }
     template<class T> T* As() {
         static T object;
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, AlchemyItem>) return nativeAlchemy ? &alchemy : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectLIGH>) return nativeLight ? &light : nullptr;
         else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &object : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
@@ -219,10 +242,16 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments;
+    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
     RE::TESObjectREFR* scrollContainer = nullptr;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
     void CacheSkillBooks(RE::TESDataHandler*);
+    RE::EffectSetting restoreHealth{},restoreMagicka{},restoreStamina{};
+    RE::EffectSetting* RestoreHealth=&restoreHealth;
+    RE::EffectSetting* RestoreMagicka=&restoreMagicka;
+    RE::EffectSetting* RestoreStamina=&restoreStamina;
+    Utility(){restoreHealth.formID=0x3EB15;restoreMagicka.formID=0x3EB17;restoreStamina.formID=0x3EB16;}
+    bool FoundRestore(RE::AlchemyItem*);
     bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
     BenchType bench = BenchType::Smithing;
     BenchType GetBenchType(RE::TESObjectREFR*) { return bench; }
@@ -231,6 +260,13 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container container) {
         switch (container) {
         case Container::None: return nullptr;
+        case Container::Concoction: return &concoction;
+        case Container::Potion: return &potion;
+        case Container::Poison: return &poison;
+        case Container::Restorative: return &restorative;
+        case Container::HealthPotions: return &healthPotions;
+        case Container::MagickaPotions: return &magickaPotions;
+        case Container::StaminaPotions: return &staminaPotions;
         case Container::Gear: return &gear;
         case Container::Instruments: return &instruments;
         case Container::Personal: return &personal;
@@ -318,6 +354,7 @@ struct Stores {
     void ShowKeysMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);
     void ConsolidateBooks();
+    void ConsolidatePotions();
     void NotesMenu(RE::TESObjectREFR*);
     void ShowNotesMenu(RE::TESObjectREFR*);
     void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool = false);
@@ -347,7 +384,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
+        assert(container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -403,6 +440,9 @@ move_start = source.index("    void MoveItems(")
 program += source[move_start:source.index("\n    }", move_start) + 6]
 selected_start = source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 selected_method = source[selected_start:source.index("\n    }", selected_start) + 6]
+utility_source = (ROOT / "src/Utility.cpp").read_text()
+restore_start = utility_source.index("bool Utility::FoundRestore(")
+program += utility_source[restore_start:utility_source.index("\n}\n", restore_start) + 3]
 program += classification + selected_method + method + offload + store_to_store + sort_items + extra_methods + ini_options + get_value
 events = (ROOT / "src/Events.cpp").read_text()
 loan_start = events.index("class CraftingLoanState {")
@@ -1280,6 +1320,61 @@ int main() {
         ini.text=value;settings->get_value(ini,amount,"General","LockpickKeepAmount");assert(amount==std::stoi(value));
     }
 
+    static_assert(static_cast<unsigned>(ItemCategory::StaminaPotion)<64);
+    settings->overrides.clear();player->inventory.clear();utility->concoction.inventory.clear();
+    for(auto archive:{Container::Potion,Container::Poison,Container::Restorative,Container::HealthPotions,Container::MagickaPotions,Container::StaminaPotions})utility->GetContainer(archive)->inventory.clear();
+    RE::TESBoundObject healthPotion{ItemCategory::None,false,0x170001},mixedPotion{ItemCategory::None,false,0x170002},staminaPotion{ItemCategory::None,false,0x170003};
+    healthPotion.nativeAlchemy=mixedPotion.nativeAlchemy=staminaPotion.nativeAlchemy=true;
+    RE::EffectSetting healthEffect,magickaEffect,staminaEffect;
+    healthEffect.data.primaryAV=RE::ActorValue::kHealth;magickaEffect.data.primaryAV=RE::ActorValue::kMagicka;staminaEffect.data.primaryAV=RE::ActorValue::kStamina;
+    RE::Effect health{&healthEffect,25},magicka{&magickaEffect,20},stamina{&staminaEffect,15},missing{nullptr,10};
+    healthPotion.alchemy.effects={&health};mixedPotion.alchemy.effects={&health,&magicka};staminaPotion.alchemy.effects={&stamina};
+    const std::array attributes={RE::ActorValue::kHealth,RE::ActorValue::kHealRate,RE::ActorValue::kHealRateMult,
+        RE::ActorValue::kMagicka,RE::ActorValue::kMagickaRate,RE::ActorValue::kMagickaRateMult,
+        RE::ActorValue::kStamina,RE::ActorValue::kStaminaRate,RE::ActorValue::kStaminaRateMult};
+    const std::array groups={ItemCategory::HealthPotion,ItemCategory::MagickaPotion,ItemCategory::StaminaPotion};
+    for(std::size_t i=0;i<attributes.size();++i) {
+        healthEffect.data.primaryAV=attributes[i];
+        for(auto type:{RE::EffectArchetypes::ArchetypeID::kValueModifier,RE::EffectArchetypes::ArchetypeID::kPeakValueModifier}) {
+            healthEffect.archetype=type;auto classified=ClassifyItem(&healthPotion);
+            assert(HasCategory(classified,groups[i/3]) && HasCategory(classified,ItemCategory::Potion) && HasCategory(classified,ItemCategory::Concoction));
+            for(auto group:groups)assert(HasCategory(classified,group)==(group==groups[i/3]));
+        }
+    }
+    healthEffect.data.primaryAV=RE::ActorValue::kHealth;healthEffect.archetype=RE::EffectArchetypes::ArchetypeID::kDualValueModifier;
+    healthEffect.data.secondaryAV=RE::ActorValue::kStamina;healthEffect.data.secondAVWeight=1;
+    assert(ClassifyPotionEffects(&healthPotion.alchemy)==(ItemCategory::HealthPotion|ItemCategory::StaminaPotion));
+    healthEffect.data.secondAVWeight=0;assert(ClassifyPotionEffects(&healthPotion.alchemy)==ToMask(ItemCategory::HealthPotion));
+    healthEffect.data.secondAVWeight=-1;assert(ClassifyPotionEffects(&healthPotion.alchemy)==ToMask(ItemCategory::HealthPotion));
+    healthEffect.archetype=RE::EffectArchetypes::ArchetypeID::kScript;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);
+    healthEffect.archetype=RE::EffectArchetypes::ArchetypeID::kValueModifier;
+    healthEffect.hostile=true;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);healthEffect.hostile=false;
+    healthEffect.detrimental=true;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);healthEffect.detrimental=false;
+    for(auto magnitude:{0.0F,-1.0F,std::numeric_limits<float>::quiet_NaN()}) {health.magnitude=magnitude;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);}
+    health.magnitude=25;healthPotion.alchemy.effects={nullptr,&missing};assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);
+    assert(!utility->FoundRestore(nullptr));
+    assert(!HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));
+    healthPotion.alchemy.effects={nullptr,&missing,&health};healthEffect.formID=utility->RestoreHealth->formID;
+    assert(HasCategory(ClassifyItem(&healthPotion),ItemCategory::Restorative) && HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));
+    auto* restoreBinding=utility->RestoreHealth;utility->RestoreHealth=nullptr;
+    assert(!utility->FoundRestore(&healthPotion.alchemy));utility->RestoreHealth=restoreBinding;healthEffect.formID=0;
+    healthPotion.alchemy.effects={&health};healthPotion.alchemy.food=true;assert(!HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));healthPotion.alchemy.food=false;
+    healthPotion.alchemy.poison=true;assert(HasCategory(ClassifyItem(&healthPotion),ItemCategory::Poison) && !HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));healthPotion.alchemy.poison=false;
+    settings->overrides[&healthPotion]=ToMask(ItemCategory::MagickaPotion);
+    assert(ClassifyItem(&healthPotion)==(ItemCategory::MagickaPotion|ItemCategory::Potion|ItemCategory::Concoction));settings->overrides.erase(&healthPotion);
+    assert(ClassifyPotionEffects(nullptr)==0);
+    auto& concoction=utility->concoction;
+    concoction.inventory[&healthPotion]=entry(8);concoction.inventory[&mixedPotion]=entry(11);concoction.inventory[&staminaPotion]=entry(6);
+    stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,player);
+    assert(stores.opened==Container::HealthPotions && utility->healthPotions.inventory[&healthPotion].first==8 && utility->healthPotions.inventory[&mixedPotion].first==11 && concoction.inventory[&staminaPotion].first==6);
+    stores.onClose();assert(concoction.inventory[&mixedPotion].first==11 && utility->healthPotions.inventory[&mixedPotion].first==0);
+    stores.OpenBookArchive(Container::MagickaPotions,Container::Concoction,ItemCategory::MagickaPotion,player);
+    assert(utility->magickaPotions.inventory[&mixedPotion].first==11 && concoction.inventory[&healthPotion].first==8);stores.onClose();
+    stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,player);
+    stores.OpenBookArchive(Container::StaminaPotions,Container::Concoction,ItemCategory::StaminaPotion,player);
+    assert(utility->healthPotions.inventory[&mixedPotion].first==0 && concoction.inventory[&mixedPotion].first==11 && utility->staminaPotions.inventory[&staminaPotion].first==6);
+    stores.onClose();stores.ConsolidatePotions();assert(concoction.inventory[&healthPotion].first==8 && concoction.inventory[&mixedPotion].first==11 && concoction.inventory[&staminaPotion].first==6);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1289,10 +1384,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 103
+assert validate_esp(ROOT, generate_esp(working)) == 112
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 48
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3)]]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 52
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4,0xDE6,0xDE8,0xDEA,0xDEC)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3,0xDE5,0xDE7,0xDE9,0xDEB)]]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:
@@ -1316,6 +1411,6 @@ for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines():
 assert set(map_overrides) == {("Skyrim.esm", local) for local in
     (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
      0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)}
-print("PASS: ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+print("PASS: native potion effects, exclusions and archive gather/return; ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}

@@ -4,6 +4,8 @@
 #define NOMINMAX
 
 #pragma warning(push)
+// CommonLib models engine layouts with intentional MSVC extensions.
+#pragma warning(disable: 4200 4201)
 #include <RE/Skyrim.h>
 #include <REL/Relocation.h>
 #include <SKSE/SKSE.h>
@@ -40,5 +42,13 @@ namespace util
 #define RELOCATION_OFFSET(SE, AE) REL::VariantOffset(SE, AE, 0).offset()
 
 #include "plugin.h"
+// The pinned framework has known declaration, enum and UTF conversion diagnostics.
+#pragma warning(push)
+#pragma warning(disable: 4099 4996 5054)
 #include "SKSEMenuFramework.h"
+#pragma warning(pop)
 #include "HelperFunctions.h"
+// Windows GDI defines a macro that collides with CommonLib methods.
+#ifdef GetObject
+#undef GetObject
+#endif

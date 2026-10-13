@@ -10,6 +10,7 @@
 #include "Settings.h"
 #include "DepositLearning.h"
 #include "StolenItems.h"
+#include "EnchantedItems.h"
 
 #include <chrono>
 #include <thread>
@@ -350,6 +351,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     ConsolidateBooks();
+    ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
     const bool returnedFavorites = ReturnSortFavorites();
     ReturnIgnoredItems();
@@ -376,6 +378,7 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     ConsolidateBooks();
+    ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
     auto* settings = Settings::GetSingleton();
 
@@ -989,6 +992,7 @@ void Stores::PotionMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
@@ -1055,6 +1059,7 @@ void Stores::PotionPositiveMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionPositiveMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
 
     // Transfer Items
@@ -1075,6 +1080,7 @@ void Stores::PotionNegativeMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionNegativeMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
 
     // Transfer Items
@@ -1095,6 +1101,7 @@ void Stores::PotionRestoreMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionRestoreMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
 
     // Transfer Items
@@ -2305,6 +2312,7 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
     RE::TESObjectREFR* a_source, bool a_returnToParent) {
     if (!a_source) return;
     ConsolidateBooks();
+    if (a_parent == Container::Concoction) ConsolidatePotions();
     AllToStore(a_archive, a_parent);
     StoreToStore(a_category, a_parent, a_archive);
     OpenStoreObject(a_source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
@@ -2398,4 +2406,26 @@ void Stores::TakeAmmunition() {
         const int held = existing == carried.end() ? 0 : (std::max)(0, existing->second);
         MoveItems(chest, player, item, (std::min)(data.first, (std::max)(0, target - held)));
     }
+}
+
+void Stores::ConsolidatePotions() {
+    for (auto archive : {Container::Potion, Container::Poison, Container::Restorative,
+        Container::HealthPotions, Container::MagickaPotions, Container::StaminaPotions})
+        AllToStore(archive, Container::Concoction);
+}
+
+void Stores::EnchantedItemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) {
+        if (!EnchantedItems::Gather()) {
+            RE::SendHUDMessage::ShowHUDMessage(Translate("Enchanted.TransferFailed"));
+            CloseStoreObject(source);
+            return;
+        }
+        OpenStorageMenu(Container::EnchantedItems, source, [this](RE::TESObjectREFR* closed) {
+            if (!EnchantedItems::Recover())
+                RE::SendHUDMessage::ShowHUDMessage(Translate("Enchanted.TransferFailed"));
+            CloseStoreObject(closed);
+        });
+    });
 }

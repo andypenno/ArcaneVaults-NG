@@ -19,6 +19,8 @@ program = r'''
 #include <optional>
 #include <ranges>
 #include <string>
+#include <type_traits>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
@@ -26,7 +28,7 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace std { template<class... Args> string format(const char*,Args...){return "title";} }
-namespace logger { void error(const char*) {} }
+namespace logger { inline void error(const char*) {} }
 namespace RE {
 using FormID=unsigned;
 struct TESObjectREFR;
@@ -36,25 +38,65 @@ struct TESForm {
     inline static std::map<unsigned,TESObjectREFR*> refs;
     template<class T> static T* LookupByID(unsigned id) { return refs.contains(id)?refs[id]:nullptr; }
 };
-struct TESBoundObject { unsigned id; };
+struct BGSKeywordForm {
+    bool blocked=false;
+    bool HasKeyword(const BGSKeyword*) const { return blocked; }
+};
+namespace MagicSystem { enum class SpellType { kEnchantment, kStaffEnchantment }; }
+struct EnchantmentItem : BGSKeywordForm {
+    struct Data { EnchantmentItem* baseEnchantment=nullptr; } data;
+    bool known=false,staff=false;
+    MagicSystem::SpellType GetSpellType() const { return staff?MagicSystem::SpellType::kStaffEnchantment:MagicSystem::SpellType::kEnchantment; }
+};
+struct TESEnchantableForm { EnchantmentItem* formEnchanting=nullptr; };
+enum class WEAPON_TYPE { kOneHandSword,kStaff };
+struct TESObjectWEAP { bool staff=false;WEAPON_TYPE GetWeaponType() const {return staff?WEAPON_TYPE::kStaff:WEAPON_TYPE::kOneHandSword;} };
+struct TESObjectARMO {};
+struct TESBoundObject {
+    unsigned id;
+    bool weapon=false,armor=false;
+    BGSKeywordForm keywords{};TESEnchantableForm enchantable{};TESObjectWEAP weaponData{};TESObjectARMO armorData{};
+    template<class T> T* As() {
+        if constexpr(std::is_same_v<T,TESObjectWEAP>) return weapon?&weaponData:nullptr;
+        else if constexpr(std::is_same_v<T,TESObjectARMO>) return armor?&armorData:nullptr;
+        else if constexpr(std::is_same_v<T,BGSKeywordForm>) return &keywords;
+        else if constexpr(std::is_same_v<T,TESEnchantableForm>) return &enchantable;
+        else return nullptr;
+    }
+};
+struct ExtraEnchantment { EnchantmentItem* enchantment; };
+enum class DefaultObjectID { kKeywordDisallowEnchanting };
+struct BGSDefaultObjectManager {
+    BGSKeyword keyword{0xC27BD};BGSKeyword* value=&keyword;
+    static BGSDefaultObjectManager* GetSingleton(){static BGSDefaultObjectManager d;return &d;}
+    template<class T> T** GetObject(DefaultObjectID){return reinterpret_cast<T**>(&value);}
+};
 enum class ExtraDataType { kOwnership,kLinkedRef };
 struct ExtraLinkedRef { struct LinkedRef { BGSKeyword* keyword;TESObjectREFR* refr; };std::vector<LinkedRef> linkedRefs; };
 struct ExtraDataList {
-    int count;TESForm* owner;std::string metadata;ExtraLinkedRef links;
+    int count=1;TESForm* owner=nullptr;std::string metadata;ExtraLinkedRef links;std::optional<ExtraEnchantment> enchantment{};
     int GetCount() const { return count; }
+    void SetCount(std::uint16_t value) { count=value; }
     TESForm* GetOwner() { return owner; }
-    template<class T> T* GetByType() { return links.linkedRefs.empty()?nullptr:&links; }
+    template<class T> T* GetByType() { if constexpr(std::is_same_v<T,ExtraEnchantment>)return enchantment?&*enchantment:nullptr;else return links.linkedRefs.empty()?nullptr:&links; }
     TESObjectREFR* GetLinkedRef(BGSKeyword* key) { for(auto& link:links.linkedRefs) if(link.keyword==key)return link.refr;return nullptr; }
     void SetLinkedRef(TESObjectREFR* ref,BGSKeyword* key) { for(auto& link:links.linkedRefs)if(link.keyword==key){link.refr=ref;return;}links.linkedRefs.push_back({key,ref}); }
     bool RemoveByType(ExtraDataType type) { if(type==ExtraDataType::kOwnership)owner=nullptr;else links.linkedRefs.clear();return true; }
     bool Same(const ExtraDataList& other) const {
-        if(owner!=other.owner || metadata!=other.metadata || links.linkedRefs.size()!=other.links.linkedRefs.size())return false;
+        if((enchantment?enchantment->enchantment:nullptr)!=(other.enchantment?other.enchantment->enchantment:nullptr) || owner!=other.owner || metadata!=other.metadata || links.linkedRefs.size()!=other.links.linkedRefs.size())return false;
         for(std::size_t i=0;i<links.linkedRefs.size();++i)if(links.linkedRefs[i].keyword!=other.links.linkedRefs[i].keyword || links.linkedRefs[i].refr!=other.links.linkedRefs[i].refr)return false;
         return true;
     }
 };
 struct PlayerCharacter;
 struct InventoryEntryData {
+    TESBoundObject* object=nullptr;
+    std::function<void(ExtraDataList*)> add;
+    bool quest=false;
+    InventoryEntryData()=default;
+    InventoryEntryData(TESBoundObject* value,int):object(value){}
+    void AddExtraList(ExtraDataList* extra){if(add)add(extra);else lists.push_back(extra);}
+    bool IsQuestObject()const{return quest;}
     std::vector<ExtraDataList*> lists;std::vector<ExtraDataList*>* extraLists=&lists;
     bool IsOwnedBy(PlayerCharacter*,TESForm* owner,bool defaultTo) { return owner?owner->playerOwned:defaultTo; }
 };
@@ -66,22 +108,34 @@ enum class BSEventNotifyControl { kContinue };
 template<class T> struct BSTEventSource {};
 template<class T> struct BSTEventSink { virtual BSEventNotifyControl ProcessEvent(const T*,BSTEventSource<T>*)=0; };
 struct ScriptEventSourceHolder {
-    BSTEventSink<TESContainerChangedEvent>* sink=nullptr;
+    std::vector<BSTEventSink<TESContainerChangedEvent>*> sinks;
     static ScriptEventSourceHolder* GetSingleton(){static ScriptEventSourceHolder h;return &h;}
-    void AddEventSink(BSTEventSink<TESContainerChangedEvent>* s){sink=s;}
-    void Send(TESContainerChangedEvent e){if(sink)sink->ProcessEvent(&e,nullptr);}
+    void AddEventSink(BSTEventSink<TESContainerChangedEvent>* s){sinks.push_back(s);}
+    void Send(TESContainerChangedEvent e){for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);}
 };
 struct TESObjectREFR {
     struct ChangeFlags {static constexpr unsigned kInventory=32;};
-    struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false;};
+    struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false;};
     unsigned id;int limit=std::numeric_limits<int>::max();bool refuse=false;unsigned changed=0;
     std::map<TESBoundObject*,Row> rows;
+    struct Changes {
+        TESObjectREFR* source;
+        std::vector<InventoryEntryData*> entries;
+        std::vector<InventoryEntryData*>* entryList=&entries;
+        void AddEntryData(InventoryEntryData* entry){
+            entry->add=[this,item=entry->object](ExtraDataList* extra){source->rows[item].extras.emplace_back(extra);};
+            entries.push_back(entry);
+        }
+        ~Changes(){for(auto* entry:entries)delete entry;}
+    } changes{this,{},nullptr};
+    Changes* GetInventoryChanges(){changes.entryList=&changes.entries;return &changes;}
+
     explicit TESObjectREFR(unsigned value):id(value){TESForm::refs[id]=this;}
     unsigned GetFormID()const{return id;}Handle GetHandle()const{return {id};}
     void AddChange(unsigned flag){assert(flag==ChangeFlags::kInventory);++changed;}
     auto GetInventory()const{
         std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;
-        for(const auto& [item,row]:rows){auto e=std::make_shared<InventoryEntryData>();for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
+        for(const auto& [item,row]:rows){auto e=std::make_shared<InventoryEntryData>();e->quest=row.quest;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
     }
     std::map<TESBoundObject*,int> GetInventoryCounts()const{std::map<TESBoundObject*,int> result;for(auto& [item,row]:rows)result[item]=row.total;return result;}
     void Put(TESBoundObject* item,int plain,int count=0,TESForm* owner=nullptr,std::string metadata=""){
@@ -94,20 +148,32 @@ struct TESObjectREFR {
         if(extra){
             auto found=std::ranges::find_if(row.extras,[&](auto& p){return p.get()==extra;});assert(found!=row.extras.end());
             count=std::min(count,extra->count);auto copy=std::make_shared<ExtraDataList>(*extra);copy->count=count;
-            auto merged=std::ranges::find_if(out.extras,[&](auto& p){return p->Same(*copy);});if(merged==out.extras.end())out.extras.push_back(copy);else (*merged)->count+=count;
+            auto merged=std::ranges::find_if(out.extras,[&](auto& p){return p->Same(*copy) && p->count+copy->count<=32767;});if(merged==out.extras.end())out.extras.push_back(copy);else (*merged)->count+=count;
             extra->count-=count;if(extra->count==0)row.extras.erase(found);
         }else{assert(row.extras.empty());}
         row.total-=count;out.total+=count;
         ScriptEventSourceHolder::GetSingleton()->Send({id,target->id,item->id,count});
     }
 };
+inline bool allocationFails=false;
+inline int nativeConstructions=0;
+inline void* malloc(std::size_t size){return allocationFails ? nullptr : ::operator new(size);}
+inline void free(void* value){::operator delete(value);}
 struct PlayerCharacter:TESObjectREFR { PlayerCharacter():TESObjectREFR(0x14){}static PlayerCharacter* GetSingleton(){static PlayerCharacter p;return &p;} };
-struct TESDataHandler { BGSKeyword keyword{0x01000DE0};static TESDataHandler* GetSingleton(){static TESDataHandler d;return &d;}template<class T>T* LookupForm(unsigned id,std::string_view plugin){assert(id==0xDE0 && plugin=="ArcaneVaults-LinkedStorage.esp");return &keyword;} };
+struct TESDataHandler { BGSKeyword keyword{0x01000DE0},enchantedKeyword{0x01000DED};static TESDataHandler* GetSingleton(){static TESDataHandler d;return &d;}template<class T>T* LookupForm(unsigned id,std::string_view plugin){assert((id==0xDE0 || id==0xDED) && plugin=="ArcaneVaults-LinkedStorage.esp");return id==0xDE0?&keyword:&enchantedKeyword;} };
 struct SendHUDMessage {inline static std::string message;static void ShowHUDMessage(const char* text){message=text;} };
+}
+namespace REL {
+struct VariantID { VariantID(unsigned se,unsigned ae,unsigned vr){assert(se==11437 && ae==11583 && vr==0x117C80);} };
+template<class T> struct Relocation {
+    explicit Relocation(VariantID){}
+    RE::ExtraDataList* operator()(void* storage)const{++RE::nativeConstructions;return new(storage)RE::ExtraDataList;}
+};
+template<class T>T Relocate(T se,T ae,T vr){assert(se==0x18 && ae==0x20 && vr==0x18);return sizeof(RE::ExtraDataList);}
 }
 namespace SKSE {
 struct Tasks {std::deque<std::function<void()>> queue;void AddTask(std::function<void()> task){queue.push_back(task);}void Run(){while(!queue.empty()){auto f=queue.front();queue.pop_front();f();}}};
-Tasks* GetTaskInterface(){static Tasks t;return &t;}
+inline Tasks* GetTaskInterface(){static Tasks t;return &t;}
 }
 struct Utility {
     struct Choice {unsigned formID;};std::vector<Choice> vaults;std::map<Container,RE::TESObjectREFR*> containers;
@@ -116,8 +182,8 @@ struct Utility {
     const auto& GetVaultChoices()const{return vaults;}
 };
 struct Settings {bool GSC_AllowRemovingStolenTags=false;static Settings* GetSingleton(){static Settings s;return &s;} };
-const char* Translate(const char* text){return text;}
-namespace AVTranslation {const char* Translate(const char* text){return text;} }
+inline const char* Translate(const char* text){return text;}
+namespace AVTranslation {inline const char* Translate(const char* text){return text;} }
 struct Stores {
     struct MenuOption {std::string text;std::function<void()> action;};
     std::vector<MenuOption> options;int cancel=-1;bool closed=false;Container opened=Container::None;
@@ -128,15 +194,28 @@ struct Stores {
     void CloseStoreObject(RE::TESObjectREFR*){closed=true;returnToVault_={};}
     void OpenStorageMenu(Container c,RE::TESObjectREFR*,std::function<void(RE::TESObjectREFR*)> callback){opened=c;onClose=std::move(callback);}
     void VaultMenu(RE::TESObjectREFR*){closed=false;options.clear();returnToVault_={};}
+    void AllToStore(Container from,Container to) {
+        auto* u=Utility::GetSingleton();auto* a=u->GetContainer(from);auto* b=u->GetContainer(to);if(!a||!b||a==b)return;
+        while(!a->rows.empty()) {auto it=a->rows.begin();if(it->second.total<=0){a->rows.erase(it);continue;}
+            auto* extra=it->second.extras.empty()?nullptr:it->second.extras.front().get();
+            a->RemoveItem(it->first,extra?extra->count:it->second.total,RE::ITEM_REMOVE_REASON::kStoreInContainer,extra,b);
+        }
+    }
+    void EnchantedItemsMenu(RE::TESObjectREFR*);
 void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*);void ShowStolenItemsMenu(RE::TESObjectREFR*);
     void Click(int i){auto action=options[i].action;options.clear();action();SKSE::GetTaskInterface()->Run();}
 };
 #include "src/StolenItems.h"
+#include "src/EnchantedItems.h"
 '''
-source=(ROOT / "src/StolenItems.cpp").read_text()
-program += "\n".join(line for line in source.splitlines() if not line.startswith("#include"))
+common = program
+program = '#include "common.hpp"\n'
+modules = {}
+for name in ("InventoryStacks", "StolenItems", "EnchantedItems"):
+    text = (ROOT / f"src/{name}.cpp").read_text()
+    modules[name] = '#include "common.hpp"\n' + "\n".join(line for line in text.splitlines() if not line.startswith("#include"))
 source=(ROOT / "src/Stores.cpp").read_text()
-for name in ["StolenItemsMenu","OpenStolenItems","ShowStolenItemsMenu"]:
+for name in ["StolenItemsMenu","OpenStolenItems","ShowStolenItemsMenu","EnchantedItemsMenu"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}",start)+2]
 program += r'''
@@ -200,12 +279,65 @@ int main(){
     s->GSC_AllowRemovingStolenTags=false;menu->StolenItemsMenu(&source);close=menu->onClose;close(&source);assert(returns==2);
     menu->returnToVault_={};
 
+    RE::TESObjectREFR weapons{1001},armorBank{1002},enchantedBank{1003};
+    u->containers[Container::Weapon]=&weapons;u->containers[Container::Armor]=&armorBank;u->containers[Container::EnchantedItems]=&enchantedBank;
+    EnchantedItems::Init();
+    auto resetEnchanted=[&]{weapons.rows.clear();armorBank.rows.clear();enchantedBank.rows.clear();player->rows.clear();tasks->Run();};
+    RE::EnchantmentItem normal,derived,blocked,cycle,staffEnchant;
+    derived.data.baseEnchantment=&normal;blocked.blocked=true;cycle.data.baseEnchantment=&cycle;staffEnchant.staff=true;
+    RE::TESBoundObject sword{200,true},helmet{201,false,true},artifact{202,true},staff{203,true},plainSword{204,true},clothes{205,false,true};
+    sword.enchantable.formEnchanting=&derived;helmet.enchantable.formEnchanting=&normal;artifact.enchantable.formEnchanting=&normal;artifact.keywords.blocked=true;
+    staff.enchantable.formEnchanting=&normal;staff.weaponData.staff=true;
+    RE::InventoryEntryData eligibility;
+    assert(EnchantedItems::Eligible(&sword,eligibility,nullptr));normal.known=true;
+    assert(EnchantedItems::Eligible(&sword,eligibility,nullptr));
+    assert(!EnchantedItems::Eligible(&artifact,eligibility,nullptr) && !EnchantedItems::Eligible(&staff,eligibility,nullptr));
+    sword.enchantable.formEnchanting=&blocked;assert(!EnchantedItems::Eligible(&sword,eligibility,nullptr));
+    sword.enchantable.formEnchanting=&derived;normal.blocked=true;assert(!EnchantedItems::Eligible(&sword,eligibility,nullptr));normal.blocked=false;
+    sword.enchantable.formEnchanting=&cycle;assert(!EnchantedItems::Eligible(&sword,eligibility,nullptr));sword.enchantable.formEnchanting=&staffEnchant;assert(!EnchantedItems::Eligible(&sword,eligibility,nullptr));sword.enchantable.formEnchanting=&derived;
+    eligibility.quest=true;assert(!EnchantedItems::Eligible(&sword,eligibility,nullptr));eligibility.quest=false;
+    auto* defaults=RE::BGSDefaultObjectManager::GetSingleton();defaults->value=nullptr;assert(!EnchantedItems::Eligible(&sword,eligibility,nullptr));defaults->value=&defaults->keyword;
+    weapons.Put(&sword,6);RE::allocationFails=true;
+    assert(!EnchantedItems::Gather() && count(weapons,sword)==6 && count(enchantedBank,sword)==0);
+    RE::allocationFails=false;resetEnchanted();
+    weapons.Put(&sword,70000);weapons.Put(&artifact,3);weapons.Put(&staff,4);armorBank.Put(&helmet,2);
+    assert(EnchantedItems::Gather());assert(count(enchantedBank,sword)==70000 && count(enchantedBank,helmet)==2);
+    assert(count(weapons,artifact)==3 && count(weapons,staff)==4);assert(EnchantedItems::Recover());
+    assert(count(weapons,sword)==70000 && count(armorBank,helmet)==2 && count(enchantedBank,sword)==0 && RE::nativeConstructions>0);
+    for(auto& extra:weapons.rows[&sword].extras)assert(!extra->GetLinkedRef(&RE::TESDataHandler::GetSingleton()->enchantedKeyword));
+    resetEnchanted();weapons.Put(&plainSword,10,3,&foreign,"tempered custom sword");
+    weapons.rows[&plainSword].extras[0]->enchantment=RE::ExtraEnchantment{&normal};
+    weapons.Put(&plainSword,0,2,&own,"plain tempered sword");
+    armorBank.Put(&clothes,0,2,&foreign,"custom robe");armorBank.rows[&clothes].extras[0]->enchantment=RE::ExtraEnchantment{&normal};
+    assert(EnchantedItems::Gather());assert(count(enchantedBank,plainSword)==3 && count(weapons,plainSword)==12);
+    assert(count(enchantedBank,clothes)==2);
+    auto* tagged=enchantedBank.rows[&plainSword].extras[0].get();enchantedBank.RemoveItem(&plainSword,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,tagged,player);tasks->Run();
+    assert(player->rows[&plainSword].extras[0]->owner==&foreign && player->rows[&plainSword].extras[0]->metadata=="tempered custom sword" && player->rows[&plainSword].extras[0]->enchantment->enchantment==&normal);
+    assert(!player->rows[&plainSword].extras[0]->GetLinkedRef(&RE::TESDataHandler::GetSingleton()->enchantedKeyword));
+    assert(EnchantedItems::Recover());assert(count(weapons,plainSword)==14 && count(armorBank,clothes)==2);
+    resetEnchanted();weapons.Put(&sword,0,2,&foreign,"blocked variant");weapons.rows[&sword].extras[0]->enchantment=RE::ExtraEnchantment{&blocked};
+    weapons.Put(&sword,5);assert(EnchantedItems::Gather());assert(count(weapons,sword)==2 && count(enchantedBank,sword)==5);
+    assert(EnchantedItems::Recover());
+    resetEnchanted();weapons.Put(&plainSword,0,4,&foreign,"malformed");weapons.rows[&plainSword].extras[0]->enchantment=RE::ExtraEnchantment{&normal};weapons.rows[&plainSword].duplicate=true;
+    assert(EnchantedItems::Gather() && count(weapons,plainSword)==4 && count(enchantedBank,plainSword)==0);
+    resetEnchanted();weapons.Put(&sword,8);weapons.limit=2;assert(EnchantedItems::Gather() && count(enchantedBank,sword)==8);weapons.limit=std::numeric_limits<int>::max();
+    enchantedBank.refuse=true;assert(!EnchantedItems::Recover() && count(enchantedBank,sword)==8);enchantedBank.refuse=false;assert(EnchantedItems::Recover() && count(weapons,sword)==8);
+    weapons.refuse=true;assert(!EnchantedItems::Gather() && count(weapons,sword)==8);weapons.refuse=false;assert(EnchantedItems::Gather());
+    EnchantedItems::Reset();assert(EnchantedItems::Recover() && count(weapons,sword)==8);
+    resetEnchanted();enchantedBank.Put(&plainSword,3);assert(EnchantedItems::Recover() && count(*player,plainSword)==3);
+    resetEnchanted();weapons.Put(&sword,2);menu->EnchantedItemsMenu(&source);assert(menu->opened==Container::EnchantedItems && count(enchantedBank,sword)==2);
+    close=menu->onClose;close(&source);assert(menu->closed && count(weapons,sword)==2);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     source=Path(tmp)/"stolen.cpp";binary=Path(tmp)/"stolen"
+    (Path(tmp)/"common.hpp").write_text("#pragma once\n"+common)
     source.write_text(program)
-    subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror","-I",str(ROOT),str(source),"-o",str(binary)],check=True)
+    files=[]
+    for name,text in modules.items():
+        file=Path(tmp)/(name+".cpp");file.write_text(text);files.append(str(file))
+    subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror","-I",str(ROOT),str(source),*files,"-o",str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 translations=json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
 assert translations["Stolen.Open"]=="Open"

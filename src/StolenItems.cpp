@@ -29,88 +29,25 @@ namespace {
         return result;
     }
 
+    using InventoryStacks::Count;
+    using InventoryStacks::HasItems;
+    using InventoryStacks::Move;
+
     std::vector<StolenItems::Stack> ReadStacks(RE::TESObjectREFR* source, bool stolenOnly) {
-        std::vector<StolenItems::Stack> result;
+        if (!stolenOnly) return InventoryStacks::Read(source);
         auto* player = RE::PlayerCharacter::GetSingleton();
-        if (!source || !player) return result;
-        for (const auto& [item, data] : source->GetInventory()) {
-            auto* entry = data.second.get();
-            if (!item || data.first <= 0 || !entry) continue;
-            std::vector<StolenItems::Stack> selected;
-            std::unordered_set<RE::ExtraDataList*> visited;
-            std::int64_t explicitCount{};
-            bool valid = true;
-            if (entry->extraLists) {
-                for (auto* extra : *entry->extraLists) {
-                    if (!extra) continue;
-                    const int count = extra->GetCount();
-                    if (!visited.insert(extra).second || count <= 0 || explicitCount + count > data.first) {
-                        valid = false;
-                        break;
-                    }
-                    explicitCount += count;
-                    // The aggregate owner can belong to a different copy of this base record.
-                    if (!stolenOnly || !entry->IsOwnedBy(player, extra->GetOwner(), true))
-                        selected.push_back({source, item, extra, count});
-                }
-            }
-            if (!valid) continue;
-            if (!stolenOnly && explicitCount < data.first)
-                selected.push_back({source, item, nullptr, static_cast<int>(data.first - explicitCount)});
-            result.insert(result.end(), selected.begin(), selected.end());
-        }
-        return result;
-    }
-
-    int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item) {
-        const auto counts = source->GetInventoryCounts();
-        const auto found = counts.find(item);
-        return found == counts.end() ? 0 : (std::max)(0, found->second);
-    }
-
-    bool HasItems(RE::TESObjectREFR* source) {
-        if (!source) return false;
-        for (const auto& [item, count] : source->GetInventoryCounts())
-            if (item && count > 0) return true;
-        return false;
+        if (!player) return {};
+        return InventoryStacks::Read(source, [player](auto*, RE::InventoryEntryData& entry, auto* extra) {
+            return extra && !entry.IsOwnedBy(player, extra->GetOwner(), true);
+        });
     }
 
     bool HasMarker(RE::ExtraDataList* extra) {
-        const auto* links = extra ? extra->GetByType<RE::ExtraLinkedRef>() : nullptr;
-        if (!links) return false;
-        for (const auto& link : links->linkedRefs)
-            if (link.keyword == originKeyword) return true;
-        return false;
-    }
-
-    void RemoveMarker(RE::ExtraDataList* extra) {
-        auto* links = extra ? extra->GetByType<RE::ExtraLinkedRef>() : nullptr;
-        if (!links) return;
-        for (std::size_t i = links->linkedRefs.size(); i > 0; --i)
-            if (links->linkedRefs[i - 1].keyword == originKeyword)
-                links->linkedRefs.erase(links->linkedRefs.begin() + i - 1);
-        if (links->linkedRefs.empty()) extra->RemoveByType(RE::ExtraDataType::kLinkedRef);
+        return InventoryStacks::HasOrigin(extra, originKeyword);
     }
 
     void ClearMarkers(RE::TESObjectREFR* source) {
-        if (!originKeyword || !source) return;
-        for (const auto& stack : ReadStacks(source, false)) {
-            if (HasMarker(stack.extra)) {
-                RemoveMarker(stack.extra);
-                source->AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
-            }
-        }
-    }
-
-    bool Move(const StolenItems::Stack& stack, RE::TESObjectREFR* target) {
-        if (!target || target == stack.source) return false;
-        const int before = Count(stack.source, stack.item);
-        const int targetBefore = Count(target, stack.item);
-        const int count = (std::min)(stack.count, (std::numeric_limits<int>::max)() - targetBefore);
-        if (count <= 0) return false;
-        stack.source->RemoveItem(stack.item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, stack.extra, target);
-        const int removed = before - Count(stack.source, stack.item);
-        return removed > 0 && removed <= count && Count(target, stack.item) - targetBefore == removed;
+        InventoryStacks::ClearOrigins(source, originKeyword);
     }
 
     class Sink : public RE::BSTEventSink<RE::TESContainerChangedEvent> {

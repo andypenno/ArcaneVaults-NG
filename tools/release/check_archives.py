@@ -133,7 +133,7 @@ int main() {
     auto* tasks = SKSE::GetTaskInterface();
     auto source = std::make_shared<RE::TESObjectREFR>(RE::TESObjectREFR{100, true, "Root"});
     auto assignments = utility->GetArchiveChoices();
-    assert(assignments.size() == 28);
+    assert(assignments.size() == 32);
     for (const auto& choice : assignments) assert(!choice.action);
     stores->ShowVaultArchivesMenu(source.get());
     assert(state->GetTitle() == "Vault.Archives");
@@ -170,7 +170,7 @@ int main() {
     state->Begin(source, {}, "Empty", [&]{ ++cancellations; });
     assert(!state->Complete(99) && cancellations == 1);
     utility->containerMap[Container::Crafting].container = nullptr;
-    assert(utility->GetArchiveChoices().size() == 27);
+    assert(utility->GetArchiveChoices().size() == 31);
 }
 '''
 root_menu = body("src/Stores.cpp", "void Stores::ShowVaultMenu(")
@@ -182,4 +182,4 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-archive-check-") as directo
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
-print("PASS: 28 registered archives, deferred handlers, contextual return, Back/Exit/cancel, expired source, and no browse assignments")
+print("PASS: 32 registered archives, deferred handlers, contextual return, Back/Exit/cancel, expired source, and no browse assignments")

@@ -30,7 +30,7 @@ Most archive actions temporarily move matching items from their parent vault int
 | --- | --- |
 | Smithing | Crafting, Smelting, Tanning, Construction, Gemstone |
 | Alchemy | Reagent, labeled Spice in storage UI |
-| Concoction | Potion, Poison, Restorative |
+| Concoction | Potion, Poison, Restorative, HealthPotions, MagickaPotions, StaminaPotions |
 | Food | CookedFood, RawFood |
 | Armor | Clothing, HeavyArmor, LightArmor, Jewelry |
 | Weapon | Archery, OneHand, TwoHand, Staff |
@@ -176,6 +176,10 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
 | Gear | `0xDE2` | Vault | `GearMenu` |
 | Instruments | `0xDE4` | Archive | `OpenBookArchive` from Gear |
+| HealthPotions | `0xDE6` | Archive | `OpenBookArchive` from Concoction |
+| MagickaPotions | `0xDE8` | Archive | `OpenBookArchive` from Concoction |
+| StaminaPotions | `0xDEA` | Archive | `OpenBookArchive` from Concoction |
+| EnchantedItems | `0xDEC` | Archive | `EnchantedItemsMenu` |
 | Junk | `0xDCF` | Vault | `JunkMenu` |
 | Trade | `0xDD1` | Vault | `TradeMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
@@ -264,3 +268,19 @@ Each explicit transfer checks observed source/destination count changes and re-r
 Arcane Vault has an Archives entry containing Stolen Items. Binding the archive directly also works. With the default-off clearing option disabled, activation opens the gathered inventory directly. Enabled activation shows Open, Exit, and Remove All Stolen Tags. Contextual Back appears before the clearing action. Clearing requires confirmation, defaults to No, rechecks the setting and game generation, gathers current stolen copies, removes only `ExtraOwnership`, then returns them to their sources. Successful clearing leaves the next opening empty unless new stolen copies arrive. Transfer failures preserve remaining inventory and show a recovery message.
 
 `check_stolen.py` exercises the actual selector, transfer/recovery code, and archive menus. Its save/load check models native link persistence and load-order remapping. Native extra-data comparison and save handling still require in-game verification.
+
+## Attribute potion archives
+
+Health Potions, Magicka Potions and Stamina Potions gather their matching categories from Concoction. `ClassifyPotionEffects` reads loaded native effects rather than matching vanilla potion IDs. Automatic classification excludes food, poisons, hostile or detrimental effects, and nonpositive magnitudes. ValueModifier, PeakValueModifier and DualValueModifier effects select the corresponding Health, Magicka or Stamina category through the attribute, regeneration rate or regeneration multiplier actor value. Dual modifiers also consider the secondary attribute when its weight is positive. Script-only effects without this metadata need an explicit override.
+
+HealthPotion, MagickaPotion and StaminaPotion imply Potion and Concoction. Explicit overrides retain priority. A potion affecting several attributes matches several archives; opening one moves the existing copies rather than duplicating them. `ConsolidatePotions` returns all six potion/poison archives to Concoction before opening a potion view or running Sort or Quick Transfer. Closing a new archive returns its remaining contents to Concoction. All three are available through Open Archives and direct assignment.
+
+## Enchanted Items archive
+
+`EnchantedItems.cpp` pools qualifying physical stacks from Weapon and Armor after consolidating their category archives. Armor includes clothing and jewelry. Each stack uses its ExtraEnchantment when present, otherwise the base item's enchantment. Plain copies sharing an enchanted copy's base record remain in their vault.
+
+The filter uses Skyrim's default-object disallow-enchanting keyword on the item, effective enchantment and inherited base-enchantment chain. Known enchantments and player-applied enchantments remain eligible. Quest entries, staves, staff enchantments, blocked artifacts, cyclic enchantment chains and uncertain eligibility are excluded. Eligibility depends on loaded record metadata, not artifact names or mod-specific lists. Missing restriction metadata leaves items in their parent vault.
+
+`InventoryStacks.cpp` shares stack validation, count checks, transfers and origin-marker cleanup with Stolen Items. Duplicate extra-list pointers or inconsistent counts reject the affected inventory entry. Implicit enchanted stacks receive live extra lists in signed-16-bit count chunks before moving. MarkOrigin allocates game-heap storage and invokes the SE/AE/VR engine constructor through Address Library; CommonLib declares but does not implement its C++ constructor. The separate `AV_EnchantedOrigin` keyword at `0xDED` records each stack's source without replacing ownership or enchantment data. Closing or post-load recovery returns marked items to their original vault; unmarked manual deposits return to the player. Withdrawn items lose only this archive's origin marker. Failed returns stay stored for recovery.
+
+Enchanted Items is available through Open Archives and direct assignment. It has no new sale action or Quick Transfer category, and its mixed, per-copy filter cannot teach a base-record override.

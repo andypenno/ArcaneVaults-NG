@@ -1,6 +1,13 @@
 set_xmakever('3.0.1')
 includes('lib/commonlibsse-ng')
 
+target('commonlibsse-ng')
+    if is_plat('windows') then
+        -- The pinned trampoline API retains unused compatibility parameters.
+        add_files(path.join(os.projectdir(), 'lib/commonlibsse-ng/src/SKSE/Trampoline.cpp'), {cxflags = '/wd4100'})
+    end
+target_end()
+
 set_project('ArcaneVaults-NG')
 set_version('1.0')
 set_license('GPL-3.0')
