@@ -46,6 +46,8 @@ Most archive actions temporarily move matching items from their parent vault int
 | Armor | Clothing, HeavyArmor, LightArmor, Jewelry |
 | Weapon | Archery, OneHand, TwoHand, Staff |
 
+Direct Archery archive access pools bows/crossbows from Weapon and arrows/bolts from Ammunition. Closing returns ammunition to its own vault before returning the remainder to Weapon. Failed ammunition returns leave the archive contents in place for a later direct visit. The Weapon menu and its Archery shortcut retain their existing weapon-only behavior.
+
 Parent menus consolidate their own child archives; the scrolling vault browser invokes those registered menu actions. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
 
 Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.

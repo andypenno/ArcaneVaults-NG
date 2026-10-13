@@ -25,7 +25,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "ShowWeaponArcheryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
@@ -253,7 +253,7 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
+    RE::TESObjectREFR chest, archery, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
     RE::TESObjectREFR* scrollContainer = nullptr;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
     void CacheSkillBooks(RE::TESDataHandler*);
@@ -290,6 +290,7 @@ struct Utility {
         case Container::Scroll: return scrollContainer ? scrollContainer : &chest;
         case Container::Sort: return &inbox;
         case Container::Ignore: return &inbox;
+        case Container::Archery: return &archery;
         case Container::Ammunition: return &ammunition;
         case Container::Treasure: return &treasure;
         case Container::Smithing: return missingSmithing ? nullptr : &smithing;
@@ -362,6 +363,7 @@ void OffloadItems(){OffloadItemsNow();}
     void AllToStore(Container, Container);
     void AllToPlayer(Container);
     void ShowArmorJewelryMenu(RE::TESObjectREFR*);
+    void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
     void EmptySoulgemsMenu(RE::TESObjectREFR*);
     void SoulgemMenu(RE::TESObjectREFR*);
     void ShowSoulgemMenu(RE::TESObjectREFR*);
@@ -400,7 +402,7 @@ void OffloadItems(){OffloadItemsNow();}
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Soulgem || container == Container::FilledSoulgems || container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
+        assert(container == Container::Archery || container == Container::Soulgem || container == Container::FilledSoulgems || container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -1415,6 +1417,30 @@ assert(options.at({"General", "EnchantedItemsLoan"}) == 0);
     assert(utility->healthPotions.inventory[&mixedPotion].first==0 && concoction.inventory[&mixedPotion].first==11 && utility->staminaPotions.inventory[&staminaPotion].first==6);
     stores.onClose();stores.ConsolidatePotions();assert(concoction.inventory[&healthPotion].first==8 && concoction.inventory[&mixedPotion].first==11 && concoction.inventory[&staminaPotion].first==6);
 
+    settings->override.reset();settings->overrides.clear();
+    RE::TESObjectREFR archerySource;
+    RE::TESBoundObject archiveBow{ItemCategory::Archery},archiveCrossbow{ItemCategory::Archery},archiveArrows{ItemCategory::Ammunition},archiveBolts{ItemCategory::Ammunition},archiveNote{ItemCategory::Note};
+    auto& archery=utility->archery;auto& weaponBank=utility->chest;
+    player->inventory.clear();ammoChest.inventory.clear();weaponBank.inventory.clear();archery.inventory.clear();
+    weaponBank.inventory[&archiveBow]=entry(2);weaponBank.inventory[&archiveCrossbow]=entry(1);
+    ammoChest.inventory[&archiveArrows]=entry(25000);ammoChest.inventory[&archiveBolts]=entry(70);ammoChest.inventory[&archiveNote]=entry(4);
+    stores.closed=false;stores.ShowWeaponArcheryMenu(&archerySource);
+    assert(stores.opened==Container::Archery && archery.inventory[&archiveBow].first==2 && archery.inventory[&archiveCrossbow].first==1);
+    assert(archery.inventory[&archiveArrows].first==25000 && archery.inventory[&archiveBolts].first==70 && ammoChest.inventory[&archiveNote].first==4);
+    assert(weaponBank.inventory[&archiveBow].first==0 && ammoChest.inventory[&archiveArrows].first==0);
+    archery.RemoveItem(&archiveArrows,10,RE::ITEM_REMOVE_REASON::kStoreInContainer,nullptr,player);
+    archery.inventory[&archiveBolts].first+=5;archery.removeLimit=9999;stores.onClose();
+    assert(stores.closed && ammoChest.inventory[&archiveArrows].first==24990 && ammoChest.inventory[&archiveBolts].first==75);
+    assert(weaponBank.inventory[&archiveBow].first==2 && weaponBank.inventory[&archiveCrossbow].first==1);
+    assert(weaponBank.inventory[&archiveArrows].first==0 && player->inventory[&archiveArrows].first==10);
+    stores.ShowWeaponArcheryMenu(&archerySource);archery.rejectMove=true;stores.onClose();
+    assert(archery.inventory[&archiveArrows].first==24990 && weaponBank.inventory[&archiveArrows].first==0);
+    assert(archery.inventory[&archiveBow].first==2);
+    archery.rejectMove=false;stores.ShowWeaponArcheryMenu(&archerySource);stores.onClose();
+    assert(archery.inventory[&archiveArrows].first==0 && ammoChest.inventory[&archiveArrows].first==24990);
+    assert(archery.inventory[&archiveBow].first==0 && weaponBank.inventory[&archiveBow].first==2);
+    stores.ShowWeaponArcheryMenu(nullptr);assert(ammoChest.inventory[&archiveArrows].first==24990);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1451,6 +1477,6 @@ for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines():
 assert set(map_overrides) == {("Skyrim.esm", local) for local in
     (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
      0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)}
-print("PASS: native potion effects, exclusions and archive gather/return; ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+print("PASS: direct Archery ammunition gather/return, withdrawals, deposits and failed/large transfers; native potion effects, exclusions and archive gather/return; ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}

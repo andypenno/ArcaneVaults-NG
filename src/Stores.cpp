@@ -1707,11 +1707,17 @@ void Stores::ShowWeaponArcheryMenu(RE::TESObjectREFR* a_source) {
 
     // Transfer Items
     StoreToStore(ItemCategory::Archery, Container::Weapon, Container::Archery);
+    StoreToStore(ItemCategory::Ammunition, Container::Ammunition, Container::Archery);
 
     // Open the container
     if (auto source = sourceHandle.get())
         OpenStorageMenu(Container::Archery, source.get(), [this](RE::TESObjectREFR* a_source) {
             if (a_source) CloseStoreObject(a_source);
+            StoreToStore(ItemCategory::Ammunition, Container::Archery, Container::Ammunition);
+            // A failed ammunition return must not fall through to the Weapon vault.
+            if (auto* archive = Utility::GetSingleton()->GetContainer(Container::Archery))
+                for (const auto& [item, data] : archive->GetInventory())
+                    if (item && data.first > 0 && HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) return;
             AllToStore(Container::Archery, Container::Weapon);
     });
 }
