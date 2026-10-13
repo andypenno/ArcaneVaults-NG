@@ -536,7 +536,7 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
     }});
 
     options.push_back({Translate("Vault.ArcaneVaults"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) VaultDetail1Menu(source.get());
+        if (auto source = sourceHandle.get()) ShowVaultsMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.ArcaneArchives"), [this, sourceHandle] {
@@ -552,156 +552,9 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }
 
-void Stores::VaultDetail1Menu(RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    OpenStoreObject(a_source, [this](RE::TESObjectREFR* a_openSource) { ShowVaultDetail1Menu(a_openSource); });
-}
 
-void Stores::ShowVaultDetail1Menu(RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    const auto sourceHandle = a_source->GetHandle();
-    navigationSource_ = sourceHandle;
-    returnToVault_ = [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) VaultDetail1Menu(source.get());
-    };
-    std::vector<MenuOption> options;
 
-    options.push_back({Translate("Vault.Smithing"), [this, sourceHandle] {
-        AllToStore(Container::Crafting, Container::Smithing);
-        AllToStore(Container::Smelting, Container::Smithing);
-        AllToStore(Container::Tanning, Container::Smithing);
-        AllToStore(Container::Construction, Container::Smithing);
-        
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Smithing, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail1Menu(a_source);
-            });
-    }});
 
-    options.push_back({Translate("Vault.Alchemy"), [this, sourceHandle] {
-        AllToStore(Container::Reagent, Container::Alchemy);
-        
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Alchemy, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail1Menu(a_source);
-            });
-    }});
-
-    options.push_back({Translate("Vault.Armor"), [this, sourceHandle] {
-        AllToStore(Container::HeavyArmor, Container::Armor);
-        AllToStore(Container::LightArmor, Container::Armor);
-        AllToStore(Container::Jewelry, Container::Armor);
-        AllToStore(Container::Clothing, Container::Armor);
-        
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Armor, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail1Menu(a_source);
-            });
-    }});
-
-    options.push_back({Translate("Vault.Weapon"), [this, sourceHandle] {
-        AllToStore(Container::Archery, Container::Weapon);
-        AllToStore(Container::OneHand, Container::Weapon);
-        AllToStore(Container::TwoHand, Container::Weapon);
-        AllToStore(Container::Staff, Container::Weapon);
-        
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Weapon, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail1Menu(a_source);
-            });
-    }});
-
-    options.push_back({Translate("Vault.Concoction"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Concoction, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail1Menu(a_source);
-            });
-    }});
-
-    options.push_back({Translate("Vault.Food"), [this, sourceHandle] {
-        AllToStore(Container::RawFood, Container::Food);
-        AllToStore(Container::CookedFood, Container::Food);
-
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Food, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail1Menu(a_source);
-            });
-    }});
-
-    options.push_back({Translate("Vault.More"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) VaultDetail2Menu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
-    }});
-
-    const auto title = std::format("{} {}",Translate("Vault.Arcane"),Translate("Vault.Vault"));
-    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
-    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
-}
-
-void Stores::VaultDetail2Menu(RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    OpenStoreObject(a_source, [this](RE::TESObjectREFR* a_openSource) { ShowVaultDetail2Menu(a_openSource); });
-}
-
-void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    const auto sourceHandle = a_source->GetHandle();
-    navigationSource_ = sourceHandle;
-    returnToVault_ = [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) VaultDetail2Menu(source.get());
-    };
-    std::vector<MenuOption> options;
-
-    options.push_back({Translate("Vault.Ammunition"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Keys"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) KeysMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Book"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) BookMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Notes"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) NotesMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Scroll"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Scroll, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail2Menu(a_source);
-            });
-    }});
-
-    options.push_back({Translate("Vault.Soulgem"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Treasure"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) TreasureMenu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.More"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) VaultDetail3Menu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Back"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) VaultDetail1Menu(source.get());
-    }});
-
-    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
-    }});
-
-    const auto title = std::format("{} {}",Translate("Vault.Arcane"),Translate("Vault.Vault"));
-    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
-    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
-}
 
 //===================================================
 // Vault Assignment
@@ -2016,16 +1869,25 @@ void Stores::ShowValuablesMenu(RE::TESObjectREFR* a_source) {
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }
 
+void Stores::ShowVaultsMenu(RE::TESObjectREFR* a_source) {
+    ShowStorageListMenu(a_source, ContainerGroup::Vault);
+}
+
 void Stores::ShowVaultArchivesMenu(RE::TESObjectREFR* a_source) {
+    ShowStorageListMenu(a_source, ContainerGroup::Archive);
+}
+
+void Stores::ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup group) {
     if (!a_source) return;
     auto* queue = RE::UIMessageQueue::GetSingleton();
     if (!queue) return;
     const auto handle = a_source->GetHandle();
     navigationSource_ = handle;
-    returnToVault_ = [this, handle] {
-        if (auto source = handle.get()) ShowVaultArchivesMenu(source.get());
+    returnToVault_ = [this, handle, group] {
+        if (auto source = handle.get()) ShowStorageListMenu(source.get(), group);
     };
-    auto choices = Utility::GetSingleton()->GetArchiveChoices(a_source);
+    auto* utility = Utility::GetSingleton();
+    auto choices = group == ContainerGroup::Vault ? utility->GetVaultChoices(a_source) : utility->GetArchiveChoices(a_source);
     auto back = [this, handle] {
         if (auto source = handle.get()) VaultMenu(source.get());
     };
@@ -2045,7 +1907,7 @@ void Stores::ShowVaultArchivesMenu(RE::TESObjectREFR* a_source) {
         };
     }
     ContainerSelectionState::GetSingleton()->Begin(RE::TESObjectREFRPtr{a_source}, std::move(choices),
-        Translate("Vault.Archives"), [back = std::move(back)] {
+        Translate(group == ContainerGroup::Vault ? "Vault.ArcaneVaults" : "Vault.Archives"), [back = std::move(back)] {
             SKSE::GetTaskInterface()->AddTask(back);
         });
     queue->AddMessage(ContainerListMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
@@ -2149,39 +2011,7 @@ void Stores::JunkMenu(RE::TESObjectREFR* a_source) {
     });
 }
 
-void Stores::VaultDetail3Menu(RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowVaultDetail3Menu(source); });
-}
 
-void Stores::ShowVaultDetail3Menu(RE::TESObjectREFR* a_source) {
-    if (!a_source) return;
-    const auto handle = a_source->GetHandle();
-    navigationSource_ = handle;
-    returnToVault_ = [this, handle] {
-        if (auto source = handle.get()) VaultDetail3Menu(source.get());
-    };
-    std::vector<MenuOption> options;
-    options.push_back({Translate("Vault.Personal"), [this, handle] {
-        if (auto source = handle.get()) PersonalMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.Junk"), [this, handle] {
-        if (auto source = handle.get()) JunkMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.Trade"), [this, handle] {
-        if (auto source = handle.get()) TradeMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.Gear"), [this, handle] {
-        if (auto source = handle.get()) GearMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.Back"), [this, handle] {
-        if (auto source = handle.get()) VaultDetail2Menu(source.get());
-    }});
-    options.push_back({Translate("Vault.Exit"), [this, handle] {
-        if (auto source = handle.get()) CloseStoreObject(source.get());
-    }});
-    ShowDynamicMessageBox(Translate("Vault.Arcane"), std::move(options), 5);
-}
 
 void Stores::TradeMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;

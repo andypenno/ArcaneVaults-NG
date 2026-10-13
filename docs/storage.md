@@ -24,7 +24,7 @@ Player transfers re-read physical stacks after each removal. Bare copies receive
 
 Opening Sort through either an assigned container or Arcane Vault captures the player's favourited base records before deposits can clear favourite metadata. Closing Sort returns all copies of those records and any entries still marked as favourites. The notification reports actual returns. Return Ignored Items does not disable favourite protection. Failed returns remain in Sort, excluded from category transfers, soul-gem recovery and Junk. Their captured identities survive reopening while items remain in Sort; loading a save or starting a game clears the transient capture.
 
-`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. Personal, Junk, Trade, and Gear are on the third main-vault page. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
+`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. All main vaults, including Personal, Junk, Trade and Gear, appear in the scrolling Open Vaults list. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
 ## Vaults and archives
 
@@ -39,15 +39,15 @@ Most archive actions temporarily move matching items from their parent vault int
 | Armor | Clothing, HeavyArmor, LightArmor, Jewelry |
 | Weapon | Archery, OneHand, TwoHand, Staff |
 
-Do not assume every parent menu consolidates exactly the same children. `ShowVaultDetail1Menu` has its own consolidation actions, while category-specific menus have others. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
+Parent menus consolidate their own child archives; the scrolling vault browser invokes those registered menu actions. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
 
 Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.
 
 Alchemy Keep N deposits only excess matching the full Alchemy category, and Take Up To N withdraws only its shortfall per base record. Both use Alchemy Keep Amount in Quantities, default 1. Store All still deposits all eligible Alchemy items. Scroll Keep N and Take Up To N use Scroll Keep Amount in Quantities, default 3. Keep N deposits only excess per base record; Take Up To N withdraws only the shortfall. Neither action empties the vault first. Zero deposits all eligible copies through Keep N and withdraws nothing through Take Up To N.
 
-Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take Up To N, Take All, Open, and Exit. N comes from Ammunition Keep Amount in Quantities, default 100. Keep Selected Ammunition in Options selects the reserve policy below. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
+Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take Up To N, Take All, Open, and Exit. N comes from Ammunition Keep Amount in Quantities, default 100. Keep Selected Ammunition in Options selects the reserve policy below. Take All returns the entire inventory. Ammunition appears in the scrolling vault browser and in the vault binding list.
 
-Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
+Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the scrolling vault browser and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
 
 Books offers Take Up To 1 in place of Transfer One Copy. It withdraws only missing book records, without emptying the vault or depositing carried duplicates. Store All, Gather Spell Tomes, Open, and Exit retain their existing actions. Archives opens Spell Tomes and Skill Books.
 
@@ -128,9 +128,9 @@ Assignment changes update memory immediately. Global redirects are written by th
 
 ## Menu navigation
 
-Main-vault pages retain their source handle and a callback to rebuild the originating page. Submenus append Back when that context exists, preserving their existing Exit/cancel index. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
+Vault and archive browsers retain their source handle and a callback to rebuild the originating list. Submenus include Back when that context exists, with Exit last and cancellation mapped to Exit. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
 
-Arcane Vault's Open Archives action shows the registered archives in the scrolling SkyUILib list. Selecting one invokes its existing gathering and return handler; contextual Back returns to the archive list. Back or cancellation in the list returns to Arcane Vault, and Exit closes the source. Browse choices always carry actions and never create redirects.
+Arcane Vault's Open Vaults and Open Archives actions share the scrolling SkyUILib browser. Entries are sorted by display name and selecting one invokes its registered storage action; contextual Back returns to the originating list. Back or cancellation in either list returns to Arcane Vault, and Exit closes the source. Browse choices always carry actions and never create redirects.
 
 Direct bound-container activation clears navigation before running its action, so it shows no contextual Back. Assignment and pre-load/new-game handling also clear navigation. The stored callback resolves a handle rather than retaining a raw source pointer.
 

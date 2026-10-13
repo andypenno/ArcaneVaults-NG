@@ -91,7 +91,9 @@ struct Stores {
     void ResetNavigation() { navigationSource_ = {}; returnToVault_ = {}; }
     void CloseStoreObject(RE::TESObjectREFR*) { closed = true; }
     void VaultMenu(RE::TESObjectREFR*) { ResetNavigation(); called = "VaultMenu"; }
+    void ShowVaultsMenu(RE::TESObjectREFR*);
     void ShowVaultArchivesMenu(RE::TESObjectREFR*);
+    void ShowStorageListMenu(RE::TESObjectREFR*,ContainerGroup);
     void OpenBookArchive(Container archive, Container, ItemCategory, RE::TESObjectREFR*) {
         called = std::string(ContainerTranslationKey(archive));
     }
@@ -113,50 +115,60 @@ struct Utility {
         containerMap[kind] = {&ref, group, std::move(action)};
     }
     void LoadContainers(RE::TESDataHandler*);
+    std::vector<ContainerChoice> GetVaultChoices(RE::TESObjectREFR* source = nullptr) const;
     std::vector<ContainerChoice> GetArchiveChoices(RE::TESObjectREFR* source = nullptr) const;
+    std::vector<ContainerChoice> GetGroupedChoices(ContainerGroup,RE::TESObjectREFR*) const;
 };
 '''
 header = (ROOT / "src/ContainerMenu.h").read_text()
 program += header[header.index("class ContainerSelectionState"):header.index("class ContainerListMenu")]
 program += 'struct ContainerListMenu { static constexpr std::string_view MENU_NAME = "List"; };\n'
 program += registry
-program += body("src/Utility.cpp", "std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices(")
+for name in ("GetVaultChoices", "GetArchiveChoices", "GetGroupedChoices"):
+    program += body("src/Utility.cpp", "std::vector<Utility::ContainerChoice> Utility::"+name+"(")
 for signature in ["ContainerSelectionState* ContainerSelectionState::GetSingleton(",
                   "void ContainerSelectionState::Begin(", "bool ContainerSelectionState::Complete(",
                   "void ContainerSelectionState::Reset("]:
     program += body("src/ContainerMenu.cpp", signature)
-program += body("src/Stores.cpp", "void Stores::ShowVaultArchivesMenu(")
+for name in ("ShowVaultsMenu", "ShowVaultArchivesMenu", "ShowStorageListMenu"):
+    program += body("src/Stores.cpp", "void Stores::"+name+"(")
 program += r'''
 int main() {
     auto* utility = Utility::GetSingleton(); utility->LoadContainers(nullptr);
     auto* stores = Stores::GetSingleton(); auto* state = ContainerSelectionState::GetSingleton();
     auto* tasks = SKSE::GetTaskInterface();
     auto source = std::make_shared<RE::TESObjectREFR>(RE::TESObjectREFR{100, true, "Root"});
-    auto assignments = utility->GetArchiveChoices();
-    assert(assignments.size() == 32);
-    for (const auto& choice : assignments) assert(!choice.action);
-    stores->ShowVaultArchivesMenu(source.get());
-    assert(state->GetTitle() == "Vault.Archives");
-    assert(state->GetChoices().size() == assignments.size() + 2);
-    assert(state->GetChoices()[0].name == "[Vault.Back]" && state->GetChoices()[1].name == "[Vault.Exit]");
-    for (std::size_t i = 0; i < assignments.size(); ++i) {
-        assert(state->GetChoices()[i+2].formID == assignments[i].formID);
-        assert(state->GetChoices()[i+2].name == assignments[i].name);
-        assert(state->GetChoices()[i+2].action);
-        stores->called.clear();
-        assert(state->Complete(static_cast<int>(i+2)));
-        assert(stores->called.empty());
-        tasks->Run(); assert(!stores->called.empty() && stores->returnToVault_);
-        stores->returnToVault_(); assert(state->GetChoices().size() == assignments.size() + 2);
+    for(auto group : {ContainerGroup::Vault,ContainerGroup::Archive}) {
+        auto assignments = group==ContainerGroup::Vault ? utility->GetVaultChoices() : utility->GetArchiveChoices();
+        const auto expected=std::count_if(utility->containerMap.begin(),utility->containerMap.end(),[&](const auto& entry){return entry.second.container && entry.second.a_group==group;});
+        assert(assignments.size()==static_cast<std::size_t>(expected));
+        if(group==ContainerGroup::Archive)assert(assignments.size()==32);
+        auto browse=[&]{if(group==ContainerGroup::Vault)stores->ShowVaultsMenu(source.get());else stores->ShowVaultArchivesMenu(source.get());};
+        for (const auto& choice : assignments) assert(!choice.action);
+        source->alive=true;stores->closed=false;browse();
+        assert(state->GetTitle() == (group==ContainerGroup::Vault ? "Vault.ArcaneVaults" : "Vault.Archives"));
+        assert(state->GetChoices().size() == assignments.size() + 2);
+        assert(state->GetChoices()[0].name == "[Vault.Back]" && state->GetChoices()[1].name == "[Vault.Exit]");
+        for (std::size_t i = 0; i < assignments.size(); ++i) {
+            assert(state->GetChoices()[i+2].formID == assignments[i].formID);
+            assert(state->GetChoices()[i+2].name == assignments[i].name);
+            assert(state->GetChoices()[i+2].action);
+            if(i)assert(assignments[i-1].name<=assignments[i].name);
+            stores->called.clear();
+            assert(state->Complete(static_cast<int>(i+2)));
+            assert(stores->called.empty());
+            tasks->Run(); assert(!stores->called.empty() && stores->returnToVault_);
+            stores->returnToVault_(); assert(state->GetChoices().size() == assignments.size() + 2);
+        }
+        assert(state->Complete(0)); tasks->Run();
+        assert(stores->called == "VaultMenu" && !stores->returnToVault_);
+        browse(); assert(state->Complete(1)); tasks->Run();
+        assert(stores->closed && !stores->returnToVault_);
+        browse(); assert(!state->Complete(-1)); tasks->Run();
+        assert(stores->called == "VaultMenu" && !stores->returnToVault_);
+        browse(); source->alive = false; stores->called.clear();
+        assert(state->Complete(2)); tasks->Run(); assert(stores->called.empty());
     }
-    assert(state->Complete(0)); tasks->Run();
-    assert(stores->called == "VaultMenu" && !stores->returnToVault_);
-    stores->ShowVaultArchivesMenu(source.get()); assert(state->Complete(1)); tasks->Run();
-    assert(stores->closed && !stores->returnToVault_);
-    stores->ShowVaultArchivesMenu(source.get()); assert(!state->Complete(-1)); tasks->Run();
-    assert(stores->called == "VaultMenu" && !stores->returnToVault_);
-    stores->ShowVaultArchivesMenu(source.get()); source->alive = false; stores->called.clear();
-    assert(state->Complete(2)); tasks->Run(); assert(stores->called.empty());
     assert(RedirectManager::GetSingleton()->assignments == 0);
     state->Begin(source, {}); assert(state->GetTitle() == "Select destination");
     assert(!state->Complete(-1)); assert(state->GetTitle().empty());
@@ -175,6 +187,8 @@ int main() {
 '''
 root_menu = body("src/Stores.cpp", "void Stores::ShowVaultMenu(")
 assert 'Translate("Vault.ArcaneArchives")' in root_menu
+assert 'ShowVaultsMenu(source.get())' in root_menu
+assert 'VaultDetail' not in (ROOT / 'src/Stores.cpp').read_text()
 assert json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())["Vault.ArcaneArchives"] == "Open Archives"
 with tempfile.TemporaryDirectory(prefix="arcanevault-archive-check-") as directory:
     path = Path(directory)
@@ -182,4 +196,4 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-archive-check-") as directo
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
-print("PASS: 32 registered archives, deferred handlers, contextual return, Back/Exit/cancel, expired source, and no browse assignments")
+print("PASS: every registered vault and archive, alphabetical lists, deferred handlers, contextual return, Back/Exit/cancel, expired source, and no browse assignments")

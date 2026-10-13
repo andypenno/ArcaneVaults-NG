@@ -43,7 +43,7 @@ public:
     RE::TESObjectREFR* GetContainer(Container name);
     [[nodiscard]] Container GetContainerKind(RE::FormID formID) const;
     [[nodiscard]] std::vector<ContainerChoice> GetContainerChoices() const;
-    [[nodiscard]] std::vector<ContainerChoice> GetVaultChoices() const;
+    [[nodiscard]] std::vector<ContainerChoice> GetVaultChoices(RE::TESObjectREFR* source = nullptr) const;
     [[nodiscard]] std::vector<ContainerChoice> GetArchiveChoices(RE::TESObjectREFR* source = nullptr) const;
     [[nodiscard]] bool RunContainerAction(const RE::TESObjectREFR* container, RE::TESObjectREFR* source) const;
 
@@ -55,6 +55,7 @@ public:
     void ConfigurationSpells();
 
 private:
+    std::vector<ContainerChoice> GetGroupedChoices(ContainerGroup group, RE::TESObjectREFR* source) const;
     struct ContainerEntry {
         RE::TESObjectREFR* container{ nullptr };
         ContainerGroup a_group;
