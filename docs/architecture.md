@@ -60,6 +60,8 @@ Container activation also has a thread-local guard, but the current source does 
 
 Storage interaction has two UI implementations. `Stores` queues engine message boxes whose actions run through SKSE's task interface. `ContainerListMenu` registers as `GSCContainerListMenu`, pauses the game, uses cursor/menu input, and loads `uilib/uilib_1_listmenu` through Scaleform.
 
+Message boxes with Exit display the physical Open action first, preserve the order of storage-specific actions, then show contextual Back and Exit. The shared builder recognizes the existing translated Open labels and maps cancellation to the final Exit. Confirmation boxes without Exit preserve their supplied order and cancel action. Armor and Weapon provide Open actions that consolidate their child archives before opening the entire parent vault.
+
 The SkyUILib bridge passes option labels as separate ActionScript arguments, configures gamepad mode, and replaces the movie's `exitMenu` callback. The callback reads `_root.listDialog.menuList.listState.activeEntry.itemIndex`, completes selection, and hides the registered menu. This movie contract is external to the repository.
 
 `Stores::OpenStoreObject` and `CloseStoreObject` request engine open/close states. Animation polling delays 16 ms in a detached thread, then queues state inspection on the game thread. Polling uses an object handle and a five-second deadline. Timeout still invokes the callback; a vanished reference stops the poll. Keep engine access inside the queued task when modifying this path.

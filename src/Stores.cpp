@@ -138,6 +138,21 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
     if (returnToVault_ && hasExit && !hasBack)
         a_options.push_back({Translate("Vault.Back"), returnToVault_});
 
+    if (hasExit) {
+        const auto rank = [](const MenuOption& option) {
+            if (option.text == Translate("Vault.Exit")) return 3;
+            if (option.text == Translate("Vault.Back")) return 2;
+            for (const auto* key : {"Vault.Open", "Vault.OpenContainer", "Vault.KeysOpen", "Vault.AmmunitionOpen",
+                                   "Vault.SoulgemsOpen", "Vault.ValuablesOpen", "Stolen.Open"})
+                if (option.text == Translate(key)) return 0;
+            return 1;
+        };
+        std::stable_sort(a_options.begin(), a_options.end(), [&](const auto& left, const auto& right) {
+            return rank(left) < rank(right);
+        });
+        if (a_cancelOption >= 0) a_cancelOption = static_cast<std::int32_t>(a_options.size() - 1);
+    }
+
     // Start the strings
     const auto* strings = RE::InterfaceStrings::GetSingleton();
     auto* factoryManager = RE::MessageDataFactoryManager::GetSingleton();
@@ -1582,6 +1597,13 @@ void Stores::ShowArmorMenu(RE::TESObjectREFR* a_source) {
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
+    options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
+        for (auto child : {Container::HeavyArmor, Container::LightArmor, Container::Clothing, Container::Jewelry})
+            AllToStore(child, Container::Armor);
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Armor, source.get(), [this](RE::TESObjectREFR* closed) { ArmorMenu(closed); });
+    }});
+
     options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::HeavyArmor, Container::Armor);
         PlayerToStore(ItemCategory::LightArmor, Container::Armor);
@@ -1749,6 +1771,13 @@ void Stores::ShowWeaponMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
+
+    options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
+        for (auto child : {Container::Archery, Container::OneHand, Container::TwoHand, Container::Staff})
+            AllToStore(child, Container::Weapon);
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Weapon, source.get(), [this](RE::TESObjectREFR* closed) { WeaponMenu(closed); });
+    }});
 
     options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Archery, Container::Weapon);
