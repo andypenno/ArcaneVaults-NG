@@ -23,6 +23,8 @@ python3 tools/release/check_stolen.py
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
 
+The release command disables xmake's C++ compiler cache for MSVC through Wine. After an invalid-object linker failure, remove the affected object and dependency file before retrying; disabling the cache does not replace an existing object by itself. Keep failed-build logs separate from the next run's `build.log`.
+
 ## Inputs and staging
 
 | Component | Build input and action |

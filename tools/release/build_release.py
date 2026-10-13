@@ -77,7 +77,7 @@ def build(container):
 import os, subprocess
 for key in ['XSE_TES5_MODS_PATH','XSE_TES5_GAME_PATH','GITHUB_ACTIONS','COMMONLIB_PREBUILT']:
     os.environ.pop(key, None)
-subprocess.run(['xmake','f','-p','windows','-a','x64','-m','release','--toolchain=msvc','--sdk=/work/msvc','--mrc=/work/msvc/bin/x64/rc.exe','--skyrim_se=y','--skyrim_ae=y','--skyrim_vr=n','-y'],check=True)
+subprocess.run(['xmake','f','-p','windows','-a','x64','-m','release','--toolchain=msvc','--sdk=/work/msvc','--mrc=/work/msvc/bin/x64/rc.exe','--skyrim_se=y','--skyrim_ae=y','--skyrim_vr=n','--ccache=n','-y'],check=True)
 subprocess.run(['xmake','build','-j4','ArcaneVaults-NG'],check=True)
 """]
             subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT)
