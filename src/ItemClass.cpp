@@ -141,6 +141,9 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
     if (HasAnyCategory(categories, ItemCategory::Recipe | ItemCategory::TreasureMap))
         categories |= ItemCategory::Note;
 
+    if (HasAnyCategory(categories, ItemCategory::Lockpick | ItemCategory::Instrument))
+        categories |= ItemCategory::Gear;
+
     return categories;
 }
 
@@ -155,6 +158,12 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     // Overrides
     if (const auto override = Settings::GetSingleton()->FindOverride(a_item))
         return ExpandCategories(*override);
+
+    if (a_item->GetFormID() == 0xA)
+        return ItemCategory::Gear | ItemCategory::Lockpick;
+
+    if (auto* light = a_item->As<RE::TESObjectLIGH>(); light && light->CanBeCarried())
+        return ToMask(ItemCategory::Gear);
 
     if (a_item->IsGold())
         return ToMask(ItemCategory::Gold);

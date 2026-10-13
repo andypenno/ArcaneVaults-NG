@@ -16,11 +16,11 @@ The category helpers iterate inventory snapshots and use `MoveItems` to call `Re
 
 `PlayerToStore` also evaluates Skyrim's standard `GetEquipped` condition for matching items. It resolves the current function on each transfer so mod-installed condition hooks are respected. A successful nonzero result protects the whole base-item stack, as native worn flags already do. Missing or failed condition evaluation leaves the existing quest, favourite, and worn checks in force. Mods keeping worn state private without exposing native flags or this condition cannot be detected through these checks.
 
-`SortItems` consolidates book/note archives and old note storage, returns favourited records, returns ignored records when configured, recovers physical soul gems, then drains Sort in this order: Personal, Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Note, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+`SortItems` consolidates book/note archives and old note storage, returns favourited records, returns ignored records when configured, recovers physical soul gems, then drains Sort in this order: Personal, Gear, Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Note, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
 Opening Sort through either an assigned container or Arcane Vault captures the player's favourited base records before deposits can clear favourite metadata. Closing Sort returns all copies of those records and any entries still marked as favourites. The notification reports actual returns. Return Ignored Items does not disable favourite protection. Failed returns remain in Sort, excluded from category transfers, soul-gem recovery and Junk. Their captured identities survive reopening while items remain in Sort; loading a save or starting a game clears the transient capture.
 
-`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. Personal, Junk, and Trade are on the third main-vault page. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
+`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. Personal, Junk, Trade, and Gear are on the third main-vault page. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
 ## Vaults and archives
 
@@ -73,7 +73,7 @@ Bank access, Quick Transfer, Sort, and gem loans recover misplaced soul gems fro
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
 
-Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, alchemy, book, and note leaf categories. SpellTome and SkillBook imply Book; Recipe and TreasureMap imply Note. It does not infer every related leaf bit; Potion does not imply Restorative.
+Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, alchemy, book, and note leaf categories. SpellTome and SkillBook imply Book; Recipe and TreasureMap imply Note; Lockpick and Instrument imply Gear. It does not infer every related leaf bit; Potion does not imply Restorative.
 
 | Engine type | Built-in classification |
 | --- | --- |
@@ -174,6 +174,8 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
+| Gear | `0xDE2` | Vault | `GearMenu` |
+| Instruments | `0xDE4` | Archive | `OpenBookArchive` from Gear |
 | Junk | `0xDCF` | Vault | `JunkMenu` |
 | Trade | `0xDD1` | Vault | `TradeMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
@@ -181,6 +183,16 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | FilledSoulgems | `0xDCB` | Archive | `FilledSoulgemsMenu` |
 | EmptySoulgems | `0xDCD` | Archive | `EmptySoulgemsMenu` |
 | Valuables | `0xDC9` | Archive | `ValuablesMenu` |
+
+## Gear and Instruments
+
+Gear receives ordinary lockpicks and native carryable lights, including mod-added torches. Explicit overrides retain priority. Instruments use bundled overrides for Skyrim's flutes `0xDABA7` and `0x105177`, lute `0xDABAB`, and drum `0xDABA9`, documented in [UESP's miscellaneous items](https://en.uesp.net/wiki/Skyrim:Miscellaneous_Items). Quest copies share those records and retain normal player-transfer protections. Camping and other equipment can learn a Gear override; the Instruments archive can learn Instrument, which implies Gear.
+
+The Gear menu is Open, Exit, contextual Back, Keep N Lockpicks, Take Up To N Lockpicks. Exit cancels. Back appears only when entered through another menu. Amount actions affect Lockpick records only. Keep N deposits excess; Take Up To N fills the carried shortfall from available stock. Zero deposits all eligible lockpicks and withdraws none. Manual actions retain normal player protections but disregard Quick Transfer ignores.
+
+The Gear Quick Transfer checkbox defaults off. When enabled, lockpicks use Lockpick Keep Amount and other Gear items deposit without a reserve. Quick Transfer preserves quest, favourite, worn, standard-equipped and ignored records. Sort deposits all eligible Gear without a carried reserve. The Skeleton Key retains its existing classification.
+
+Instruments has no Gear-menu shortcut. Open Archives and direct archive assignments gather Instrument records from Gear, then return the archive inventory to Gear on close. Gear opening, Sort and Quick Transfer also return residual archive items to Gear. The persistent, non-respawning ESP bases are `0xDE1` and `0xDE3`; their references are listed above.
 
 ## Ignore picker
 

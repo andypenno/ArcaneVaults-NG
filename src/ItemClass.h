@@ -49,7 +49,9 @@ enum class Container : std::uint8_t {
     SkillBooks,
     Recipes,
     TreasureMaps,
-    StolenItems
+    StolenItems,
+    Gear,
+    Instruments
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -97,7 +99,10 @@ enum class ItemCategory : std::uint8_t {
     SkillBook,
     Recipe,
     TreasureMap,
-    Personal
+    Personal,
+    Gear,
+    Lockpick,
+    Instrument
 };
 
 enum class ContainerGroup {
@@ -154,12 +159,14 @@ enum class ContainerGroup {
     case Container::Recipes:      return "Vault.Recipes";
     case Container::TreasureMaps: return "Vault.TreasureMaps";
     case Container::StolenItems:  return "Vault.StolenItems";
+    case Container::Gear:         return "Vault.Gear";
+    case Container::Instruments:  return "Vault.Instruments";
     case Container::None:         return {};
     }
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 41> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 44> categoryNames{{
     { "Alchemy", ItemCategory::Alchemy },
     { "Armor", ItemCategory::Armor },
     { "Weapon", ItemCategory::Weapon },
@@ -200,7 +207,10 @@ inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 41> categ
     { "Tanning", ItemCategory::Tanning },
     { "Treasure", ItemCategory::Treasure },
     { "TwoHand", ItemCategory::TwoHand },
-    { "Personal", ItemCategory::Personal }
+    { "Personal", ItemCategory::Personal },
+    { "Gear", ItemCategory::Gear },
+    { "Lockpick", ItemCategory::Lockpick },
+    { "Instrument", ItemCategory::Instrument }
 }};
 
 enum class BenchType : std::uint8_t {

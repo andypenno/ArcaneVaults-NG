@@ -58,6 +58,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_AssignSpell, "General", "AssignSpell");
 	option(settings.GSC_SortSpell, "General", "SortSpell");
 	option(settings.GSC_SoulgemKeepAmount, "General", "SoulgemKeepAmount");
+	option(settings.GSC_LockpickKeepAmount, "General", "LockpickKeepAmount");
 	option(settings.GSC_AlchemyKeepAmount, "General", "AlchemyKeepAmount");
 	option(settings.GSC_ScrollKeepAmount, "General", "ScrollKeepAmount");
 	option(settings.GSC_GoldKeepAmount, "General", "GoldKeepAmount");
@@ -75,6 +76,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadBooks, "Offload", "Books");
 	option(settings.GSC_OffloadNotes, "Offload", "Notes");
 	option(settings.GSC_OffloadPersonal, "Offload", "Personal");
+	option(settings.GSC_OffloadGear, "Offload", "Gear");
 	option(settings.GSC_OffloadScrolls, "Offload", "Scrolls");
 	option(settings.GSC_OffloadSpelltomes, "Offload", "Spelltomes");
 	option(settings.GSC_OffloadCrafting, "Offload", "Crafting");
@@ -334,11 +336,11 @@ void Settings::get_value(CSimpleIniA& a_ini, T& a_value, const char* a_section, 
 			const std::string_view key{ a_key };
 			const bool salePercentage = key == "SalePercentage";
 			if (salePercentage || key == "AmmunitionKeepAmount" || key == "GoldKeepAmount" ||
-				key == "SoulgemKeepAmount" || key == "AlchemyKeepAmount" || key == "ScrollKeepAmount") {
+				key == "SoulgemKeepAmount" || key == "LockpickKeepAmount" || key == "AlchemyKeepAmount" || key == "ScrollKeepAmount") {
 				int fallback = 100;
 				if (salePercentage) fallback = 30;
 				else if (key == "GoldKeepAmount") fallback = 5000;
-				else if (key == "SoulgemKeepAmount") fallback = 25;
+				else if (key == "SoulgemKeepAmount" || key == "LockpickKeepAmount") fallback = 25;
 				else if (key == "AlchemyKeepAmount") fallback = 1;
 				else if (key == "ScrollKeepAmount") fallback = 3;
 				const std::string_view text{ a_ini.GetValue(a_section, a_key, "") };

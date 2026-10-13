@@ -32,6 +32,8 @@ public:
 	bool GSC_OffloadBooks{ false };
 	bool GSC_OffloadNotes{ false };
 	bool GSC_OffloadPersonal{ false };
+	bool GSC_OffloadGear{ false };
+	int GSC_LockpickKeepAmount{ 25 };
 	bool GSC_OffloadScrolls{ false };
 	bool GSC_OffloadSpelltomes{ false };
 	bool GSC_OffloadCrafting{ true };

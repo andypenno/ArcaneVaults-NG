@@ -391,6 +391,8 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Trade, RE::FormID(0xDD1), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->TradeMenu(source); });
     AddContainer(dataHandler, Container::Junk, RE::FormID(0xDCF), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->JunkMenu(source); });
     AddContainer(dataHandler, Container::Personal, RE::FormID(0xDA1), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PersonalMenu(a_source); });
+    AddContainer(dataHandler, Container::Gear, RE::FormID(0xDE2), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->GearMenu(source); });
+    AddContainer(dataHandler, Container::Instruments, RE::FormID(0xDE4), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Instruments, Container::Gear, ItemCategory::Instrument, source); });
 }
 
 void Utility::CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandler) {

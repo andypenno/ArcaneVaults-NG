@@ -148,6 +148,14 @@ int main() {
     const auto prompts=menu->prompts;
     open(Container::Personal);send(a);send(gem);send(dynamic);tasks->Run();assert(menu->prompts==prompts);
     s->RemoveUserOverride(a.id);assert(ClassifyItem(&a)==a.natural);
+    open(Container::Gear);send(a);tasks->Run();menu->Answer(true);
+    assert(s->overrides[a.id]==ToMask(ItemCategory::Gear) && s->disk==s->overrides);
+    open(Container::Instruments);send(a);tasks->Run();menu->Answer(true);
+    assert(s->overrides[a.id]==ToMask(ItemCategory::Instrument) && s->disk==s->overrides);
+    assert(ClassifyItem(&a)==(ItemCategory::Gear|ItemCategory::Instrument));
+    const auto gearPrompts=menu->prompts;
+    open(Container::Gear);send(a);send(gem);send(dynamic);tasks->Run();assert(menu->prompts==gearPrompts);
+
 
 }
 '''

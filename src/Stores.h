@@ -107,6 +107,7 @@ public:
     void TradeMenu(RE::TESObjectREFR* a_source);
     void JunkMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
+    void GearMenu(RE::TESObjectREFR* a_source);
     void KeysMenu(RE::TESObjectREFR* a_source);
     void AmmunitionMenu(RE::TESObjectREFR* a_source);
     void ValuablesMenu(RE::TESObjectREFR* a_source);
@@ -137,6 +138,7 @@ private:
     void ShowVaultDetail3Menu(RE::TESObjectREFR* a_source);
     void ShowVaultDetail2Menu(RE::TESObjectREFR* a_source);
     void ShowSortingMenu(RE::TESObjectREFR* a_source);
+    void ShowGearMenu(RE::TESObjectREFR* a_source);
     void ShowAlchemyMenu(RE::TESObjectREFR* a_source);
     void ShowSoulgemMenu(RE::TESObjectREFR* a_source);
     void ShowFoodMenu(RE::TESObjectREFR* a_source);

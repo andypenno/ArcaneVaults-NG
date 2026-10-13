@@ -20,7 +20,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
@@ -86,6 +86,7 @@ struct TESDataHandler {
     template<class T> const auto& GetFormArray() const { return books; }
 };
 struct TESObjectMISC {};
+struct TESObjectLIGH { bool carryable = true; bool CanBeCarried() const { return carryable; } };
 struct TESSoulGem {};
 struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
 struct BIPED_MODEL {
@@ -121,6 +122,8 @@ struct TESBoundObject {
     IngredientItem ingredient{};
     TESObjectARMO armor{};
     bool nativeArmor = false;
+    bool nativeLight = false;
+    TESObjectLIGH light{};
     bool nativeScroll = false;
     bool nativeBook = false;
     TESObjectBOOK book{};
@@ -130,6 +133,7 @@ struct TESBoundObject {
     template<class T> T* As() {
         static T object;
         if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectLIGH>) return nativeLight ? &light : nullptr;
         else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &object : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
@@ -215,7 +219,7 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
 struct Utility {
-    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal;
+    RE::TESObjectREFR chest, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments;
     RE::TESObjectREFR* scrollContainer = nullptr;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
     void CacheSkillBooks(RE::TESDataHandler*);
@@ -227,6 +231,8 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container container) {
         switch (container) {
         case Container::None: return nullptr;
+        case Container::Gear: return &gear;
+        case Container::Instruments: return &instruments;
         case Container::Personal: return &personal;
         case Container::Junk: return &junk;
         case Container::Notes: return &notes;
@@ -273,6 +279,8 @@ namespace Soulgems {
 const char* Translate(const char* key) {
     if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
     if (std::string_view{key} == "Vault.Septims") return "Septims";
+    if (std::string_view{key} == "Vault.KeepLockpicks") return "Keep {0} Lockpicks";
+    if (std::string_view{key} == "Vault.TakeLockpicks") return "Take Up To {0} Lockpicks";
     if (std::string_view{key} == "Vault.TakeUpToAmount") return "Take Up To";
     return key;
 }
@@ -280,6 +288,9 @@ const char* Translate(const std::string& key) { return Translate(key.c_str()); }
 
 struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
+    std::function<void()> returnToVault_;
+    void GearMenu(RE::TESObjectREFR*);
+    void ShowGearMenu(RE::TESObjectREFR*);
     void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0);
     std::unordered_map<unsigned, std::pair<int,int>> junkLoan_;
     void BeginJunkLoan();
@@ -336,7 +347,7 @@ struct Stores {
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
+        assert(container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -349,6 +360,12 @@ struct CSimpleIniA {
     const char* GetValue(const char*, const char*, const char*) { return text.c_str(); }
 };
 namespace std {
+    int make_format_args(const int& amount) { return amount; }
+    string vformat(const char* text, int amount) {
+        string result{text};const auto at=result.find("{0}");
+        if (at!=string::npos) result.replace(at,3,to_string(amount));
+        return result;
+    }
     template<class... Args> string format(const char* text, Args... args) {
         string result{text};
         const auto replace = [&](const auto& arg) {
@@ -441,6 +458,8 @@ int main() {
         options[{section, key}] = value;
     });
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
+    assert(options.at({"General", "LockpickKeepAmount"}) == 25);
+    assert(options.at({"Offload", "Gear"}) == 0);
     assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
     assert(options.at({"General", "ScrollKeepAmount"}) == 3);
     assert(options.at({"General", "ReturnIgnoredItems"}) == 1);
@@ -1206,6 +1225,61 @@ int main() {
     inbox.inventory[&personalKey]=entry(2);stores.SortItems();
     assert(chest.inventory[&personalKey].first==2 && personal.inventory[&personalKey].first==7);
 
+    player->inventory.clear();inbox.inventory.clear();settings->ignored.clear();stores.ResetSortFavorites();
+    auto& gear=utility->gear;auto& instruments=utility->instruments;
+    RE::TESBoundObject lockpick{ItemCategory::None,false,0xA},torch{ItemCategory::None,false,0x160001},lamp{ItemCategory::None,false,0x160002};
+    torch.nativeLight=true;lamp.nativeLight=true;lamp.light.carryable=false;
+    RE::TESBoundObject tent{ItemCategory::None,false,0x160003},flute{ItemCategory::None,false,0xDABA7},skeleton{ItemCategory::Keys,false,0x3A070};
+    settings->overrides[&tent]=ToMask(ItemCategory::Gear);settings->overrides[&flute]=ToMask(ItemCategory::Instrument);
+    assert(ClassifyItem(&lockpick)==(ItemCategory::Gear|ItemCategory::Lockpick));
+    assert(ClassifyItem(&torch)==ToMask(ItemCategory::Gear) && ClassifyItem(&lamp)==0);
+    assert(ClassifyItem(&flute)==(ItemCategory::Gear|ItemCategory::Instrument));
+    assert(ClassifyItem(&skeleton)==ToMask(ItemCategory::Keys));
+    settings->overrides[&torch]=ToMask(ItemCategory::Personal);assert(ClassifyItem(&torch)==ToMask(ItemCategory::Personal));settings->overrides.erase(&torch);
+    put(&lockpick,50);put(&torch,3);put(&tent,2);put(&flute,4);
+    stores.OffloadItems();assert(player->inventory[&lockpick].first==50 && player->inventory[&torch].first==3);
+    settings->GSC_OffloadGear=true;stores.OffloadItems();
+    assert(player->inventory[&lockpick].first==25 && gear.inventory[&lockpick].first==25);
+    assert(player->inventory[&torch].first==0 && gear.inventory[&torch].first==3 && gear.inventory[&tent].first==2 && gear.inventory[&flute].first==4);
+    stores.OffloadItems();assert(player->inventory[&lockpick].first==25 && gear.inventory[&lockpick].first==25);
+    for(int protection=0;protection<5;++protection) {
+        put(&lockpick,60,protection==0,protection==1,protection==2);
+        if(protection==3) settings->ignored.insert(&lockpick);
+        if(protection==4) RE::SCRIPT_FUNCTION::equipped.insert(&lockpick);
+        stores.OffloadItems();assert(player->inventory[&lockpick].first==60);
+        settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.erase(&lockpick);
+    }
+    player->inventory.clear();put(&lockpick,30);settings->GSC_LockpickKeepAmount=0;stores.OffloadItems();
+    assert(player->inventory[&lockpick].first==0);
+    stores.GearMenu(player);assert(stores.options.size()==4 && stores.options[0].text=="Vault.Open" && stores.options[1].text=="Vault.Exit");
+    assert(stores.options[2].text=="Keep 0 Lockpicks" && stores.options[3].text=="Take Up To 0 Lockpicks");
+    stores.options[3].action();assert(player->inventory[&lockpick].first==0);
+    settings->GSC_LockpickKeepAmount=25;put(&lockpick,10);stores.GearMenu(player);stores.options[3].action();
+    assert(player->inventory[&lockpick].first==25);const int banked=gear.inventory[&lockpick].first;
+    stores.options[3].action();assert(gear.inventory[&lockpick].first==banked);
+    put(&lockpick,40);stores.options[3].action();assert(player->inventory[&lockpick].first==40);
+    stores.options[2].action();assert(player->inventory[&lockpick].first==25);
+    bool back=false;stores.returnToVault_=[&]{back=true;};stores.GearMenu(player);
+    assert(stores.options.size()==5 && stores.options[2].text=="Vault.Back" && stores.options[3].text=="Keep 25 Lockpicks" && stores.options[4].text=="Take Up To 25 Lockpicks");
+    stores.options[2].action();assert(back);stores.returnToVault_={};stores.GearMenu(player);
+    stores.options[0].action();assert(stores.opened==Container::Gear);stores.onClose();assert(stores.options.size()==4);
+    player->inventory.clear();gear.inventory.clear();gear.inventory[&lockpick]=entry(4);stores.options[3].action();
+    assert(player->inventory[&lockpick].first==4 && gear.inventory[&lockpick].first==0);
+    inbox.inventory[&lockpick]=entry(30000);inbox.inventory[&torch]=entry(3);inbox.inventory[&flute]=entry(2);
+    stores.SortItems();assert(gear.inventory[&lockpick].first==30000 && gear.inventory[&torch].first==3 && gear.inventory[&flute].first==2);
+    assert(player->inventory[&lockpick].first==4);
+    instruments.inventory[&flute]=entry(3);stores.closed=false;
+    stores.OpenBookArchive(Container::Instruments,Container::Gear,ItemCategory::Instrument,player);
+    assert(instruments.inventory[&flute].first==5 && gear.inventory[&flute].first==0 && gear.inventory[&torch].first==3);
+    assert(stores.opened==Container::Instruments);stores.onClose();assert(stores.closed && gear.inventory[&flute].first==5 && instruments.inventory[&flute].first==0);
+    instruments.inventory[&flute]=entry(2);stores.SortItems();assert(gear.inventory[&flute].first==7 && instruments.inventory[&flute].first==0);
+    for(const auto* value:{"-1","bad","25junk","2147483648",""}) {
+        ini.text=value;amount=9;settings->get_value(ini,amount,"General","LockpickKeepAmount");assert(amount==25);
+    }
+    for(const auto* value:{"0","100","2147483647"}) {
+        ini.text=value;settings->get_value(ini,amount,"General","LockpickKeepAmount");assert(amount==std::stoi(value));
+    }
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1215,10 +1289,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 99
+assert validate_esp(ROOT, generate_esp(working)) == 103
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 46
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE)]]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 48
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3)]]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:
@@ -1243,3 +1317,5 @@ assert set(map_overrides) == {("Skyrim.esm", local) for local in
     (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
      0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)}
 print("PASS: ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+
+assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}

@@ -72,6 +72,7 @@ bool duplicate = false;
 std::vector<std::string> shownControls;
 bool toggleSpells = false;
 bool toggleNotes = false;
+bool toggleGear = false;
 bool toggleLearning = false;
 bool toggleStolenTags = false;
 bool toggleSelectedAmmo = false;
@@ -111,6 +112,7 @@ bool Checkbox(const char* label, bool* value) {
     if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
     if (toggleStolenTags && value == &Settings::GetSingleton()->GSC_AllowRemovingStolenTags) { *value = !*value; return true; }
     if (toggleLearning && value == &Settings::GetSingleton()->GSC_LearnDepositOverrides) { *value = !*value; return true; }
+    if (toggleGear && value == &Settings::GetSingleton()->GSC_OffloadGear) { *value = !*value; return true; }
     if (toggleNotes && value == &Settings::GetSingleton()->GSC_OffloadNotes) { *value = !*value; return true; }
     if (value == &Settings::GetSingleton()->GSC_OffloadBooks) { *value = !*value; return true; }
     return false;
@@ -149,22 +151,22 @@ int main() {
     ids.clear();RenderOptions();
     assert((shownInputs==std::vector<std::string>{"Options.SalePercentage"}));
     ids.clear();shownInputs.clear();RenderQuantities();
-    assert((shownInputs==std::vector<std::string>{"Options.AmmunitionKeepAmount","Options.GoldKeepAmount","Options.SoulgemKeepAmount","Options.AlchemyKeepAmount","Options.ScrollKeepAmount"}));
+    assert((shownInputs==std::vector<std::string>{"Options.AmmunitionKeepAmount","Options.GoldKeepAmount","Options.LockpickKeepAmount","Options.SoulgemKeepAmount","Options.AlchemyKeepAmount","Options.ScrollKeepAmount"}));
     assert(settings->GSC_AmmunitionKeepAmount==100 && settings->GSC_GoldKeepAmount==5000 && settings->GSC_SoulgemKeepAmount==25);
     assert(settings->saves==2);
-    assert(settings->GSC_AlchemyKeepAmount==1);
+    assert(settings->GSC_AlchemyKeepAmount==1 && settings->GSC_LockpickKeepAmount==25);
     assert(settings->GSC_ScrollKeepAmount==3);
-    inputs={{"Options.AmmunitionKeepAmount",150},{"Options.GoldKeepAmount",4200},{"Options.SoulgemKeepAmount",7},{"Options.AlchemyKeepAmount",6},{"Options.ScrollKeepAmount",5}};
+    inputs={{"Options.AmmunitionKeepAmount",150},{"Options.GoldKeepAmount",4200},{"Options.SoulgemKeepAmount",7},{"Options.LockpickKeepAmount",12},{"Options.AlchemyKeepAmount",6},{"Options.ScrollKeepAmount",5}};
     ids.clear();RenderQuantities();
     assert(settings->GSC_AmmunitionKeepAmount==150 && settings->GSC_GoldKeepAmount==4200 && settings->GSC_SoulgemKeepAmount==7);
     assert(settings->saves==3 && settings->GSC_SalePercentage==30);
-    assert(settings->GSC_AlchemyKeepAmount==6);
+    assert(settings->GSC_AlchemyKeepAmount==6 && settings->GSC_LockpickKeepAmount==12);
     assert(settings->GSC_ScrollKeepAmount==5);
-    inputs={{"Options.AmmunitionKeepAmount",-1},{"Options.GoldKeepAmount",-100},{"Options.SoulgemKeepAmount",-25},{"Options.AlchemyKeepAmount",-1},{"Options.ScrollKeepAmount",-3}};
+    inputs={{"Options.AmmunitionKeepAmount",-1},{"Options.GoldKeepAmount",-100},{"Options.SoulgemKeepAmount",-25},{"Options.LockpickKeepAmount",-1},{"Options.AlchemyKeepAmount",-1},{"Options.ScrollKeepAmount",-3}};
     ids.clear();RenderQuantities();
     assert(settings->GSC_AmmunitionKeepAmount==0 && settings->GSC_GoldKeepAmount==0 && settings->GSC_SoulgemKeepAmount==0);
     assert(settings->saves==4);
-    assert(settings->GSC_AlchemyKeepAmount==0);
+    assert(settings->GSC_AlchemyKeepAmount==0 && settings->GSC_LockpickKeepAmount==0);
     assert(settings->GSC_ScrollKeepAmount==0);
     inputs={{"Options.SalePercentage",0}};ids.clear();RenderOptions();
     assert(settings->GSC_SalePercentage==1 && settings->saves==5);
@@ -193,6 +195,11 @@ int main() {
     const int beforeNotes=settings->saves;
     assert(!settings->GSC_OffloadNotes);toggleNotes=true;ids.clear();RenderTransfer();
     assert(settings->GSC_OffloadNotes && settings->saves==beforeNotes+1);
+    toggleNotes=false;const int beforeGear=settings->saves;
+    assert(!settings->GSC_OffloadGear);toggleGear=true;ids.clear();RenderTransfer();
+    assert(settings->GSC_OffloadGear && settings->saves==beforeGear+1);
+    ids.clear();RenderTransfer();assert(!settings->GSC_OffloadGear && settings->saves==beforeGear+2);toggleGear=false;
+
 
     const int beforeSelectedAmmo=settings->saves;
     assert(!settings->GSC_KeepSelectedAmmunition);toggleSelectedAmmo=true;ids.clear();RenderOptions();

@@ -15,7 +15,7 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 | `ArcaneVaultIgnoredItems.ini` | Global ignore list, generated at runtime; stable `Plugin|0xLocalID` keys under `[IgnoredItems]` |
 | `ArcaneVaultTranslation.json` | Flat translation object, supplied by [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) |
 
-Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount`, `GoldKeepAmount`, `SoulgemKeepAmount`, `AlchemyKeepAmount`, and `ScrollKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100, 5000, 25, 1, and 3 respectively. `SalePercentage` also requires fully consumed integer input, accepts 1..100, and falls back to 30 for invalid values. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
+Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount`, `GoldKeepAmount`, `SoulgemKeepAmount`, `AlchemyKeepAmount`, `ScrollKeepAmount`, and `LockpickKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100, 5000, 25, 1, 3, and 25 respectively. `SalePercentage` also requires fully consumed integer input, accepts 1..100, and falls back to 30 for invalid values. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
 
 ## Options
 
@@ -34,6 +34,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `AmmunitionKeepAmount` | 100 | Retain this many per carried arrow or bolt record; zero retains none |
 | `GoldKeepAmount` | 5000 | Retain this many carried Septims; zero deposits all eligible Gold |
 | `SoulgemKeepAmount` | 25 | Empty reserve and top-up target per base record; filled gems have no reserve |
+| `LockpickKeepAmount` | 25 | Gear lockpick reserve and top-up target; zero deposits all eligible lockpicks and withdraws none |
 | `AlchemyKeepAmount` | 1 | Manual Alchemy Keep N and Take Up To N target per base record |
 | `ScrollKeepAmount` | 3 | Manual Scroll Keep N and Take Up To N target per base record |
 | `AllowRemovingStolenTags` | false | Enable the Stolen Items menu and confirmed ownership clearing |
@@ -41,7 +42,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults include `Notes` alongside `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults include `Notes`, `Personal`, and `Gear` alongside `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
 Quantities also exposes Alchemy Keep Amount and Scroll Keep Amount. They affect manual vault actions; Quick Transfer retains its existing deposit-all policy for enabled Alchemy and Scroll categories.
 
@@ -67,7 +68,7 @@ Options exposes Allow Removing Stolen Tags, persisted as `[General] AllowRemovin
 
 Options' Learn Overrides From Deposits is disabled by default. [DepositLearning.cpp](../src/DepositLearning.cpp) observes player deposits while an eligible storage container is open. Only classification mismatches prompt. Accepting replaces that base record's global user override; declining leaves its classification unchanged. Both leave deposited copies in place. A declined record is not offered again during that container visit. Prompts queue without overlapping, and close/load/new-game invalidates pending decisions. Save failures restore the previous in-memory override and show an error.
 
-Parent vaults learn Alchemy, Armor, Weapon, Smithing, Food, or Concoction without choosing a subtype. Category archives learn their named category. Notes learns Note. Personal learns Personal. Valuables, soul-gem storage, Junk, Trade, Sort, Ignore, and Arcane Vault cannot teach a single persistent category. Physical soul gems and forms without stable plugin identifiers never prompt, even in eligible destinations. Soul state remains per copy.
+Parent vaults learn Alchemy, Armor, Weapon, Smithing, Food, or Concoction without choosing a subtype. Category archives learn their named category. Notes learns Note. Personal learns Personal; Gear learns Gear; Instruments learns Instrument. Valuables, soul-gem storage, Junk, Trade, Sort, Ignore, and Arcane Vault cannot teach a single persistent category. Physical soul gems and forms without stable plugin identifiers never prompt, even in eligible destinations. Soul state remains per copy.
 
 Personal overrides route items from Sort into Personal. The Quick Transfer Personal checkbox defaults off and uses the usual quest, favourite, equipped and ignore protections. Accepting Personal learning replaces the previous category; removing that override restores ordinary classification. Personal still opens directly for manual storage.
 

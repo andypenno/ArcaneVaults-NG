@@ -104,6 +104,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int lockpickKeepAmount = setting->GSC_LockpickKeepAmount;
+		if (InputInt(Translate("Options.LockpickKeepAmount"), &lockpickKeepAmount)) {
+			setting->GSC_LockpickKeepAmount = (std::max)(0, lockpickKeepAmount);
+			changeOption = true;
+		}
+
 		int soulgemKeepAmount = setting->GSC_SoulgemKeepAmount;
 		if (InputInt(Translate("Options.SoulgemKeepAmount"), &soulgemKeepAmount)) {
 			setting->GSC_SoulgemKeepAmount = (std::max)(0, soulgemKeepAmount);
@@ -217,6 +223,8 @@ namespace AVUI {
 			if (Checkbox(Translate("Vault.KeepOne"), &setting->GSC_KeysKeepOne))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Treasure"), &setting->GSC_OffloadTreasure))
+				changeOption = true;
+			if (Checkbox(Translate("Vault.Gear"), &setting->GSC_OffloadGear))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Personal"), &setting->GSC_OffloadPersonal))
 				changeOption = true;
