@@ -7,6 +7,8 @@
 #include "Soulgems.h"
 #include "ItemClass.h"
 #include "DepositLearning.h"
+#include "EnchantedItems.h"
+#include <utility>
 
 //==============================================
 //  Redirects
@@ -270,15 +272,20 @@ public:
     void EnterCrafting(RE::TESObjectREFR* a_furniture) {
         if (loanBench_) ExitCrafting();
 
-        // Check for Craft Loan Setting
-        if (!Settings::GetSingleton()->GSC_CraftingLoan) return;
-
         auto* stores = Stores::GetSingleton();
         auto* utility = Utility::GetSingleton();
         BenchType benchType = utility->GetBenchType(a_furniture);
+        const auto* settings = Settings::GetSingleton();
+        const bool materials = settings->GSC_CraftingLoan;
+        const bool enchanted = benchType == BenchType::Enchanting && settings->GSC_EnchantedItemsLoan;
 
-        if (benchType == BenchType::None) return;
+        if (benchType == BenchType::None || (!materials && !enchanted)) return;
         loanBench_ = benchType;
+        materialsLoan_ = materials;
+        if (!materials) {
+            if (enchanted) EnchantedItems::BeginLoan();
+            return;
+        }
 
         // Begin crafting loan
         switch (benchType) {
@@ -313,11 +320,14 @@ public:
             break;
         }
         stores->BeginJunkLoan();
+        if (enchanted) EnchantedItems::BeginLoan();
     }
 
     void Reset() {
         loanBench_.reset();
+        materialsLoan_ = false;
         Soulgems::ResetLoan();
+        EnchantedItems::Reset();
         Stores::GetSingleton()->ResetJunkLoan();
     }
 
@@ -325,6 +335,8 @@ public:
         if (!loanBench_) return;
         const auto benchType = *loanBench_;
         loanBench_.reset();
+        if (benchType == BenchType::Enchanting) EnchantedItems::EndLoan();
+        if (!std::exchange(materialsLoan_, false)) return;
         auto* stores = Stores::GetSingleton();
         stores->EndJunkLoan();
         if (benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
@@ -363,6 +375,7 @@ public:
 
 private:
     std::optional<BenchType> loanBench_;
+    bool materialsLoan_{};
 };
 
 class FurnitureActivation {
@@ -375,8 +388,10 @@ public:
 
 private:
     static bool ActivateCraftLoan(RE::TESFurniture* a_baseObject, RE::TESObjectREFR* a_target, RE::TESObjectREFR* a_activator, std::uint8_t a_arg3, RE::TESBoundObject* a_object, std::int32_t a_targetCount) {
-        const auto benchType = a_baseObject->workBenchData.benchType.get();
-        const bool craftingActivation = a_target && a_activator == RE::PlayerCharacter::GetSingleton() && benchType != RE::TESFurniture::WorkBenchData::BenchType::kNone && Settings::GetSingleton()->GSC_CraftingLoan;
+        const auto benchType = a_target ? Utility::GetSingleton()->GetBenchType(a_target) : BenchType::None;
+        const auto* settings = Settings::GetSingleton();
+        const bool craftingActivation = a_target && a_activator == RE::PlayerCharacter::GetSingleton() && benchType != BenchType::None &&
+            (settings->GSC_CraftingLoan || (benchType == BenchType::Enchanting && settings->GSC_EnchantedItemsLoan));
 
         // Send crafting materials to player
         if (craftingActivation)

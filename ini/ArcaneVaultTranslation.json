@@ -4,6 +4,7 @@
 	"Options": "Options",
 	"Quantities": "Quantities",
 	"Options.CraftLoan": "Transfer Stored Materials When Crafting",
+	"Options.EnchantedItemsLoan": "Loan Enchanted Items",
 	"Options.Redirect": "Persistent Storage Redirects",
 	"Options.OnlyOwn": "Assign Only in Owned Cells or NonRespawn Containers",
 	"Options.AssignSpell": "Enable Assignment Spell",

@@ -19,6 +19,7 @@ python3 tools/release/check_redirects.py
 python3 tools/release/check_ignores.py
 python3 tools/release/check_learning.py
 python3 tools/release/check_stolen.py
+python3 tools/release/check_enchanted_loans.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -95,3 +96,5 @@ Book/Note cases in `check_keys.py` execute the real native-book classification b
 Selected-ammunition cases in `check_keys.py` run the real Keep/Take actions and selection helper in both modes, including favourite/current/native-worn/standard-equipped selection, duplicate selection, no selection, zero reserves, shortfalls, limited stock, over-target stacks, ignored/quest items, missing equipment hooks, large stacks, and failed moves. The actual menu callbacks and default INI key are checked; `check_misc.py` checks the default-off Options control and saves both states.
 
 The attribute potion and combined Enchanted Items archives add four persistent container/reference pairs plus the `AV_EnchantedOrigin` keyword. The working ESP allocator advances to `0xDEE`; package validation checks the new origin keyword and reconciles the registry with every storage reference. `check_stolen.py` also exercises the shared InventoryStacks code and Enchanted Items module, including implicit stacks above 65535, mixed enchanted/plain copies, artifact restrictions, known and custom enchantments, metadata, source returns and failed transfers. These cases use engine stubs and do not verify Skyrim gameplay.
+
+`check_enchanted_loans.py` compiles the actual enchanted archive, physical-stack helpers and crafting-session class. It checks the independent toggle, other bench exclusion, existing carried copies, ownership/enchantment metadata, consumption, protected records, partial and large moves, failed transfers/activation, same-base Junk loan ordering, delayed withdrawal callbacks, setting changes and reset. `check_misc.py` verifies the disabled UI default and saving; `check_keys.py` verifies the General INI mapping. Skyrim must verify furniture activation and the disenchanting screen.

@@ -7,6 +7,7 @@
 namespace {
     RE::BGSKeyword* originKeyword{};
     std::atomic<std::uint64_t> generation{};
+    std::atomic<bool> loanActive{};
     RE::FormID archiveID{};
 
     RE::TESObjectREFR* Archive() {
@@ -21,7 +22,7 @@ namespace {
     class Sink : public RE::BSTEventSink<RE::TESContainerChangedEvent> {
         RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event,
             RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
-            if (event && archiveID && event->oldContainer == archiveID && event->newContainer == 0x14 && event->itemCount > 0) {
+            if (event && !loanActive && archiveID && event->oldContainer == archiveID && event->newContainer == 0x14 && event->itemCount > 0) {
                 const auto session = generation.load();
                 SKSE::GetTaskInterface()->AddTask([session] {
                     if (session == generation)
@@ -44,6 +45,7 @@ namespace EnchantedItems {
 
     void Reset() {
         ++generation;
+        loanActive = false;
     }
 
     bool Eligible(RE::TESBoundObject* item, const RE::InventoryEntryData& entry, RE::ExtraDataList* extra) {
@@ -72,6 +74,7 @@ namespace EnchantedItems {
     }
 
     bool Recover() {
+        if (loanActive) return false;
         auto* archive = Archive();
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!archive || !player || !originKeyword) return false;
@@ -114,5 +117,46 @@ namespace EnchantedItems {
             }
         }
         return true;
+    }
+
+    void BeginLoan() {
+        if (loanActive) EndLoan();
+        if (!Gather()) return;
+        ++generation;
+        loanActive = true;
+        auto* archive = Archive();
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        while (InventoryStacks::HasItems(archive)) {
+            const auto stacks = InventoryStacks::Read(archive);
+            if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) {
+                EndLoan();
+                Recover();
+                return;
+            }
+        }
+    }
+
+    void EndLoan() {
+        if (!loanActive.exchange(false)) return;
+        ++generation;
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        const auto parents = Parents();
+        const auto* command = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+        const auto equipped = command ? command->conditionFunction : nullptr;
+        for (;;) {
+            const auto stacks = InventoryStacks::Read(player, [&](auto* item, auto& entry, auto* extra) {
+                if (!InventoryStacks::HasOrigin(extra, originKeyword) || entry.IsQuestObject() || entry.IsFavorited() || entry.IsWorn()) return false;
+                auto* origin = extra->GetLinkedRef(originKeyword);
+                if (!origin || std::ranges::find(parents, origin) == parents.end()) return false;
+                double worn{};
+                return !equipped || !equipped(player, item, nullptr, worn) || worn == 0.0;
+            });
+            if (stacks.empty()) break;
+            const auto& stack = stacks.front();
+            auto* origin = stack.extra->GetLinkedRef(originKeyword);
+            if (!InventoryStacks::Move(stack, origin)) break;
+            InventoryStacks::ClearOrigins(origin, originKeyword);
+        }
+        InventoryStacks::ClearOrigins(player, originKeyword);
     }
 }

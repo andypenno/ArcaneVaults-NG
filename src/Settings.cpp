@@ -51,6 +51,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_AssignKeyCode, "General", "AssignKeyCode");
 	option(settings.GSC_QuickKeyCode, "General", "QuickKeyCode");
 	option(settings.GSC_CraftingLoan, "General", "CraftingLoan");
+	option(settings.GSC_EnchantedItemsLoan, "General", "EnchantedItemsLoan");
 	option(settings.GSC_ReturnIgnoredItems, "General", "ReturnIgnoredItems");
 	option(settings.GSC_LearnDepositOverrides, "General", "LearnDepositOverrides");
 	option(settings.GSC_AllowRemovingStolenTags, "General", "AllowRemovingStolenTags");

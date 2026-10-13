@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 implementation = (ROOT / "src/Soulgems.cpp").read_text().replace('#include "Utility.h"', '').replace('#include "Settings.h"', '')
 program = r'''
 #include <algorithm>
+#include <utility>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -126,6 +127,7 @@ struct Utility {
 program += r'''
 struct Settings {
     bool GSC_CraftingLoan = true;
+    bool GSC_EnchantedItemsLoan = false;
     bool GSC_ReturnIgnoredItems = true;
     std::unordered_set<const RE::TESBoundObject*> ignored;
     bool IsIgnored(const RE::TESBoundObject* item) const { return ignored.contains(item); }
@@ -147,6 +149,7 @@ struct Stores {
     void PlayerToStore(ItemCategory,Container) {}
 };
 '''
+program += "namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} }\n"
 program += loan
 program += r'''
 int main() {
