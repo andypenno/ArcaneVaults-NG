@@ -10,6 +10,7 @@ program = r'''
 #include <array>
 #include <atomic>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -31,6 +32,7 @@ namespace std { template<class... Args> string format(const char*,Args...){retur
 namespace logger { inline void error(const char*) {} }
 namespace RE {
 using FormID=unsigned;
+using RefHandle=unsigned;
 struct TESObjectREFR;
 struct BGSKeyword { unsigned id; };
 struct TESForm {
@@ -52,9 +54,11 @@ struct TESEnchantableForm { EnchantmentItem* formEnchanting=nullptr; };
 enum class WEAPON_TYPE { kOneHandSword,kStaff };
 struct TESObjectWEAP { bool staff=false;WEAPON_TYPE GetWeaponType() const {return staff?WEAPON_TYPE::kStaff:WEAPON_TYPE::kOneHandSword;} };
 struct TESObjectARMO {};
+struct TESSoulGem {};
 struct TESBoundObject {
     unsigned id;
     bool weapon=false,armor=false;
+    unsigned GetFormID()const{return id;}
     BGSKeywordForm keywords{};TESEnchantableForm enchantable{};TESObjectWEAP weaponData{};TESObjectARMO armorData{};
     template<class T> T* As() {
         if constexpr(std::is_same_v<T,TESObjectWEAP>) return weapon?&weaponData:nullptr;
@@ -65,6 +69,9 @@ struct TESBoundObject {
     }
 };
 struct ExtraEnchantment { EnchantmentItem* enchantment; };
+struct ExtraWorn {};
+struct ExtraWornLeft {};
+struct ExtraUniqueID {unsigned baseID;std::uint16_t uniqueID;};
 enum class DefaultObjectID { kKeywordDisallowEnchanting };
 struct BGSDefaultObjectManager {
     BGSKeyword keyword{0xC27BD};BGSKeyword* value=&keyword;
@@ -75,15 +82,17 @@ enum class ExtraDataType { kOwnership,kLinkedRef };
 struct ExtraLinkedRef { struct LinkedRef { BGSKeyword* keyword;TESObjectREFR* refr; };std::vector<LinkedRef> linkedRefs; };
 struct ExtraDataList {
     int count=1;TESForm* owner=nullptr;std::string metadata;ExtraLinkedRef links;std::optional<ExtraEnchantment> enchantment{};
+    bool worn=false,leftWorn=false,uiWorn=false;std::optional<ExtraUniqueID> unique{};
     int GetCount() const { return count; }
     void SetCount(std::uint16_t value) { count=value; }
     TESForm* GetOwner() { return owner; }
-    template<class T> T* GetByType() { if constexpr(std::is_same_v<T,ExtraEnchantment>)return enchantment?&*enchantment:nullptr;else return links.linkedRefs.empty()?nullptr:&links; }
+    template<class T> T* GetByType() { if constexpr(std::is_same_v<T,ExtraEnchantment>)return enchantment?&*enchantment:nullptr;else if constexpr(std::is_same_v<T,ExtraUniqueID>)return unique?&*unique:nullptr;else return links.linkedRefs.empty()?nullptr:&links; }
+    template<class T> bool HasType()const{if constexpr(std::is_same_v<T,ExtraWorn>)return worn;else return leftWorn;}
     TESObjectREFR* GetLinkedRef(BGSKeyword* key) { for(auto& link:links.linkedRefs) if(link.keyword==key)return link.refr;return nullptr; }
     void SetLinkedRef(TESObjectREFR* ref,BGSKeyword* key) { for(auto& link:links.linkedRefs)if(link.keyword==key){link.refr=ref;return;}links.linkedRefs.push_back({key,ref}); }
     bool RemoveByType(ExtraDataType type) { if(type==ExtraDataType::kOwnership)owner=nullptr;else links.linkedRefs.clear();return true; }
     bool Same(const ExtraDataList& other) const {
-        if((enchantment?enchantment->enchantment:nullptr)!=(other.enchantment?other.enchantment->enchantment:nullptr) || owner!=other.owner || metadata!=other.metadata || links.linkedRefs.size()!=other.links.linkedRefs.size())return false;
+        if(worn!=other.worn || leftWorn!=other.leftWorn || uiWorn!=other.uiWorn || (enchantment?enchantment->enchantment:nullptr)!=(other.enchantment?other.enchantment->enchantment:nullptr) || owner!=other.owner || metadata!=other.metadata || links.linkedRefs.size()!=other.links.linkedRefs.size())return false;
         for(std::size_t i=0;i<links.linkedRefs.size();++i)if(links.linkedRefs[i].keyword!=other.links.linkedRefs[i].keyword || links.linkedRefs[i].refr!=other.links.linkedRefs[i].refr)return false;
         return true;
     }
@@ -93,15 +102,19 @@ struct InventoryEntryData {
     TESBoundObject* object=nullptr;
     std::function<void(ExtraDataList*)> add;
     bool quest=false;
+    bool favorite=false;
+    int countDelta=0;
     InventoryEntryData()=default;
     InventoryEntryData(TESBoundObject* value,int):object(value){}
     void AddExtraList(ExtraDataList* extra){if(add)add(extra);else lists.push_back(extra);}
     bool IsQuestObject()const{return quest;}
+    bool IsFavorited()const{return favorite;}
+    bool IsWorn()const{return std::ranges::any_of(lists,[](auto* x){return x && (x->worn || x->leftWorn);});}
     std::vector<ExtraDataList*> lists;std::vector<ExtraDataList*>* extraLists=&lists;
     bool IsOwnedBy(PlayerCharacter*,TESForm* owner,bool defaultTo) { return owner?owner->playerOwned:defaultTo; }
 };
 struct Ref { TESObjectREFR* value;explicit operator bool() const{return value!=nullptr;}TESObjectREFR* get()const{return value;} };
-struct Handle { unsigned id=0;Ref get()const {return {TESForm::refs.contains(id)?TESForm::refs[id]:nullptr};} };
+struct Handle { unsigned id=0;unsigned native_handle()const{return id;}Ref get()const {return {TESForm::refs.contains(id)?TESForm::refs[id]:nullptr};} };
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESContainerChangedEvent { unsigned oldContainer,newContainer,baseObj;int itemCount; };
 enum class BSEventNotifyControl { kContinue };
@@ -115,7 +128,7 @@ struct ScriptEventSourceHolder {
 };
 struct TESObjectREFR {
     struct ChangeFlags {static constexpr unsigned kInventory=32;};
-    struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false;};
+    struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false,favorite=false;};
     unsigned id;int limit=std::numeric_limits<int>::max();bool refuse=false;unsigned changed=0;
     std::map<TESBoundObject*,Row> rows;
     struct Changes {
@@ -135,7 +148,7 @@ struct TESObjectREFR {
     void AddChange(unsigned flag){assert(flag==ChangeFlags::kInventory);++changed;}
     auto GetInventory()const{
         std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;
-        for(const auto& [item,row]:rows){auto e=std::make_shared<InventoryEntryData>();e->quest=row.quest;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
+        for(const auto& [item,row]:rows){auto e=std::make_shared<InventoryEntryData>();e->object=item;e->countDelta=row.total;e->quest=row.quest;e->favorite=row.favorite;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
     }
     std::map<TESBoundObject*,int> GetInventoryCounts()const{std::map<TESBoundObject*,int> result;for(auto& [item,row]:rows)result[item]=row.total;return result;}
     void Put(TESBoundObject* item,int plain,int count=0,TESForm* owner=nullptr,std::string metadata=""){
@@ -145,6 +158,7 @@ struct TESObjectREFR {
         if(refuse)return;
         auto& row=rows[item];int count=std::min({requested,row.total,limit});if(count<=0)return;
         auto& out=target->rows[item];
+        if(!extra && !row.extras.empty())extra=row.extras.front().get();
         if(extra){
             auto found=std::ranges::find_if(row.extras,[&](auto& p){return p.get()==extra;});assert(found!=row.extras.end());
             count=std::min(count,extra->count);auto copy=std::make_shared<ExtraDataList>(*extra);copy->count=count;
@@ -159,9 +173,83 @@ inline bool allocationFails=false;
 inline int nativeConstructions=0;
 inline void* malloc(std::size_t size){return allocationFails ? nullptr : ::operator new(size);}
 inline void free(void* value){::operator delete(value);}
-struct PlayerCharacter:TESObjectREFR { PlayerCharacter():TESObjectREFR(0x14){}static PlayerCharacter* GetSingleton(){static PlayerCharacter p;return &p;} };
+struct PlayerCharacter:TESObjectREFR { TESBoundObject* currentAmmo=nullptr;TESBoundObject* GetCurrentAmmo()const{return currentAmmo;}PlayerCharacter():TESObjectREFR(0x14){}static PlayerCharacter* GetSingleton(){static PlayerCharacter p;return &p;} };
+struct SCRIPT_FUNCTION {
+    using Condition_t=bool(TESObjectREFR*,void*,void*,double&);
+    Condition_t* conditionFunction=nullptr;
+    inline static std::unordered_set<TESBoundObject*> equipped;
+    inline static bool available=true,succeeds=true;
+    static bool Query(TESObjectREFR*,void* item,void*,double& value){value=equipped.contains(static_cast<TESBoundObject*>(item));return succeeds;}
+    static SCRIPT_FUNCTION* LocateScriptCommand(std::string_view){static SCRIPT_FUNCTION c{Query};return available?&c:nullptr;}
+};
 struct TESDataHandler { BGSKeyword keyword{0x01000DE0},enchantedKeyword{0x01000DED};static TESDataHandler* GetSingleton(){static TESDataHandler d;return &d;}template<class T>T* LookupForm(unsigned id,std::string_view plugin){assert((id==0xDE0 || id==0xDED) && plugin=="ArcaneVaults-LinkedStorage.esp");return id==0xDE0?&keyword:&enchantedKeyword;} };
 struct SendHUDMessage {inline static std::string message;static void ShowHUDMessage(const char* text){message=text;} };
+using BSFixedString=std::string;
+struct GFxValue {
+    enum Kind {Undefined,Number,Bool} kind=Undefined;double number=0;bool boolean=false;
+    std::map<std::string,GFxValue> members;
+    bool GetMember(const char* name,GFxValue* value)const{auto i=members.find(name);if(i==members.end())return false;*value=i->second;return true;}
+    bool IsNumber()const{return kind==Number;}bool IsBool()const{return kind==Bool;}
+    double GetNumber()const{return number;}bool GetBool()const{return boolean;}
+};
+struct Movie {bool visible=true;void SetVisible(bool value){visible=value;}};
+enum class UI_MESSAGE_TYPE {kInventoryUpdate};
+struct InventoryUpdateData {unsigned inventoryRef=0;};
+struct UIMessage {std::string menu;UI_MESSAGE_TYPE type{};InventoryUpdateData* data=nullptr;};
+struct IMenu {
+    unsigned refs=1;std::shared_ptr<Movie> uiMovie=std::make_shared<Movie>();
+    virtual ~IMenu()=default;void AddRef(){++refs;}void Release(){if(--refs==0)delete this;}
+};
+template<class T>struct GPtr {
+    T* value;explicit GPtr(T* p):value(p){if(value)value->AddRef();}~GPtr(){if(value)value->Release();}
+    explicit operator bool()const{return value!=nullptr;}T* get()const{return value;}T* operator->()const{return value;}
+};
+struct ItemList {
+    struct Item {struct Data {InventoryEntryData* objDesc=nullptr;unsigned owner=0;} data;GFxValue obj;};
+    std::vector<Item*> items;
+};
+struct InventoryMenu:IMenu {
+    inline static constexpr std::string_view MENU_NAME="InventoryMenu";
+    inline static bool empty=false,grouped=false,missingFields=false,wrongOwner=false,wrongCount=false,cloneIDs=false,nan=false;
+    inline static bool wrongStateType=false,wrongEquippedType=false;
+    inline static unsigned created=0,destroyed=0,updates=0;
+    ItemList list;struct Data {ItemList* itemList;} runtime{&list};
+    std::vector<std::unique_ptr<ItemList::Item>> items;std::vector<std::shared_ptr<InventoryEntryData>> entries;
+    std::vector<std::shared_ptr<ExtraDataList>> clones;
+    InventoryMenu(){++created;}~InventoryMenu()override{++destroyed;}
+    auto& GetRuntimeData(){return runtime;}
+    void ProcessMessage(UIMessage& message) {
+        assert(!uiMovie->visible && message.menu==MENU_NAME && message.type==UI_MESSAGE_TYPE::kInventoryUpdate);
+        assert(message.data->inventoryRef==PlayerCharacter::GetSingleton()->id);++updates;
+        if(empty)return;
+        auto add=[&](TESBoundObject* item,int count,const std::vector<ExtraDataList*>& extras,bool worn) {
+            auto entry=std::make_shared<InventoryEntryData>();entry->object=item;entry->countDelta=count+(wrongCount?1:0);
+            for(auto* extra:extras){if(cloneIDs){auto copy=std::make_shared<ExtraDataList>(*extra);entry->lists.push_back(copy.get());clones.push_back(copy);}else entry->lists.push_back(extra);}
+            auto row=std::make_unique<ItemList::Item>();row->data.objDesc=entry.get();row->data.owner=wrongOwner?999:message.data->inventoryRef;
+            if(!missingFields){GFxValue state;state.kind=GFxValue::Number;state.number=nan?std::numeric_limits<double>::quiet_NaN():worn?3:0;row->obj.members["equipState"]=state;
+                GFxValue eq;eq.kind=GFxValue::Bool;eq.boolean=worn;row->obj.members["isEquipped"]=eq;}
+            if(wrongStateType)row->obj.members["equipState"].kind=GFxValue::Bool;
+            if(wrongEquippedType)row->obj.members["isEquipped"].kind=GFxValue::Number;
+            entries.push_back(entry);list.items.push_back(row.get());items.push_back(std::move(row));
+        };
+        for(const auto& [item,data]:PlayerCharacter::GetSingleton()->GetInventory()) {
+            if(data.first<=0)continue;
+            const auto& extras=data.second->lists;
+            if(grouped){add(item,data.first,extras,std::ranges::any_of(extras,[](auto* x){return x->worn || x->leftWorn || x->uiWorn;}));continue;}
+            int represented=0;
+            for(auto* extra:extras){represented+=extra->count;add(item,extra->count,{extra},extra->worn || extra->leftWorn || extra->uiWorn);}
+            if(represented<data.first)add(item,data.first-represented,{},false);
+        }
+    }
+};
+struct UI {
+    struct Entry {IMenu*(*create)();};std::map<std::string,Entry> menuMap;
+    bool open=false,paused=false,cursor=false;
+    inline static bool available=true,factoryFails=false;
+    static IMenu* Create(){return factoryFails?nullptr:new InventoryMenu;}
+    UI(){menuMap.emplace("InventoryMenu",Entry{Create});}
+    static UI* GetSingleton(){static UI ui;return available?&ui:nullptr;}
+};
 }
 namespace REL {
 struct VariantID { VariantID(unsigned se,unsigned ae,unsigned vr){assert(se==11437 && ae==11583 && vr==0x117C80);} };
@@ -181,7 +269,12 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container c){return containers.contains(c)?containers[c]:nullptr;}
     const auto& GetVaultChoices()const{return vaults;}
 };
-struct Settings {bool GSC_AllowRemovingStolenTags=false;static Settings* GetSingleton(){static Settings s;return &s;} };
+struct Settings {bool GSC_AllowRemovingStolenTags=false;std::unordered_set<RE::TESBoundObject*> ignored;bool IsIgnored(RE::TESBoundObject* item)const{return ignored.contains(item);}static Settings* GetSingleton(){static Settings s;return &s;} };
+inline CategoryMask ClassifyItem(RE::TESBoundObject* item)noexcept{return ToMask(item->armor?ItemCategory::Jewelry:ItemCategory::Weapon);}
+inline CategoryMask ToMask(ItemCategory c)noexcept{return CategoryMask{1}<<static_cast<unsigned>(c);}
+inline bool HasCategory(CategoryMask mask,ItemCategory c)noexcept{return (mask&ToMask(c))!=0;}
+inline bool HasAnyCategory(CategoryMask mask,CategoryMask excluded)noexcept{return (mask&excluded)!=0;}
+namespace DepositLearning {inline int moved=0;inline void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int count){moved+=count;} }
 inline const char* Translate(const char* text){return text;}
 namespace AVTranslation {inline const char* Translate(const char* text){return text;} }
 struct Stores {
@@ -202,16 +295,21 @@ struct Stores {
         }
     }
     void EnchantedItemsMenu(RE::TESObjectREFR*);
+    void PlayerToStore(ItemCategory,Container,int=0,int=0,bool=false,CategoryMask=0);
 void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*);void ShowStolenItemsMenu(RE::TESObjectREFR*);
     void Click(int i){auto action=options[i].action;options.clear();action();SKSE::GetTaskInterface()->Run();}
 };
 #include "src/StolenItems.h"
 #include "src/EnchantedItems.h"
+#include "src/PlayerEquipment.h"
 '''
 common = program
 program = '#include "common.hpp"\n'
+stores_source=(ROOT / "src/Stores.cpp").read_text()
+start=stores_source.index("void Stores::PlayerToStore(")
+program+=stores_source[start:stores_source.index("\n}\n",start)+3]
 modules = {}
-for name in ("InventoryStacks", "StolenItems", "EnchantedItems"):
+for name in ("InventoryStacks", "StolenItems", "EnchantedItems", "PlayerEquipment"):
     text = (ROOT / f"src/{name}.cpp").read_text()
     modules[name] = '#include "common.hpp"\n' + "\n".join(line for line in text.splitlines() if not line.startswith("#include"))
 source=(ROOT / "src/Stores.cpp").read_text()
@@ -328,6 +426,68 @@ int main(){
     resetEnchanted();weapons.Put(&sword,2);menu->EnchantedItemsMenu(&source);assert(menu->opened==Container::EnchantedItems && count(enchantedBank,sword)==2);
     close=menu->onClose;close(&source);assert(menu->closed && count(weapons,sword)==2);
 
+    auto resetTransfer=[&] {
+        player->rows.clear();armorBank.rows.clear();player->limit=std::numeric_limits<int>::max();player->refuse=false;
+        RE::SCRIPT_FUNCTION::equipped.clear();RE::SCRIPT_FUNCTION::available=true;RE::SCRIPT_FUNCTION::succeeds=true;
+        RE::InventoryMenu::empty=RE::InventoryMenu::grouped=RE::InventoryMenu::missingFields=RE::InventoryMenu::wrongOwner=false;
+        RE::InventoryMenu::wrongCount=RE::InventoryMenu::cloneIDs=RE::InventoryMenu::nan=false;
+        RE::InventoryMenu::wrongStateType=RE::InventoryMenu::wrongEquippedType=false;
+        RE::UI::available=true;RE::UI::factoryFails=false;RE::allocationFails=false;s->ignored.clear();DepositLearning::moved=0;
+    };
+    auto deposit=[&](int request=0,int reserve=0,bool ignores=false){menu->PlayerToStore(ItemCategory::Jewelry,Container::Armor,request,reserve,ignores);};
+    resetTransfer();std::array<RE::TESBoundObject,10> rings{};
+    std::array<RE::ExtraDataList*,10> wornCopies{};
+    for(unsigned i=0;i<rings.size();++i){auto& ring=rings[i];ring.id=0x100+i;ring.armor=true;
+        player->Put(&ring,2,1,nullptr,"worn ring");auto* extra=player->rows[&ring].extras.front().get();wornCopies[i]=extra;
+        if(i==0)extra->worn=true;else if(i==1)extra->leftWorn=true;else extra->uiWorn=true;
+        RE::SCRIPT_FUNCTION::equipped.insert(&ring);}
+    auto* ui=RE::UI::GetSingleton();ui->open=ui->paused=ui->cursor=true;
+    const auto capturesBefore=RE::InventoryMenu::created;deposit();assert(RE::InventoryMenu::created==capturesBefore+1);
+    for(unsigned i=0;i<rings.size();++i){assert(count(*player,rings[i])==1 && count(armorBank,rings[i])==2);
+        assert(player->rows[&rings[i]].extras.front().get()==wornCopies[i] && wornCopies[i]->count==1);}
+    assert(DepositLearning::moved==20 && ui->open && ui->paused && ui->cursor);
+    assert(RE::InventoryMenu::created==RE::InventoryMenu::destroyed && RE::InventoryMenu::updates>0);
+    auto& ring=rings[0];
+    resetTransfer();player->Put(&ring,0,1,nullptr,"enchanted worn");player->Put(&ring,0,3,&foreign,"enchanted spare");
+    auto* wornExtra=player->rows[&ring].extras.front().get();wornExtra->uiWorn=true;wornExtra->unique=RE::ExtraUniqueID{player->id,1};
+    auto* spareExtra=player->rows[&ring].extras.back().get();spareExtra->unique=RE::ExtraUniqueID{player->id,2};
+    spareExtra->enchantment=RE::ExtraEnchantment{&normal};RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+    RE::InventoryMenu::cloneIDs=true;player->limit=1;deposit();
+    assert(count(*player,ring)==1 && count(armorBank,ring)==3 && player->rows[&ring].extras.front().get()==wornExtra);
+    assert(armorBank.rows[&ring].extras.front()->enchantment->enchantment==&normal && armorBank.rows[&ring].extras.front()->owner==&foreign);
+    assert(armorBank.rows[&ring].extras.front()->metadata=="enchanted spare");
+    resetTransfer();player->Put(&ring,70000,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
+    RE::SCRIPT_FUNCTION::equipped.insert(&ring);deposit();assert(count(*player,ring)==1 && count(armorBank,ring)==70000);
+    resetTransfer();player->Put(&ring,5,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
+    RE::SCRIPT_FUNCTION::equipped.insert(&ring);deposit(2,2);assert(count(*player,ring)==4 && count(armorBank,ring)==2);
+    deposit(0,2);assert(count(*player,ring)==2 && count(armorBank,ring)==4);
+    resetTransfer();player->Put(&ring,4,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
+    deposit();assert(count(*player,ring)==1 && count(armorBank,ring)==4);
+    for(int failure=0;failure<10;++failure){resetTransfer();player->Put(&ring,2,1,nullptr,"equipped");
+        player->rows[&ring].extras.front()->uiWorn=true;RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+        switch(failure){case 0:RE::UI::available=false;break;case 1:RE::UI::factoryFails=true;break;
+        case 2:RE::InventoryMenu::empty=true;break;case 3:RE::InventoryMenu::missingFields=true;break;
+        case 4:RE::InventoryMenu::wrongOwner=true;break;case 5:RE::InventoryMenu::wrongCount=true;break;
+        case 6:RE::InventoryMenu::nan=true;break;case 7:player->rows[&ring].extras.front()->uiWorn=false;break;
+        case 8:RE::InventoryMenu::wrongStateType=true;break;case 9:RE::InventoryMenu::wrongEquippedType=true;break;}
+        deposit();assert(count(*player,ring)==3 && count(armorBank,ring)==0);}
+    resetTransfer();player->Put(&ring,2,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
+    RE::SCRIPT_FUNCTION::equipped.insert(&ring);RE::InventoryMenu::grouped=true;
+    deposit();assert(count(*player,ring)==3 && count(armorBank,ring)==0);
+    RE::InventoryMenu::grouped=false;player->rows[&ring].extras.front()->uiWorn=false;RE::SCRIPT_FUNCTION::equipped.clear();
+    deposit();assert(count(*player,ring)==0 && count(armorBank,ring)==3);
+    for(int protection=0;protection<3;++protection){resetTransfer();player->Put(&ring,3);
+        if(protection==0)player->rows[&ring].quest=true;else if(protection==1)player->rows[&ring].favorite=true;else s->ignored.insert(&ring);
+        deposit(0,0,true);assert(count(*player,ring)==3 && count(armorBank,ring)==0);}
+    for(int failure=0;failure<4;++failure){resetTransfer();player->Put(&ring,3,1,nullptr,"equipped");
+        player->rows[&ring].extras.front()->uiWorn=true;RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+        if(failure==0)RE::allocationFails=true;else if(failure==1)player->refuse=true;
+        else if(failure==2)player->rows[&ring].duplicate=true;else player->rows[&ring].total=0;
+        const int before=count(*player,ring);deposit();assert(count(*player,ring)==before && count(armorBank,ring)==0);}
+    resetTransfer();player->Put(&ring,2,1,nullptr,"native worn");player->rows[&ring].extras.front()->worn=true;
+    RE::SCRIPT_FUNCTION::available=false;deposit();assert(count(*player,ring)==1 && count(armorBank,ring)==2);
+    assert(RE::InventoryMenu::created==RE::InventoryMenu::destroyed);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
@@ -342,4 +502,4 @@ with tempfile.TemporaryDirectory() as tmp:
 translations=json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
 assert translations["Stolen.Open"]=="Open"
 assert translations["Stolen.RemoveAllTags"]=="Remove All Stolen Tags"
-print("PASS: mixed stolen counts/variants, source markers, exclusions, partial transfers, withdrawals, manual deposits, clearing, recovery, load-order remapping model, confirmation cancellation, and actual archive menus")
+print("PASS: same-base worn/spare ring transfers, native/standard UI equipment, conservative fallbacks, metadata, partial/large moves and menu lifetime; stolen and enchanted archive gathering, returns, clearing, recovery and menus")

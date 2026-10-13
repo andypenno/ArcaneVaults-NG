@@ -80,8 +80,8 @@ namespace InventoryStacks {
         }
     }
 
-    std::optional<Stack> MarkOrigin(const Stack& stack, RE::BGSKeyword* keyword) {
-        if (!stack.source || !stack.item || !keyword || stack.count <= 0) return std::nullopt;
+    std::optional<Stack> Materialize(const Stack& stack) {
+        if (!stack.source || !stack.item || stack.count <= 0) return std::nullopt;
         auto marked = stack;
         if (!marked.extra) {
             auto* changes = stack.source->GetInventoryChanges();
@@ -105,7 +105,16 @@ namespace InventoryStacks {
             marked.count = (std::min)(stack.count, static_cast<int>((std::numeric_limits<std::int16_t>::max)()));
             marked.extra->SetCount(static_cast<std::uint16_t>(marked.count));
             entry->AddExtraList(marked.extra);
+            stack.source->AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
         }
+        return marked;
+    }
+
+    std::optional<Stack> MarkOrigin(const Stack& stack, RE::BGSKeyword* keyword) {
+        if (!keyword) return std::nullopt;
+        const auto physical = Materialize(stack);
+        if (!physical) return std::nullopt;
+        auto marked = *physical;
         marked.extra->SetLinkedRef(stack.source, keyword);
         stack.source->AddChange(RE::TESObjectREFR::ChangeFlags::kInventory);
         return marked.extra->GetLinkedRef(keyword) == stack.source ? std::optional{marked} : std::nullopt;

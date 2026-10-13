@@ -11,6 +11,7 @@
 #include "DepositLearning.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
+#include "PlayerEquipment.h"
 
 #include <chrono>
 #include <thread>
@@ -186,27 +187,58 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto* currentAmmo = player->GetCurrentAmmo();
+    std::optional<PlayerEquipment::Snapshot> equipment;
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
         if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
-        // Ignore Quest, Favorited and Worn items
-        if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
+        if (data.second->IsQuestObject() || data.second->IsFavorited()) continue;
         if (currentAmmo && item->GetFormID() == currentAmmo->GetFormID()) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
 
-        // Equipment mods can expose virtual worn items through the standard condition.
         double equipped{};
-        if (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0) continue;
+        const bool formEquipped = isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0;
+        const auto read = [player, item] {
+            return InventoryStacks::Read(player, [item](auto* candidate, auto&, auto*) { return candidate == item; });
+        };
+        auto stacks = read();
+        if (stacks.empty()) continue;
+        std::unordered_set<RE::ExtraDataList*> protectedStacks;
+        if (formEquipped || data.second->IsWorn() || item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>()) {
+            if (!equipment) equipment = PlayerEquipment::Read(player);
+            const auto rows = equipment->find(item);
+            if (rows != equipment->end()) protectedStacks = rows->second;
+            if ((formEquipped || data.second->IsWorn()) && (rows == equipment->end() || protectedStacks.empty())) continue;
+            stacks = read();
+        }
+        for (const auto& stack : stacks)
+            if (stack.extra && (stack.extra->HasType<RE::ExtraWorn>() || stack.extra->HasType<RE::ExtraWornLeft>()))
+                protectedStacks.insert(stack.extra);
 
-        int count = data.first - a_keepCount;
+        int count = InventoryStacks::Count(player, item) - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);
-        if (count > 0)
-            MoveItems(player, chest, item, count);
+        while (count > 0) {
+            stacks = read();
+            const auto next = std::ranges::find_if(stacks, [&](const auto& stack) { return !protectedStacks.contains(stack.extra); });
+            if (next == stacks.end()) break;
+            auto stack = *next;
+            stack.count = (std::min)(stack.count, count);
+            // A null-list removal may choose an equipped explicit copy before the bare remainder.
+            if (!stack.extra && !protectedStacks.empty()) {
+                const auto physical = InventoryStacks::Materialize(stack);
+                if (!physical) break;
+                stack = *physical;
+            }
+            const int before = InventoryStacks::Count(player, item);
+            if (!InventoryStacks::Move(stack, chest)) break;
+            const int moved = before - InventoryStacks::Count(player, item);
+            DepositLearning::RecordAutomaticTransfer(player, chest, item, moved);
+            count -= moved;
+        }
     }
 }
 

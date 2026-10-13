@@ -58,6 +58,7 @@ program = r'''
 #include <functional>
 #include <sstream>
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
 #include <map>
 #include <memory>
@@ -105,6 +106,10 @@ struct AlchemyItem {
     bool IsPoison() const{return poison;}
 };
 struct TESObjectMISC {};
+struct TESObjectWEAP {};
+struct ExtraWorn {};
+struct ExtraWornLeft {};
+struct ExtraDataList { template<class T> bool HasType() const { return false; } };
 struct TESObjectLIGH { bool carryable = true; bool CanBeCarried() const { return carryable; } };
 struct TESSoulGem {};
 struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
@@ -438,6 +443,28 @@ program += "struct Settings {\n" + settings_fields + r'''
 '''
 move_start = source.index("    void MoveItems(")
 program += source[move_start:source.index("\n    }", move_start) + 6]
+program += r'''
+namespace InventoryStacks {
+struct Stack { RE::TESObjectREFR* source; RE::TESBoundObject* item; RE::ExtraDataList* extra; int count; };
+template<class Select> std::vector<Stack> Read(RE::TESObjectREFR* source,Select select) {
+    std::vector<Stack> result;
+    for(const auto& [item,data]:source->GetInventory())
+        if(item && data.second && data.first>0 && select(item,*data.second,static_cast<RE::ExtraDataList*>(nullptr))) result.push_back({source,item,nullptr,data.first});
+    return result;
+}
+int Count(RE::TESObjectREFR* source,RE::TESBoundObject* item){return source->inventory[item].first;}
+std::optional<Stack> Materialize(const Stack& stack){return stack;}
+bool Move(const Stack& stack,RE::TESObjectREFR* target) {
+    const int before=Count(stack.source,stack.item);
+    stack.source->RemoveItem(stack.item,stack.count,RE::ITEM_REMOVE_REASON::kStoreInContainer,stack.extra,target);
+    return Count(stack.source,stack.item)<before;
+}
+}
+namespace PlayerEquipment {
+using Snapshot=std::unordered_map<RE::TESBoundObject*,std::unordered_set<RE::ExtraDataList*>>;
+Snapshot Read(RE::PlayerCharacter*) {return {};}
+}
+'''
 selected_start = source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 selected_method = source[selected_start:source.index("\n    }", selected_start) + 6]
 utility_source = (ROOT / "src/Utility.cpp").read_text()

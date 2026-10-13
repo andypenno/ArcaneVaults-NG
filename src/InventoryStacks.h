@@ -13,6 +13,7 @@ namespace InventoryStacks {
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item);
     bool HasItems(RE::TESObjectREFR* source);
     bool Move(const Stack& stack, RE::TESObjectREFR* target);
+    std::optional<Stack> Materialize(const Stack& stack);
     bool HasOrigin(RE::ExtraDataList* extra, RE::BGSKeyword* keyword);
     void ClearOrigins(RE::TESObjectREFR* source, RE::BGSKeyword* keyword);
     std::optional<Stack> MarkOrigin(const Stack& stack, RE::BGSKeyword* keyword);
