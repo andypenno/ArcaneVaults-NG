@@ -217,7 +217,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         double equipped{};
         const bool formEquipped = isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0;
         const auto read = [player, item] {
-            return InventoryStacks::Read(player, [item](auto* candidate, auto&, auto*) { return candidate == item; });
+            return InventoryStacks::Read(player, {}, item);
         };
         auto stacks = read();
         if (stacks.empty()) continue;

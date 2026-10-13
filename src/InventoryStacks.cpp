@@ -3,10 +3,10 @@
 #include <unordered_set>
 
 namespace InventoryStacks {
-    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select) {
+    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem) {
         std::vector<Stack> result;
         if (!source) return result;
-        for (const auto& [item, data] : source->GetInventory()) {
+        for (const auto& [item, data] : source->GetInventory([onlyItem](RE::TESBoundObject& item) { return !onlyItem || &item == onlyItem; })) {
             auto* entry = data.second.get();
             if (!item || data.first <= 0 || !entry) continue;
             std::vector<Stack> selected;
@@ -36,7 +36,7 @@ namespace InventoryStacks {
     }
 
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item) {
-        const auto counts = source->GetInventoryCounts();
+        const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
         const auto found = counts.find(item);
         return found == counts.end() ? 0 : (std::max)(0, found->second);
     }

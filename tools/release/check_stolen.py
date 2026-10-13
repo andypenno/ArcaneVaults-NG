@@ -151,11 +151,12 @@ struct TESObjectREFR {
     explicit TESObjectREFR(unsigned value):id(value){TESForm::refs[id]=this;}
     unsigned GetFormID()const{return id;}Handle GetHandle()const{return {id};}
     void AddChange(unsigned flag){assert(flag==ChangeFlags::kInventory);++changed;}
-    auto GetInventory()const{
+    inline static std::size_t inventoryCopies=0;
+    auto GetInventory(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;})const{
         std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;
-        for(const auto& [item,row]:rows){auto e=std::make_shared<InventoryEntryData>();e->object=item;e->countDelta=row.total;e->quest=row.quest;e->favorite=row.favorite;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
+        for(const auto& [item,row]:rows){if(!item || !filter(*item))continue;++inventoryCopies;auto e=std::make_shared<InventoryEntryData>();e->object=item;e->countDelta=row.total;e->quest=row.quest;e->favorite=row.favorite;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
     }
-    std::map<TESBoundObject*,int> GetInventoryCounts()const{std::map<TESBoundObject*,int> result;for(auto& [item,row]:rows)result[item]=row.total;return result;}
+    std::map<TESBoundObject*,int> GetInventoryCounts(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;})const{std::map<TESBoundObject*,int> result;for(auto& [item,data]:GetInventory(filter))result[item]=data.first;return result;}
     void Put(TESBoundObject* item,int plain,int count=0,TESForm* owner=nullptr,std::string metadata=""){
         auto& row=rows[item];row.total+=plain+count;if(count)row.extras.push_back(std::make_shared<ExtraDataList>(ExtraDataList{count,owner,metadata,{}}));
     }
@@ -216,7 +217,17 @@ template<class T>struct GPtr {
 };
 struct ItemList {
     struct Item {struct Data {InventoryEntryData* objDesc=nullptr;unsigned owner=0;} data;GFxValue obj;};
-    std::vector<Item*> items;
+    inline static std::size_t rowVisits=0;
+    struct Rows:std::vector<Item*> {
+        struct Iterator {
+            std::vector<Item*>::iterator value;
+            Item* operator*()const{++rowVisits;return *value;}
+            Iterator& operator++(){++value;return *this;}
+            bool operator!=(const Iterator& other)const{return value!=other.value;}
+        };
+        Iterator begin(){return {std::vector<Item*>::begin()};}
+        Iterator end(){return {std::vector<Item*>::end()};}
+    } items;
 };
 struct InventoryMenu:IMenu {
     inline static constexpr std::string_view MENU_NAME="InventoryMenu";
@@ -519,7 +530,8 @@ int main(){
         if(i==0)extra->worn=true;else if(i==1)extra->leftWorn=true;else extra->uiWorn=true;
         RE::SCRIPT_FUNCTION::equipped.insert(&ring);}
     auto* ui=RE::UI::GetSingleton();
-    const auto capturesBefore=RE::InventoryMenu::created;deposit();assert(RE::InventoryMenu::created==capturesBefore+1);
+    const auto capturesBefore=RE::InventoryMenu::created;RE::ItemList::rowVisits=0;deposit();
+    assert(RE::ItemList::rowVisits==rings.size()*2);assert(RE::InventoryMenu::created==capturesBefore+1);
     for(unsigned i=0;i<rings.size();++i){assert(count(*player,rings[i])==1 && count(armorBank,rings[i])==2);
         assert(player->rows[&rings[i]].extras.front().get()==wornCopies[i] && wornCopies[i]->count==1);}
     assert(DepositLearning::moved==20 && !ui->menu);
@@ -531,6 +543,17 @@ int main(){
     }
     RE::PlayerControls::GetSingleton()->blockPlayerInput=false;
     auto& ring=rings[0];
+    resetTransfer();player->Put(&ring,3);player->Put(&rings[1],7);
+    RE::TESObjectREFR::inventoryCopies=0;
+    assert(InventoryStacks::Count(player,&ring)==3 && RE::TESObjectREFR::inventoryCopies==1);
+    RE::TESObjectREFR::inventoryCopies=0;
+    const auto selectedStacks=InventoryStacks::Read(player,{},&ring);
+    assert(selectedStacks.size()==1 && selectedStacks.front().item==&ring && selectedStacks.front().count==3);
+    assert(RE::TESObjectREFR::inventoryCopies==1);
+    assert(InventoryStacks::Read(player).size()==2);
+    assert(InventoryStacks::Read(player,[](auto*,auto&,auto*){return false;},&ring).empty());
+    player->rows[&ring].total=0;
+    assert(InventoryStacks::Count(player,&ring)==0 && InventoryStacks::Read(player,{},&ring).empty());
     resetTransfer();player->Put(&ring,0,1,nullptr,"enchanted worn");player->Put(&ring,0,3,&foreign,"enchanted spare");
     auto* wornExtra=player->rows[&ring].extras.front().get();wornExtra->uiWorn=true;wornExtra->unique=RE::ExtraUniqueID{player->id,1};
     auto* spareExtra=player->rows[&ring].extras.back().get();spareExtra->unique=RE::ExtraUniqueID{player->id,2};
@@ -612,16 +635,17 @@ int main(){
 
 }
 '''
-with tempfile.TemporaryDirectory() as tmp:
-    source=Path(tmp)/"stolen.cpp";binary=Path(tmp)/"stolen"
-    (Path(tmp)/"common.hpp").write_text("#pragma once\n"+common)
-    source.write_text(program)
-    files=[]
-    for name,text in modules.items():
-        file=Path(tmp)/(name+".cpp");file.write_text(text);files.append(str(file))
-    subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror","-I",str(ROOT),str(source),*files,"-o",str(binary)],check=True)
-    subprocess.run([str(binary)],check=True)
-translations=json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
-assert translations["Stolen.Open"]=="Open"
-assert translations["Stolen.RemoveAllTags"]=="Remove All Stolen Tags"
-print("PASS: UI-managed equipment inspection, exact worn/spare transfers, restored native input masks/contexts, delayed completion, cancellation and borrowed-menu protection; stolen and enchanted archive gathering, returns, clearing, recovery and menus")
+if __name__ == "__main__":
+    with tempfile.TemporaryDirectory() as tmp:
+        source=Path(tmp)/"stolen.cpp";binary=Path(tmp)/"stolen"
+        (Path(tmp)/"common.hpp").write_text("#pragma once\n"+common)
+        source.write_text(program)
+        files=[]
+        for name,text in modules.items():
+            file=Path(tmp)/(name+".cpp");file.write_text(text);files.append(str(file))
+        subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror","-I",str(ROOT),str(source),*files,"-o",str(binary)],check=True)
+        subprocess.run([str(binary)],check=True)
+    translations=json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
+    assert translations["Stolen.Open"]=="Open"
+    assert translations["Stolen.RemoveAllTags"]=="Remove All Stolen Tags"
+    print("PASS: UI-managed equipment inspection, exact worn/spare transfers, restored native input masks/contexts, delayed completion, cancellation and borrowed-menu protection; stolen and enchanted archive gathering, returns, clearing, recovery and menus")

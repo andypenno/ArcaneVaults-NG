@@ -455,10 +455,10 @@ program += source[move_start:source.index("\n    }", move_start) + 6]
 program += r'''
 namespace InventoryStacks {
 struct Stack { RE::TESObjectREFR* source; RE::TESBoundObject* item; RE::ExtraDataList* extra; int count; };
-template<class Select> std::vector<Stack> Read(RE::TESObjectREFR* source,Select select) {
+std::vector<Stack> Read(RE::TESObjectREFR* source,std::function<bool(RE::TESBoundObject*,RE::InventoryEntryData&,RE::ExtraDataList*)> select = {},RE::TESBoundObject* onlyItem = nullptr) {
     std::vector<Stack> result;
     for(const auto& [item,data]:source->GetInventory())
-        if(item && data.second && data.first>0 && select(item,*data.second,static_cast<RE::ExtraDataList*>(nullptr))) result.push_back({source,item,nullptr,data.first});
+        if(item && data.second && data.first>0 && (!onlyItem || onlyItem==item) && (!select || select(item,*data.second,static_cast<RE::ExtraDataList*>(nullptr)))) result.push_back({source,item,nullptr,data.first});
     return result;
 }
 int Count(RE::TESObjectREFR* source,RE::TESBoundObject* item){return source->inventory[item].first;}

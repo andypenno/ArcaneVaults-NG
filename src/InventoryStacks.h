@@ -9,7 +9,7 @@ namespace InventoryStacks {
         int count;
     };
     using Select = std::function<bool(RE::TESBoundObject*, RE::InventoryEntryData&, RE::ExtraDataList*)>;
-    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {});
+    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {}, RE::TESBoundObject* item = nullptr);
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item);
     bool HasItems(RE::TESObjectREFR* source);
     bool Move(const Stack& stack, RE::TESObjectREFR* target);

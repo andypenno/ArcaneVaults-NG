@@ -7,7 +7,7 @@
 namespace PlayerEquipment {
     namespace {
         std::optional<std::unordered_set<RE::ExtraDataList*>> ReadRows(
-            RE::ItemList* list, RE::RefHandle owner, RE::TESBoundObject* item, const std::vector<InventoryStacks::Stack>& stacks) {
+            const std::vector<RE::ItemList::Item*>& rows, RE::RefHandle owner, const std::vector<InventoryStacks::Stack>& stacks) {
             std::unordered_set<RE::ExtraDataList*> seen, protectedStacks;
             std::int64_t represented{}, expected{};
             int bare{};
@@ -15,9 +15,8 @@ namespace PlayerEquipment {
                 expected += stack.count;
                 if (!stack.extra) bare = stack.count;
             }
-            for (auto* row : list->items) {
-                auto* entry = row ? row->data.objDesc : nullptr;
-                if (!entry || entry->object != item) continue;
+            for (auto* row : rows) {
+                auto* entry = row->data.objDesc;
                 if (row->data.owner != owner || entry->countDelta <= 0) return std::nullopt;
                 RE::GFxValue state, equipped;
                 const bool hasState = row->obj.GetMember("equipState", &state);
@@ -73,10 +72,16 @@ namespace PlayerEquipment {
             if (!menu || !player || !menu->uiMovie || !menu->GetRuntimeData().itemList) return {};
             std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> items;
             for (const auto& stack : InventoryStacks::Read(player)) items[stack.item].push_back(stack);
+            std::unordered_map<RE::TESBoundObject*, std::vector<RE::ItemList::Item*>> rowsByItem;
+            for (auto* row : menu->GetRuntimeData().itemList->items)
+                if (row && row->data.objDesc && row->data.objDesc->object)
+                    rowsByItem[row->data.objDesc->object].push_back(row);
             Snapshot result;
             for (const auto& [item, stacks] : items) {
-                const auto rows = ReadRows(menu->GetRuntimeData().itemList, player->GetHandle().native_handle(), item, stacks);
-                if (rows) result.emplace(item, *rows);
+                const auto found = rowsByItem.find(item);
+                if (found == rowsByItem.end()) continue;
+                auto rows = ReadRows(found->second, player->GetHandle().native_handle(), stacks);
+                if (rows) result.emplace(item, std::move(*rows));
             }
             return result;
         }
