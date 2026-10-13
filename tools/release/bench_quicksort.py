@@ -12,7 +12,7 @@ import check_stolen
 
 ROOT = check_stolen.ROOT
 BASELINE = "3e7dd85"
-FILES = ("src/PlayerEquipment.cpp", "src/InventoryStacks.cpp", "src/Stores.cpp", "src/InventoryStacks.h")
+FILES = ("src/PlayerEquipment.cpp", "src/InventoryStacks.cpp", "src/Stores.cpp", "src/InventoryStacks.h", "src/PlayerEquipment.h")
 
 MAIN = r'''
 int main() {
@@ -47,7 +47,7 @@ int main() {
             assert(snapshot.size()==items.size());
             for(auto& item:items) {
                 const auto& row=player->rows.at(&item);
-                assert(snapshot.at(&item).size()==1 && snapshot.at(&item).contains(row.extras.front().get()));
+                assert(snapshot.at(&item).equipped.size()==1 && snapshot.at(&item).equipped.contains(row.extras.front().get()));
                 assert(row.total==(transfer?1:3) && row.extras.front()->metadata=="worn");
                 if(transfer)assert(bank.rows.at(&item).total==2 && bank.rows.at(&item).extras.front()->metadata=="spare");
             }
@@ -64,7 +64,8 @@ def source_program(sources):
     stores = sources[FILES[2]]
     start = stores.index("void Stores::PlayerToStore(")
     method = stores[start:stores.index("\n}\n", start) + 3]
-    return '#include "common.hpp"\n#include <iostream>\n' + inventory + equipment + method + MAIN
+    main_source = MAIN if 'ItemEquipment' in sources[FILES[4]] else MAIN.replace('.equipped', '')
+    return '#include "common.hpp"\n#include <iostream>\n' + inventory + equipment + method + main_source
 
 
 def main():
@@ -93,7 +94,7 @@ def main():
             (variant / "common.hpp").write_text("#pragma once\n" + common)
             (variant / "src/InventoryStacks.h").write_text(sources[FILES[3]])
             for name in ("StolenItems", "EnchantedItems", "PlayerEquipment"):
-                (variant / f"src/{name}.h").write_text((ROOT / f"src/{name}.h").read_text())
+                (variant / f"src/{name}.h").write_text(sources[FILES[4]] if name == "PlayerEquipment" else (ROOT / f"src/{name}.h").read_text())
             cpp = variant / "bench.cpp"
             cpp.write_text(source_program(sources))
             subprocess.run(["g++", "-O2", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(variant), "-I", str(ROOT), str(cpp), "-o", str(variant / "quicksort-bench")], check=True, timeout=60)

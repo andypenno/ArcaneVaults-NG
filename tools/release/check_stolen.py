@@ -131,6 +131,7 @@ struct ScriptEventSourceHolder {
     void AddEventSink(BSTEventSink<TESContainerChangedEvent>* s){sinks.push_back(s);}
     void Send(TESContainerChangedEvent e){for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);}
 };
+inline bool inspectionOpen=false;
 struct TESObjectREFR {
     struct ChangeFlags {static constexpr unsigned kInventory=32;};
     struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false,favorite=false;};
@@ -161,7 +162,7 @@ struct TESObjectREFR {
         auto& row=rows[item];row.total+=plain+count;if(count)row.extras.push_back(std::make_shared<ExtraDataList>(ExtraDataList{count,owner,metadata,{}}));
     }
     void RemoveItem(TESBoundObject* item,int requested,ITEM_REMOVE_REASON,ExtraDataList* extra,TESObjectREFR* target){
-        if(refuse)return;
+        assert(!inspectionOpen);if(refuse)return;
         auto& row=rows[item];int count=std::min({requested,row.total,limit});if(count<=0)return;
         auto& out=target->rows[item];
         if(!extra && !row.extras.empty())extra=row.extras.front().get();
@@ -284,6 +285,7 @@ struct UIMessageQueue {
     std::deque<UI_MESSAGE_TYPE> commands;int shows=0,hides=0;
     inline static bool available=true,refuseHide=false;
     inline static int rejectHides=0;
+    inline static std::function<void()> afterHide;
     bool savedBlocked=false;
     static UIMessageQueue* GetSingleton(){static UIMessageQueue q;return available?&q:nullptr;}
     void AddMessage(std::string_view name,UI_MESSAGE_TYPE type,void*) {
@@ -293,14 +295,15 @@ struct UIMessageQueue {
         while(!commands.empty()){auto type=commands.front();commands.pop_front();
             if(type==UI_MESSAGE_TYPE::kShow){++shows;if(ui->menu || UI::factoryFails)continue;
                 savedInput=input;savedBlocked=PlayerControls::GetSingleton()->blockPlayerInput;
-                ui->menu=new InventoryMenu;input.stored=input.enabled;input.enabled=0;input.contexts.insert(input.contexts.end(),{1,2,3});
+                ui->menu=new InventoryMenu;inspectionOpen=true;input.stored=input.enabled;input.enabled=0;input.contexts.insert(input.contexts.end(),{1,2,3});
                 auto* inventory=static_cast<InventoryMenu*>(ui->menu);
                 InventoryUpdateData data{PlayerCharacter::GetSingleton()->id};
                 UIMessage message{std::string(InventoryMenu::MENU_NAME),UI_MESSAGE_TYPE::kInventoryUpdate,&data};
                 inventory->ProcessMessage(message);
             }else if(type==UI_MESSAGE_TYPE::kHide){++hides;if(rejectHides>0){--rejectHides;continue;}if(refuseHide || !ui->menu)continue;
-                ui->menu->Release();ui->menu=nullptr;input=savedInput;
+                ui->menu->Release();ui->menu=nullptr;inspectionOpen=false;input=savedInput;
                 PlayerControls::GetSingleton()->blockPlayerInput=savedBlocked;
+                if(afterHide)afterHide();
             }
         }
     }
@@ -564,6 +567,29 @@ int main(){
     assert(count(*player,ring)==1 && count(armorBank,ring)==3 && player->rows[&ring].extras.front().get()==wornExtra);
     assert(armorBank.rows[&ring].extras.front()->enchantment->enchantment==&normal && armorBank.rows[&ring].extras.front()->owner==&foreign);
     assert(armorBank.rows[&ring].extras.front()->metadata=="enchanted spare");
+    for(int mutation=0;mutation<4;++mutation) {
+        resetTransfer();player->Put(&ring,2,1,nullptr,"equipped");auto& row=player->rows[&ring];
+        row.extras.front()->uiWorn=true;row.extras.front()->unique=RE::ExtraUniqueID{player->id,1};
+        RE::UIMessageQueue::afterHide=[&]{
+            if(mutation==0)++row.total;
+            else if(mutation==1)++row.extras.front()->unique->uniqueID;
+            else if(mutation==2)row.extras.front()->worn=true;
+            else row.extras.front()=std::make_shared<RE::ExtraDataList>(*row.extras.front());
+        };
+        deposit();assert(count(armorBank,ring)==0 && count(*player,ring)==(mutation==0?4:3));
+        RE::UIMessageQueue::afterHide={};
+    }
+    resetTransfer();std::array<RE::TESBoundObject,200> enchantedGear{};
+    for(unsigned i=0;i<enchantedGear.size();++i){auto& gear=enchantedGear[i];gear.id=0x2000+i;gear.armor=true;
+        player->Put(&gear,0,1,nullptr,"worn");player->rows[&gear].extras.front()->uiWorn=true;
+        player->Put(&gear,0,3,&foreign,"enchanted");player->rows[&gear].extras.back()->enchantment=RE::ExtraEnchantment{&normal};
+        player->Put(&gear,0,2,nullptr,"another variant");
+    }
+    player->limit=1;deposit();
+    for(auto& gear:enchantedGear){assert(count(*player,gear)==1 && count(armorBank,gear)==5);
+        assert(player->rows[&gear].extras.front()->metadata=="worn");
+        assert(std::ranges::any_of(armorBank.rows[&gear].extras,[&](auto& x){return x->enchantment && x->enchantment->enchantment==&normal && x->owner==&foreign;}));
+    }
     resetTransfer();player->Put(&ring,70000,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
     RE::SCRIPT_FUNCTION::equipped.insert(&ring);deposit();assert(count(*player,ring)==1 && count(armorBank,ring)==70000);
     resetTransfer();player->Put(&ring,5,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;

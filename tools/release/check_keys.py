@@ -212,7 +212,11 @@ struct TESObjectREFR {
     } changes{this};
     Changes* GetInventoryChanges() { return &changes; }
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
-    auto GetInventory() const { return inventory; }
+    auto GetInventory(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }) const {
+        auto result = inventory;
+        std::erase_if(result, [&](const auto& row) { return !filter(*row.first); });
+        return result;
+    }
     auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }) const {
         std::map<TESBoundObject*, int> counts;
         for (auto& [item, data] : inventory) if (filter(*item)) counts[item] = data.first;
@@ -475,7 +479,8 @@ bool Move(const Stack& stack,RE::TESObjectREFR* target) {
 }
 
 namespace PlayerEquipment {
-using Snapshot=std::unordered_map<RE::TESBoundObject*,std::unordered_set<RE::ExtraDataList*>>;
+struct ItemEquipment { std::unordered_set<RE::ExtraDataList*> equipped; };
+using Snapshot=std::unordered_map<RE::TESBoundObject*,ItemEquipment>;
 const Snapshot* Current(){return nullptr;}
 }
 

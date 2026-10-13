@@ -202,8 +202,13 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto* currentAmmo = player->GetCurrentAmmo();
-    const auto inventory = player->GetInventory();
-    for (const auto& [item, data] : inventory) {
+    const auto inventory = player->GetInventoryCounts();
+    for (const auto& [item, total] : inventory) {
+        if (!item || total <= 0) continue;
+        const auto fresh = player->GetInventory([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+        const auto found = fresh.find(item);
+        if (found == fresh.end()) continue;
+        const auto& data = found->second;
         if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
@@ -217,7 +222,9 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         double equipped{};
         const bool formEquipped = isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0;
         const auto read = [player, item] {
-            return InventoryStacks::Read(player, {}, item);
+            return InventoryStacks::Read(player, [](auto*, auto& entry, auto*) {
+                return !entry.IsQuestObject() && !entry.IsFavorited();
+            }, item);
         };
         auto stacks = read();
         if (stacks.empty()) continue;
@@ -226,7 +233,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         const auto* equipment = PlayerEquipment::Current();
         if (equipment) {
             const auto rows = equipment->find(item);
-            if (rows != equipment->end()) protectedStacks = rows->second;
+            if (rows != equipment->end()) protectedStacks = rows->second.equipped;
             else if (item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>()) continue;
             if ((formEquipped || data.second->IsWorn()) && protectedStacks.empty()) continue;
         } else if (formEquipped || data.second->IsWorn()) continue;
@@ -239,7 +246,8 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         while (count > 0) {
             stacks = read();
             if (stacks.empty()) break;
-            const auto next = std::ranges::find_if(stacks, [&](const auto& stack) { return !protectedStacks.contains(stack.extra); });
+            const auto next = std::ranges::find_if(stacks, [&](const InventoryStacks::Stack& stack) { return !protectedStacks.contains(stack.extra) &&
+                (!stack.extra || (!stack.extra->HasType<RE::ExtraWorn>() && !stack.extra->HasType<RE::ExtraWornLeft>())); });
             if (next == stacks.end()) break;
             auto stack = *next;
             stack.count = (std::min)(stack.count, count);

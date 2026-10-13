@@ -5,7 +5,18 @@
 #include <unordered_set>
 
 namespace PlayerEquipment {
-    using Snapshot = std::unordered_map<RE::TESBoundObject*, std::unordered_set<RE::ExtraDataList*>>;
+    struct StackIdentity {
+        RE::ExtraDataList* extra{};
+        int count{};
+        std::optional<std::pair<std::uint32_t, std::uint16_t>> unique;
+        bool worn{};
+        bool operator==(const StackIdentity&) const = default;
+    };
+    struct ItemEquipment {
+        std::unordered_set<RE::ExtraDataList*> equipped;
+        std::vector<StackIdentity> stacks;
+    };
+    using Snapshot = std::unordered_map<RE::TESBoundObject*, ItemEquipment>;
     const Snapshot* Current();
     void Run(std::function<void()> work, std::function<void()> complete = {});
     void Reset();

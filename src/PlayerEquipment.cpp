@@ -70,6 +70,19 @@ namespace PlayerEquipment {
         std::shared_ptr<Request> pending;
         thread_local const Snapshot* current{};
 
+        std::vector<StackIdentity> Identities(const std::vector<InventoryStacks::Stack>& stacks) {
+            std::vector<StackIdentity> result;
+            for (const auto& stack : stacks) {
+                StackIdentity identity{stack.extra, stack.count, {}, false};
+                if (stack.extra) {
+                    if (auto* id = stack.extra->GetByType<RE::ExtraUniqueID>()) identity.unique = {id->baseID, id->uniqueID};
+                    identity.worn = stack.extra->HasType<RE::ExtraWorn>() || stack.extra->HasType<RE::ExtraWornLeft>();
+                }
+                result.push_back(identity);
+            }
+            return result;
+        }
+
         Snapshot Read(RE::InventoryMenu* menu, RE::PlayerCharacter* player) {
             if (!menu || !player || !menu->uiMovie || !menu->GetRuntimeData().itemList) return {};
             std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> items;
@@ -83,7 +96,7 @@ namespace PlayerEquipment {
                 const auto found = rowsByItem.find(item);
                 if (found == rowsByItem.end()) continue;
                 auto rows = ReadRows(found->second, player->GetHandle().native_handle(), stacks);
-                if (rows) result.emplace(item, std::move(*rows));
+                if (rows) result.emplace(item, ItemEquipment{std::move(*rows), Identities(stacks)});
             }
             return result;
         }
@@ -103,7 +116,16 @@ namespace PlayerEquipment {
             if (request->worked) return;
             request->worked = true;
             struct ClearSnapshot { ~ClearSnapshot() { current = nullptr; } } clear;
-            current = &snapshot;
+            Snapshot validated;
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> fresh;
+            for (const auto& stack : InventoryStacks::Read(player)) fresh[stack.item].push_back(stack);
+            for (const auto& [item, equipment] : snapshot) {
+                const auto found = fresh.find(item);
+                if (found != fresh.end() && equipment.stacks == Identities(found->second))
+                    validated.emplace(item, equipment);
+            }
+            current = &validated;
             try { request->work(); }
             catch (const std::exception&) { logger::error("Quick Transfer failed during equipment inspection"); }
         }
