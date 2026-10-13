@@ -283,6 +283,7 @@ inline InputState input,savedInput;
 struct UIMessageQueue {
     std::deque<UI_MESSAGE_TYPE> commands;int shows=0,hides=0;
     inline static bool available=true,refuseHide=false;
+    inline static int rejectHides=0;
     bool savedBlocked=false;
     static UIMessageQueue* GetSingleton(){static UIMessageQueue q;return available?&q:nullptr;}
     void AddMessage(std::string_view name,UI_MESSAGE_TYPE type,void*) {
@@ -297,7 +298,7 @@ struct UIMessageQueue {
                 InventoryUpdateData data{PlayerCharacter::GetSingleton()->id};
                 UIMessage message{std::string(InventoryMenu::MENU_NAME),UI_MESSAGE_TYPE::kInventoryUpdate,&data};
                 inventory->ProcessMessage(message);
-            }else if(type==UI_MESSAGE_TYPE::kHide){++hides;if(refuseHide || !ui->menu)continue;
+            }else if(type==UI_MESSAGE_TYPE::kHide){++hides;if(rejectHides>0){--rejectHides;continue;}if(refuseHide || !ui->menu)continue;
                 ui->menu->Release();ui->menu=nullptr;input=savedInput;
                 PlayerControls::GetSingleton()->blockPlayerInput=savedBlocked;
             }
@@ -383,6 +384,7 @@ for name in ("InventoryStacks", "StolenItems", "EnchantedItems", "PlayerEquipmen
         assert all(token not in text for token in ("menuMap", "factory", "ProcessMessage", "blockPlayerInput", "SetControlsState", "ToggleControls"))
         text=text.replace("std::chrono::seconds(5)","std::chrono::milliseconds(60)")
         text=text.replace("std::chrono::milliseconds(16)","std::chrono::milliseconds(1)")
+        text=text.replace("std::chrono::milliseconds(100)","std::chrono::milliseconds(5)")
     modules[name] = '#include "common.hpp"\n' + "\n".join(line for line in text.splitlines() if not line.startswith("#include"))
 source=(ROOT / "src/Stores.cpp").read_text()
 for name in ["StolenItemsMenu","OpenStolenItems","ShowStolenItemsMenu","EnchantedItemsMenu"]:
@@ -517,7 +519,7 @@ int main(){
     auto deposit=[&](int request=0,int reserve=0,bool ignores=false){
         const auto input=RE::input;const bool blocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
         bool done=false;
-        PlayerEquipment::Run([&]{menu->PlayerToStore(ItemCategory::Jewelry,Container::Armor,request,reserve,ignores);},[&]{
+        PlayerEquipment::Run([&]{assert(!RE::UI::GetSingleton()->menu);menu->PlayerToStore(ItemCategory::Jewelry,Container::Armor,request,reserve,ignores);},[&]{
             assert(!RE::UI::GetSingleton()->IsMenuOpen(RE::InventoryMenu::MENU_NAME));
             assert(RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);done=true;
         });
@@ -618,6 +620,18 @@ int main(){
     assert(ui->menu && RE::input!=baseline);PlayerEquipment::Reset();
     RE::UIMessageQueue::GetSingleton()->ProcessCommands();tasks->RunUI();tasks->Run();
     assert(!afterOpenComplete && !ui->menu && RE::input==baseline && count(*player,ring)==3);
+    resetTransfer();player->Put(&ring,2,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
+    RE::UIMessageQueue::rejectHides=1;const auto retries=RE::UIMessageQueue::GetSingleton()->hides;deposit();
+    assert(RE::UIMessageQueue::GetSingleton()->hides>=retries+2 && count(*player,ring)==1);
+    resetTransfer();player->Put(&ring,2,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
+    RE::InventoryMenu::empty=true;bool initializedDone=false;
+    menu->OffloadItems([&]{initializedDone=true;});RE::UIMessageQueue::GetSingleton()->ProcessCommands();
+    for(int i=0;i<3;++i){tasks->RunUI();tasks->Run();std::this_thread::sleep_for(std::chrono::milliseconds(2));}
+    assert(!initializedDone && count(*player,ring)==3);
+    RE::InventoryMenu::empty=false;RE::InventoryUpdateData initializedData{player->id};
+    RE::UIMessage initializedMessage{std::string(RE::InventoryMenu::MENU_NAME),RE::UI_MESSAGE_TYPE::kInventoryUpdate,&initializedData};
+    static_cast<RE::InventoryMenu*>(ui->menu)->ProcessMessage(initializedMessage);
+    pump([&]{return initializedDone;});assert(count(*player,ring)==1 && count(armorBank,ring)==2);
     resetTransfer();player->Put(&ring,3);bool refusedDone=false;
     RE::UIMessageQueue::refuseHide=true;
     menu->OffloadItems([&]{refusedDone=true;});
@@ -629,7 +643,7 @@ int main(){
         if(ui->menu && !ui->menu->uiMovie->visible)hidden=true;
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
-    assert(!refusedDone);RE::UIMessageQueue::refuseHide=false;
+    assert(!refusedDone && count(*player,ring)==3 && count(armorBank,ring)==0);RE::UIMessageQueue::refuseHide=false;
     RE::UIMessageQueue::GetSingleton()->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);
     pump([&]{return refusedDone;});assert(!ui->menu && RE::input==baseline);
 

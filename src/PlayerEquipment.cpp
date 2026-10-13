@@ -63,6 +63,8 @@ namespace PlayerEquipment {
             Phase phase{Phase::Waiting};
             Clock::time_point deadline{Clock::now() + std::chrono::seconds(5)};
             RE::IMenu* owned{};
+            Snapshot snapshot;
+            Clock::time_point retry{};
             bool worked{};
         };
         std::shared_ptr<Request> pending;
@@ -118,6 +120,7 @@ namespace PlayerEquipment {
         void Close(const std::shared_ptr<Request>& request) {
             if (!Active(request)) return;
             request->phase = Phase::Closing;
+            request->retry = Clock::now() + std::chrono::milliseconds(100);
             request->deadline = Clock::now() + std::chrono::seconds(5);
             if (auto* queue = RE::UIMessageQueue::GetSingleton())
                 queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
@@ -128,7 +131,7 @@ namespace PlayerEquipment {
             if (!Active(request)) return;
             auto* ui = RE::UI::GetSingleton();
             auto* queue = RE::UIMessageQueue::GetSingleton();
-            if (!ui || !queue) { Work(request, {}); Finish(request); return; }
+            if (!ui || !queue) { if (!request->owned) Work(request, {}); Finish(request); return; }
             const auto expired = Clock::now() >= request->deadline;
             if (request->phase == Phase::Waiting) {
                 if (ui->IsMenuOpen(RE::MessageBoxMenu::MENU_NAME) && !expired) { Later(request); return; }
@@ -144,6 +147,7 @@ namespace PlayerEquipment {
             auto menu = ui->GetMenu(RE::InventoryMenu::MENU_NAME);
             const bool open = menu && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME);
             if (request->phase == Phase::Opening && open) {
+                if (request->owned && menu.get() != request->owned) { Finish(request); return; }
                 request->owned = menu.get();
                 request->phase = Phase::Reading;
                 SKSE::GetTaskInterface()->AddUITask([request] {
@@ -153,6 +157,17 @@ namespace PlayerEquipment {
                     Snapshot snapshot;
                     if (menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
                         if (menu->uiMovie) menu->uiMovie->SetVisible(false);
+                        auto* inventory = skyrim_cast<RE::InventoryMenu*>(menu.get());
+                        if ((!inventory->GetRuntimeData().itemList || inventory->GetRuntimeData().itemList->items.empty()) &&
+                            Clock::now() < request->deadline) {
+                            SKSE::GetTaskInterface()->AddTask([request] {
+                                if (Active(request) && request->phase == Phase::Reading) {
+                                    request->phase = Phase::Opening;
+                                    Later(request);
+                                }
+                            });
+                            return;
+                        }
                         try { snapshot = Read(skyrim_cast<RE::InventoryMenu*>(menu.get()), RE::PlayerCharacter::GetSingleton()); }
                         catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
                     }
@@ -161,14 +176,20 @@ namespace PlayerEquipment {
                         auto* ui = RE::UI::GetSingleton();
                         auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
                         const bool owned = menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME);
-                        Work(request, owned ? snapshot : Snapshot{});
-                        if (!Active(request)) return;
-                        if (owned) Close(request); else Finish(request);
+                        if (owned) { request->snapshot = std::move(snapshot); Close(request); }
+                        else Finish(request);
                     });
                 });
             } else if (request->phase == Phase::Closing) {
-                if (!open || (request->owned && menu.get() != request->owned)) { menu = nullptr; Finish(request); return; }
+                if (!open) {
+                    menu = nullptr;
+                    if (!ui->IsItemMenuOpen()) Work(request, request->snapshot);
+                    Finish(request); return;
+                }
+                if (request->owned && menu.get() != request->owned) { Finish(request); return; }
                 if (expired) {
+                    request->worked = true;
+                    request->snapshot.clear();
                     SKSE::GetTaskInterface()->AddUITask([request] {
                         auto* ui = RE::UI::GetSingleton();
                         auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
@@ -176,9 +197,12 @@ namespace PlayerEquipment {
                             menu->uiMovie->SetVisible(true);
                     });
                     request->deadline = Clock::now() + std::chrono::seconds(5);
+                } else if (!request->worked && Clock::now() >= request->retry) {
+                    queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+                    request->retry = Clock::now() + std::chrono::milliseconds(100);
                 }
             } else if (expired) {
-                Work(request, {});
+                request->snapshot.clear();
                 if (!request->owned || (open && menu.get() == request->owned)) Close(request);
                 else { menu = nullptr; Finish(request); }
                 return;
