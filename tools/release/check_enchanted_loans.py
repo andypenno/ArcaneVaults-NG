@@ -37,7 +37,14 @@ for name, counter in (("BeginJunkLoan", "junkLoans"), ("EndJunkLoan", "junkRetur
     body = stores_source[start:stores_source.index("\n}\n", start) + 3]
     junk += body.replace(f"void Stores::{name}() {{", f"void Stores::{name}() {{++{counter};")
 program = '#include "common.hpp"\n' + junk + loan + r'''
-namespace RE { struct TESFurniture {bool activation=true;}; }
+namespace RE {
+struct TESFurniture {
+    struct WorkBenchData {enum class BenchType {kNone,kEnchanting};};
+    struct Field {WorkBenchData::BenchType value=WorkBenchData::BenchType::kEnchanting;auto get()const{return value;}};
+    struct {Field benchType;} workBenchData;
+    bool activation=true;
+};
+}
 bool NativeActivate(RE::TESFurniture* base,RE::TESObjectREFR*,RE::TESObjectREFR*,std::uint8_t,RE::TESBoundObject*,std::int32_t){return base->activation;}
 auto activate_=NativeActivate;
 ''' + hook + r'''
@@ -140,6 +147,10 @@ int main() {
     reset();seed();settings->GSC_EnchantedItemsLoan=true;furniture.activation=true;
     assert(ActivateCraftLoan(&furniture,&bench,&consumed,0,nullptr,1));
     assert(count(*player,sword)==0 && count(weapons,sword)==3);
+    reset();seed();settings->GSC_CraftingLoan=settings->GSC_EnchantedItemsLoan=true;
+    furniture.workBenchData.benchType.value=RE::TESFurniture::WorkBenchData::BenchType::kNone;
+    assert(ActivateCraftLoan(&furniture,&bench,player,0,nullptr,1));
+    assert(count(*player,sword)==0 && count(weapons,sword)==3 && Soulgems::loans==0);
 
 }
 '''

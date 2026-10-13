@@ -388,9 +388,11 @@ public:
 
 private:
     static bool ActivateCraftLoan(RE::TESFurniture* a_baseObject, RE::TESObjectREFR* a_target, RE::TESObjectREFR* a_activator, std::uint8_t a_arg3, RE::TESBoundObject* a_object, std::int32_t a_targetCount) {
+        const auto nativeBench = a_baseObject->workBenchData.benchType.get();
         const auto benchType = a_target ? Utility::GetSingleton()->GetBenchType(a_target) : BenchType::None;
         const auto* settings = Settings::GetSingleton();
-        const bool craftingActivation = a_target && a_activator == RE::PlayerCharacter::GetSingleton() && benchType != BenchType::None &&
+        const bool craftingActivation = a_target && a_activator == RE::PlayerCharacter::GetSingleton() &&
+            nativeBench != RE::TESFurniture::WorkBenchData::BenchType::kNone && benchType != BenchType::None &&
             (settings->GSC_CraftingLoan || (benchType == BenchType::Enchanting && settings->GSC_EnchantedItemsLoan));
 
         // Send crafting materials to player
