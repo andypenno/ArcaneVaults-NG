@@ -192,6 +192,10 @@ struct GFxValue {
     bool IsNumber()const{return kind==Number;}bool IsBool()const{return kind==Bool;}
     double GetNumber()const{return number;}bool GetBool()const{return boolean;}
 };
+struct PlayerControls {
+    bool blockPlayerInput=false;inline static bool available=true;
+    static PlayerControls* GetSingleton(){static PlayerControls p;return available?&p:nullptr;}
+};
 struct Movie {bool visible=true;void SetVisible(bool value){visible=value;}};
 enum class UI_MESSAGE_TYPE {kInventoryUpdate};
 struct InventoryUpdateData {unsigned inventoryRef=0;};
@@ -211,12 +215,15 @@ struct ItemList {
 struct InventoryMenu:IMenu {
     inline static constexpr std::string_view MENU_NAME="InventoryMenu";
     inline static bool empty=false,grouped=false,missingFields=false,wrongOwner=false,wrongCount=false,cloneIDs=false,nan=false;
-    inline static bool wrongStateType=false,wrongEquippedType=false;
+    inline static bool wrongStateType=false,wrongEquippedType=false,missingMovie=false,missingList=false;
     inline static unsigned created=0,destroyed=0,updates=0;
     ItemList list;struct Data {ItemList* itemList;} runtime{&list};
     std::vector<std::unique_ptr<ItemList::Item>> items;std::vector<std::shared_ptr<InventoryEntryData>> entries;
     std::vector<std::shared_ptr<ExtraDataList>> clones;
-    InventoryMenu(){++created;}~InventoryMenu()override{++destroyed;}
+    InventoryMenu(){++created;PlayerControls::GetSingleton()->blockPlayerInput=true;
+        if(missingMovie)uiMovie.reset();
+        if(missingList)runtime.itemList=nullptr;}
+    ~InventoryMenu()override{++destroyed;PlayerControls::GetSingleton()->blockPlayerInput=true;}
     auto& GetRuntimeData(){return runtime;}
     void ProcessMessage(UIMessage& message) {
         assert(!uiMovie->visible && message.menu==MENU_NAME && message.type==UI_MESSAGE_TYPE::kInventoryUpdate);
@@ -434,7 +441,11 @@ int main(){
         RE::InventoryMenu::wrongStateType=RE::InventoryMenu::wrongEquippedType=false;
         RE::UI::available=true;RE::UI::factoryFails=false;RE::allocationFails=false;s->ignored.clear();DepositLearning::moved=0;
     };
-    auto deposit=[&](int request=0,int reserve=0,bool ignores=false){menu->PlayerToStore(ItemCategory::Jewelry,Container::Armor,request,reserve,ignores);};
+    auto deposit=[&](int request=0,int reserve=0,bool ignores=false){
+        const bool blocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
+        menu->PlayerToStore(ItemCategory::Jewelry,Container::Armor,request,reserve,ignores);
+        assert(RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);
+    };
     resetTransfer();std::array<RE::TESBoundObject,10> rings{};
     std::array<RE::ExtraDataList*,10> wornCopies{};
     for(unsigned i=0;i<rings.size();++i){auto& ring=rings[i];ring.id=0x100+i;ring.armor=true;
@@ -447,6 +458,21 @@ int main(){
         assert(player->rows[&rings[i]].extras.front().get()==wornCopies[i] && wornCopies[i]->count==1);}
     assert(DepositLearning::moved==20 && ui->open && ui->paused && ui->cursor);
     assert(RE::InventoryMenu::created==RE::InventoryMenu::destroyed && RE::InventoryMenu::updates>0);
+    for(bool blocked : {false,true}) for(int failure=0;failure<4;++failure) {
+        RE::PlayerControls::GetSingleton()->blockPlayerInput=blocked;
+        RE::UI::factoryFails=failure==1;RE::InventoryMenu::missingMovie=failure==2;
+        RE::InventoryMenu::missingList=failure==3;
+        const auto snapshot=PlayerEquipment::Read(player);
+        assert(RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);
+        if(failure)assert(snapshot.empty());
+        assert(RE::InventoryMenu::created==RE::InventoryMenu::destroyed);
+    }
+    RE::UI::factoryFails=RE::InventoryMenu::missingMovie=RE::InventoryMenu::missingList=false;
+    RE::PlayerControls::GetSingleton()->blockPlayerInput=false;
+    RE::PlayerControls::available=false;
+    const auto beforeUnavailable=RE::InventoryMenu::created;
+    assert(PlayerEquipment::Read(player).empty() && RE::InventoryMenu::created==beforeUnavailable);
+    RE::PlayerControls::available=true;
     auto& ring=rings[0];
     resetTransfer();player->Put(&ring,0,1,nullptr,"enchanted worn");player->Put(&ring,0,3,&foreign,"enchanted spare");
     auto* wornExtra=player->rows[&ring].extras.front().get();wornExtra->uiWorn=true;wornExtra->unique=RE::ExtraUniqueID{player->id,1};
@@ -502,4 +528,4 @@ with tempfile.TemporaryDirectory() as tmp:
 translations=json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
 assert translations["Stolen.Open"]=="Open"
 assert translations["Stolen.RemoveAllTags"]=="Remove All Stolen Tags"
-print("PASS: same-base worn/spare ring transfers, native/standard UI equipment, conservative fallbacks, metadata, partial/large moves and menu lifetime; stolen and enchanted archive gathering, returns, clearing, recovery and menus")
+print("PASS: same-base worn/spare ring transfers, native/standard UI equipment, conservative fallbacks, metadata, partial/large moves, menu lifetime and preserved input restrictions; stolen and enchanted archive gathering, returns, clearing, recovery and menus")

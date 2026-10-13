@@ -57,6 +57,14 @@ namespace PlayerEquipment {
         if (!ui || !player) return {};
         const auto factory = ui->menuMap.find(RE::BSFixedString(RE::InventoryMenu::MENU_NAME));
         if (factory == ui->menuMap.end() || !factory->second.create) return {};
+        auto* controls = RE::PlayerControls::GetSingleton();
+        if (!controls) return {};
+        // Offscreen inspection must preserve input restrictions without a normal menu lifecycle.
+        struct RestoreInput {
+            RE::PlayerControls* controls;
+            bool blocked;
+            ~RestoreInput() { controls->blockPlayerInput = blocked; }
+        } restoreInput{controls, controls->blockPlayerInput};
         RE::GPtr<RE::IMenu> instance{factory->second.create()};
         if (!instance) return {};
         // The GPtr retains its own reference in addition to the factory's initial reference.
