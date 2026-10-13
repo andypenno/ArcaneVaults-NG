@@ -25,7 +25,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
@@ -361,6 +361,9 @@ void OffloadItems(){OffloadItemsNow();}
     void AllToPlayer(Container);
     void ShowArmorJewelryMenu(RE::TESObjectREFR*);
     void EmptySoulgemsMenu(RE::TESObjectREFR*);
+    void SoulgemMenu(RE::TESObjectREFR*);
+    void ShowSoulgemMenu(RE::TESObjectREFR*);
+    void FilledSoulgemsMenu(RE::TESObjectREFR*);
     void KeysMenu(RE::TESObjectREFR*);
     void ShowKeysMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);
@@ -395,7 +398,7 @@ void OffloadItems(){OffloadItemsNow();}
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
+        assert(container == Container::Soulgem || container == Container::FilledSoulgems || container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -936,18 +939,17 @@ int main() {
     RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
     stores.PlayerToStore(ItemCategory::Book,Container::Book);
     assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
-    settings->GSC_SoulgemKeepAmount=25;stores.EmptySoulgemsMenu(&source);
-    assert(stores.options.size()==4 && stores.options[0].text=="Take Up To 25");
+    settings->GSC_SoulgemKeepAmount=25;stores.SoulgemMenu(&source);
+    assert(stores.options.size()==7 && stores.options[0].text=="Take Up To 25");
     const int beforeWithdrawals=Soulgems::withdrawals;
     settings->GSC_SoulgemKeepAmount=10;click(0);
     assert(Soulgems::withdrawals==beforeWithdrawals+1 && Soulgems::lastTarget==25);
     assert(stores.options[0].text=="Take Up To 10");
-    click(1);assert(!Soulgems::lastTarget);
-    settings->GSC_SoulgemKeepAmount=0;stores.EmptySoulgemsMenu(&source);click(0);
+    settings->GSC_SoulgemKeepAmount=0;stores.SoulgemMenu(&source);click(0);
     assert(Soulgems::lastTarget==0 && stores.options[0].text=="Take Up To 0");
-    click(2);assert(stores.opened==Container::EmptySoulgems);stores.onClose();
-    assert(stores.options.size()==4);stores.closed=false;click(3);
-    assert(stores.closed);
+    stores.options.clear();stores.closed=false;stores.EmptySoulgemsMenu(&source);
+    assert(stores.opened==Container::EmptySoulgems && stores.options.empty());
+    stores.onClose();assert(stores.closed && stores.options.empty());
     player->inventory.clear();chest.inventory.clear();
     put(&a,0);put(&b,3);chest.inventory[&a]=entry(4);chest.inventory[&b]=entry(6);
     stores.KeysMenu(&source);assert(stores.options.size()==6 && stores.options[2].text=="Take Up To 1");

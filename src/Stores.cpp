@@ -820,6 +820,11 @@ void Stores::ShowSoulgemMenu(RE::TESObjectREFR* a_source) {
     Soulgems::Recover();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
+    const int takeAmount = Settings::GetSingleton()->GSC_SoulgemKeepAmount;
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), takeAmount), [this, sourceHandle, takeAmount] {
+        Soulgems::TakeEmpty(takeAmount);
+        if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
+    }});
     options.push_back({std::format("{} {} {}", Translate("Vault.KeepAmount"), Settings::GetSingleton()->GSC_SoulgemKeepAmount, Translate("Vault.Empty")), [this, sourceHandle] {
         Soulgems::Deposit(Settings::GetSingleton()->GSC_SoulgemKeepAmount);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
@@ -859,32 +864,11 @@ void Stores::FilledSoulgemsMenu(RE::TESObjectREFR* a_source) {
 void Stores::EmptySoulgemsMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     Soulgems::Recover();
-    const auto sourceHandle = a_source->GetHandle();
-    std::vector<MenuOption> options;
-    const int takeAmount = Settings::GetSingleton()->GSC_SoulgemKeepAmount;
-    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), takeAmount), [this, sourceHandle, takeAmount] {
-        Soulgems::TakeEmpty(takeAmount);
-        if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.TakeAllEmptySoulgems"), [this, sourceHandle] {
-        Soulgems::TakeEmpty();
-        if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());
-    }});
-    options.push_back({Translate("Vault.SoulgemsOpen"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) {
-            Soulgems::Split();
-            OpenStorageMenu(Container::EmptySoulgems, source.get(), [this](RE::TESObjectREFR* source) {
-                Soulgems::Consolidate();
-                EmptySoulgemsMenu(source);
-            });
-        }
-    }});
-    options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
-    }});
-    const auto title = std::format("{} {}", Translate("Vault.EmptySoulgems"), Translate("Vault.Archive"));
-    const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
-    ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+    Soulgems::Split();
+    OpenStorageMenu(Container::EmptySoulgems, a_source, [this](RE::TESObjectREFR* source) {
+        Soulgems::Consolidate();
+        CloseStoreObject(source);
+    });
 }
 
 //===================================================
