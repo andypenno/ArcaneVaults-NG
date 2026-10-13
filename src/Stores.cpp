@@ -202,7 +202,6 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto* currentAmmo = player->GetCurrentAmmo();
-    std::optional<PlayerEquipment::Snapshot> equipment;
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
         if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
@@ -222,14 +221,15 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         };
         auto stacks = read();
         if (stacks.empty()) continue;
+
         std::unordered_set<RE::ExtraDataList*> protectedStacks;
-        if (formEquipped || data.second->IsWorn() || item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>()) {
-            if (!equipment) equipment = PlayerEquipment::Read(player);
+        const auto* equipment = PlayerEquipment::Current();
+        if (equipment) {
             const auto rows = equipment->find(item);
             if (rows != equipment->end()) protectedStacks = rows->second;
-            if ((formEquipped || data.second->IsWorn()) && (rows == equipment->end() || protectedStacks.empty())) continue;
-            stacks = read();
-        }
+            else if (item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>()) continue;
+            if ((formEquipped || data.second->IsWorn()) && protectedStacks.empty()) continue;
+        } else if (formEquipped || data.second->IsWorn()) continue;
         for (const auto& stack : stacks)
             if (stack.extra && (stack.extra->HasType<RE::ExtraWorn>() || stack.extra->HasType<RE::ExtraWornLeft>()))
                 protectedStacks.insert(stack.extra);
@@ -238,11 +238,11 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         if (i_count > 0) count = std::min(count, i_count);
         while (count > 0) {
             stacks = read();
+            if (stacks.empty()) break;
             const auto next = std::ranges::find_if(stacks, [&](const auto& stack) { return !protectedStacks.contains(stack.extra); });
             if (next == stacks.end()) break;
             auto stack = *next;
             stack.count = (std::min)(stack.count, count);
-            // A null-list removal may choose an equipped explicit copy before the bare remainder.
             if (!stack.extra && !protectedStacks.empty()) {
                 const auto physical = InventoryStacks::Materialize(stack);
                 if (!physical) break;
@@ -423,7 +423,11 @@ void Stores::SortItems() {
     RE::SendHUDMessage::ShowHUDMessage(Translate(returnedFavorites ? "Vault.FavoritesReturned" : "Vault.StoreAllMessage"));
 }
 
-void Stores::OffloadItems() {
+void Stores::OffloadItems(std::function<void()> complete) {
+    PlayerEquipment::Run([this] { OffloadItemsNow(); }, std::move(complete));
+}
+
+void Stores::OffloadItemsNow() {
     ConsolidateBooks();
     ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
@@ -523,8 +527,9 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
     std::vector<MenuOption> options;
 
     options.push_back({Translate("Vault.ArcaneOffload"), [this, sourceHandle] {
-        OffloadItems();
-        if (auto source = sourceHandle.get()) VaultMenu(source.get());
+        OffloadItems([this, sourceHandle] {
+            if (auto source = sourceHandle.get()) VaultMenu(source.get());
+        });
     }});
 
     options.push_back({Translate("Vault.ArcaneSort"), [this, sourceHandle] {

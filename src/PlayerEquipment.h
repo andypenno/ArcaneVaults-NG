@@ -1,9 +1,12 @@
 #pragma once
 #include "InventoryStacks.h"
-#include <unordered_set>
+#include <functional>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace PlayerEquipment {
     using Snapshot = std::unordered_map<RE::TESBoundObject*, std::unordered_set<RE::ExtraDataList*>>;
-    Snapshot Read(RE::PlayerCharacter* player);
+    const Snapshot* Current();
+    void Run(std::function<void()> work, std::function<void()> complete = {});
+    void Reset();
 }

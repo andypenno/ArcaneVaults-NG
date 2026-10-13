@@ -1,5 +1,8 @@
 #include "PlayerEquipment.h"
 #include <cmath>
+#include <atomic>
+#include <chrono>
+#include <thread>
 
 namespace PlayerEquipment {
     namespace {
@@ -52,43 +55,157 @@ namespace PlayerEquipment {
         }
     }
 
-    Snapshot Read(RE::PlayerCharacter* player) {
-        auto* ui = RE::UI::GetSingleton();
-        if (!ui || !player) return {};
-        const auto factory = ui->menuMap.find(RE::BSFixedString(RE::InventoryMenu::MENU_NAME));
-        if (factory == ui->menuMap.end() || !factory->second.create) return {};
-        auto* controls = RE::PlayerControls::GetSingleton();
-        if (!controls) return {};
-        // Offscreen inspection must preserve input restrictions without a normal menu lifecycle.
-        struct RestoreInput {
-            RE::PlayerControls* controls;
-            bool blocked;
-            ~RestoreInput() { controls->blockPlayerInput = blocked; }
-        } restoreInput{controls, controls->blockPlayerInput};
-        RE::GPtr<RE::IMenu> instance{factory->second.create()};
-        if (!instance) return {};
-        // The GPtr retains its own reference in addition to the factory's initial reference.
-        instance->Release();
-        auto* menu = static_cast<RE::InventoryMenu*>(instance.get());
-        if (!menu->uiMovie || !menu->GetRuntimeData().itemList) return {};
-        menu->uiMovie->SetVisible(false);
+    namespace {
+        using Clock = std::chrono::steady_clock;
+        enum class Phase { Waiting, Opening, Reading, Closing };
+        struct Request {
+            std::function<void()> work, complete;
+            std::atomic<bool> cancelled{};
+            Phase phase{Phase::Waiting};
+            Clock::time_point deadline{Clock::now() + std::chrono::seconds(5)};
+            RE::IMenu* owned{};
+            bool worked{};
+        };
+        std::shared_ptr<Request> pending;
+        thread_local const Snapshot* current{};
 
-        // Dispatch directly; ItemList::Update queues work against the visible menu instead.
-        RE::InventoryUpdateData data{};
-        data.inventoryRef = player->GetHandle().native_handle();
-        RE::UIMessage message{};
-        message.menu = RE::InventoryMenu::MENU_NAME;
-        message.type = RE::UI_MESSAGE_TYPE::kInventoryUpdate;
-        message.data = &data;
-        menu->ProcessMessage(message);
-
-        std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> items;
-        for (const auto& stack : InventoryStacks::Read(player)) items[stack.item].push_back(stack);
-        Snapshot result;
-        for (const auto& [item, stacks] : items) {
-            const auto protectedStacks = ReadRows(menu->GetRuntimeData().itemList, data.inventoryRef, item, stacks);
-            if (protectedStacks) result.emplace(item, *protectedStacks);
+        Snapshot Read(RE::InventoryMenu* menu, RE::PlayerCharacter* player) {
+            if (!menu || !player || !menu->uiMovie || !menu->GetRuntimeData().itemList) return {};
+            std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> items;
+            for (const auto& stack : InventoryStacks::Read(player)) items[stack.item].push_back(stack);
+            Snapshot result;
+            for (const auto& [item, stacks] : items) {
+                const auto rows = ReadRows(menu->GetRuntimeData().itemList, player->GetHandle().native_handle(), item, stacks);
+                if (rows) result.emplace(item, *rows);
+            }
+            return result;
         }
-        return result;
+
+        bool Active(const std::shared_ptr<Request>& request) {
+            return !request->cancelled && pending == request;
+        }
+
+        void Finish(const std::shared_ptr<Request>& request) {
+            if (!Active(request)) return;
+            pending.reset();
+            request->cancelled = true;
+            if (request->complete) request->complete();
+        }
+
+        void Work(const std::shared_ptr<Request>& request, const Snapshot& snapshot) {
+            if (request->worked) return;
+            request->worked = true;
+            struct ClearSnapshot { ~ClearSnapshot() { current = nullptr; } } clear;
+            current = &snapshot;
+            try { request->work(); }
+            catch (const std::exception&) { logger::error("Quick Transfer failed during equipment inspection"); }
+        }
+
+        void Poll(const std::shared_ptr<Request>& request);
+        void Later(const std::shared_ptr<Request>& request) {
+            std::thread([request] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(16));
+                if (!request->cancelled)
+                    SKSE::GetTaskInterface()->AddTask([request] { Poll(request); });
+            }).detach();
+        }
+
+        void Close(const std::shared_ptr<Request>& request) {
+            if (!Active(request)) return;
+            request->phase = Phase::Closing;
+            request->deadline = Clock::now() + std::chrono::seconds(5);
+            if (auto* queue = RE::UIMessageQueue::GetSingleton())
+                queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+            Later(request);
+        }
+
+        void Poll(const std::shared_ptr<Request>& request) {
+            if (!Active(request)) return;
+            auto* ui = RE::UI::GetSingleton();
+            auto* queue = RE::UIMessageQueue::GetSingleton();
+            if (!ui || !queue) { Work(request, {}); Finish(request); return; }
+            const auto expired = Clock::now() >= request->deadline;
+            if (request->phase == Phase::Waiting) {
+                if (ui->IsMenuOpen(RE::MessageBoxMenu::MENU_NAME) && !expired) { Later(request); return; }
+                if (expired || ui->IsItemMenuOpen()) {
+                    Work(request, {}); Finish(request); return;
+                }
+                request->phase = Phase::Opening;
+                request->deadline = Clock::now() + std::chrono::seconds(5);
+                queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+                Later(request);
+                return;
+            }
+            auto menu = ui->GetMenu(RE::InventoryMenu::MENU_NAME);
+            const bool open = menu && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME);
+            if (request->phase == Phase::Opening && open) {
+                request->owned = menu.get();
+                request->phase = Phase::Reading;
+                SKSE::GetTaskInterface()->AddUITask([request] {
+                    if (request->cancelled) return;
+                    auto* ui = RE::UI::GetSingleton();
+                    auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
+                    Snapshot snapshot;
+                    if (menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
+                        if (menu->uiMovie) menu->uiMovie->SetVisible(false);
+                        try { snapshot = Read(skyrim_cast<RE::InventoryMenu*>(menu.get()), RE::PlayerCharacter::GetSingleton()); }
+                        catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
+                    }
+                    SKSE::GetTaskInterface()->AddTask([request, snapshot = std::move(snapshot)] {
+                        if (!Active(request) || request->phase != Phase::Reading) return;
+                        auto* ui = RE::UI::GetSingleton();
+                        auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
+                        const bool owned = menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME);
+                        Work(request, owned ? snapshot : Snapshot{});
+                        if (!Active(request)) return;
+                        if (owned) Close(request); else Finish(request);
+                    });
+                });
+            } else if (request->phase == Phase::Closing) {
+                if (!open || (request->owned && menu.get() != request->owned)) { menu = nullptr; Finish(request); return; }
+                if (expired) {
+                    SKSE::GetTaskInterface()->AddUITask([request] {
+                        auto* ui = RE::UI::GetSingleton();
+                        auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
+                        if (!request->cancelled && menu && menu.get() == request->owned && menu->uiMovie)
+                            menu->uiMovie->SetVisible(true);
+                    });
+                    request->deadline = Clock::now() + std::chrono::seconds(5);
+                }
+            } else if (expired) {
+                Work(request, {});
+                if (!request->owned || (open && menu.get() == request->owned)) Close(request);
+                else { menu = nullptr; Finish(request); }
+                return;
+            }
+            Later(request);
+        }
+    }
+
+    const Snapshot* Current() { return current; }
+
+    void Run(std::function<void()> work, std::function<void()> complete) {
+        if (pending) return;
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        bool equipment = false;
+        if (player) for (const auto& [item, data] : player->GetInventory())
+            if (item && data.first > 0 && (item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>())) equipment = true;
+        auto request = std::make_shared<Request>();
+        request->work = std::move(work); request->complete = std::move(complete);
+        pending = request;
+        if (!equipment) { Work(request, {}); Finish(request); }
+        else Poll(request);
+    }
+
+    void Reset() {
+        if (!pending) return;
+        auto request = std::move(pending);
+        request->cancelled = true;
+        auto* ui = RE::UI::GetSingleton();
+        auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
+        if ((!request->owned && request->phase != Phase::Waiting) ||
+            (request->owned && menu && menu.get() == request->owned))
+            if (auto* queue = RE::UIMessageQueue::GetSingleton())
+                queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
     }
 }

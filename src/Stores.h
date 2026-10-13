@@ -57,7 +57,7 @@ public:
 
     // Utility Functions
     void SortItems();
-    void OffloadItems();
+    void OffloadItems(std::function<void()> complete = {});
     void KeepAmmunition(bool a_respectIgnores = false);
     void TakeAmmunition();
     void IgnoreMenu(RE::TESObjectREFR* a_source);
@@ -126,6 +126,7 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
+    void OffloadItemsNow();
     void ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup group);
     std::unordered_set<RE::FormID> sortFavorites_;
     void CaptureSortFavorites();

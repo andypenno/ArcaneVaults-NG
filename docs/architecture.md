@@ -58,7 +58,7 @@ Container activation also has a thread-local guard, but the current source does 
 
 ## Menus and asynchronous work
 
-Storage interaction has two UI implementations. `Stores` queues engine message boxes whose actions run through SKSE's task interface. `ContainerListMenu` registers as `GSCContainerListMenu`, pauses the game, uses cursor/menu input, and loads `uilib/uilib_1_listmenu` through Scaleform.
+Storage interaction has two UI implementations. `Stores` queues engine message boxes whose actions run through SKSE's task interface. Quick Transfer defers its completion callback until UI-managed equipment inspection has closed; its lifecycle is described in [storage.md](storage.md). `ContainerListMenu` registers as `GSCContainerListMenu`, pauses the game, uses cursor/menu input, and loads `uilib/uilib_1_listmenu` through Scaleform.
 
 Message boxes with Exit display the physical Open action first, preserve the order of storage-specific actions, then show contextual Back and Exit. The shared builder recognizes the existing translated Open labels and maps cancellation to the final Exit. Confirmation boxes without Exit preserve their supplied order and cancel action. Armor and Weapon provide Open actions that consolidate their child archives before opening the entire parent vault.
 

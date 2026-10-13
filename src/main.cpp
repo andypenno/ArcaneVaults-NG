@@ -11,6 +11,7 @@
 #include "DepositLearning.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
+#include "PlayerEquipment.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -40,6 +41,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		break;
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
+		PlayerEquipment::Reset();
 		StolenItems::Reset();
 		EnchantedItems::Reset();
 		DepositLearning::Reset();

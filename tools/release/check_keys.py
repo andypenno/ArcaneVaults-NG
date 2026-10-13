@@ -13,8 +13,13 @@ ROOT = Path(__file__).resolve().parents[2]
 source = (ROOT / "src/Stores.cpp").read_text()
 start = source.index("void Stores::PlayerToStore(")
 method = source[start:source.index("\n}\n", start) + 3]
-start = source.index("void Stores::OffloadItems(")
+assert "factory->second.create" not in source
+assert not any(f"QT {number}" in source for number in range(1,5))
+assert all(token not in method for token in ("InventoryMenu", "ProcessMessage", "ControlMap", "PlayerControls"))
+
+start = source.index("void Stores::OffloadItemsNow(")
 offload = source[start:source.index("\n}\n", start) + 3]
+
 start = source.index("void Stores::StoreToStore(")
 store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
@@ -343,7 +348,8 @@ struct Stores {
     void ResetSortFavorites() { sortFavorites_.clear(); }
     void ReturnIgnoredItems();
     void FinishIgnorePicker();
-    void OffloadItems();
+    void OffloadItemsNow();
+void OffloadItems(){OffloadItemsNow();}
     void KeepAmmunition(bool = false);
     void TakeAmmunition();
     void AmmunitionMenu(RE::TESObjectREFR*);
@@ -460,10 +466,12 @@ bool Move(const Stack& stack,RE::TESObjectREFR* target) {
     return Count(stack.source,stack.item)<before;
 }
 }
+
 namespace PlayerEquipment {
 using Snapshot=std::unordered_map<RE::TESBoundObject*,std::unordered_set<RE::ExtraDataList*>>;
-Snapshot Read(RE::PlayerCharacter*) {return {};}
+const Snapshot* Current(){return nullptr;}
 }
+
 '''
 selected_start = source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 selected_method = source[selected_start:source.index("\n    }", selected_start) + 6]
