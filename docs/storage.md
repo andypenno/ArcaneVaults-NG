@@ -33,6 +33,8 @@ Opening Sort through either an assigned container or Arcane Vault captures the p
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. All main vaults, including Personal, Junk, Trade and Gear, appear in the scrolling Open Vaults list. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
+A Quick Transfer assignment runs `OffloadItems` and returns to gameplay without opening the assigned container or reopening Arcane Vault. Quick Transfer uses appended enum value `Container::QuickTransfer`, non-respawning base `0xDEE` and persistent reference `0xDEF`. It is a Special destination, excluded from vault/archive browsing, crafting loans and archive gathering. Assignments use the existing reference-based global/per-save persistence. Sneaking opens the ignore picker. Normal activation retains every shared Quick Transfer protection and quantity setting.
+
 ## Vaults and archives
 
 Most archive actions temporarily move matching items from their parent vault into an archive reference, activate it, and return its entire inventory to the parent on close. The menu may then return to the parent message box or close the source animation. Archives are real game inventories, not filtered UI views. New items deposited in an archive also return to its parent.
@@ -213,7 +215,7 @@ Instruments has no Gear-menu shortcut. Open Archives and direct archive assignme
 
 ## Ignore picker
 
-The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`. It is persistent, non-respawning, empty, and excluded from assignment choices. Sneaking is checked in the shared activation dispatcher for Master and Sort only. The close callback is target-specific; a session counter invalidates queued callbacks across game loads. Post-load and new-game tasks finish any residual picker inventory and return its contents. Failed returns stay in the persistent picker and prevent reopening it until recovery succeeds.
+The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`. It is persistent, non-respawning, empty, and excluded from assignment choices. Sneaking is checked in the shared activation dispatcher for Master, Sort and Quick Transfer. The close callback is target-specific; a session counter invalidates queued callbacks across game loads. Post-load and new-game tasks finish any residual picker inventory and return its contents. Failed returns stay in the persistent picker and prevent reopening it until recovery succeeds.
 
 Sort first returns ignored records when Return Ignored Items is enabled. Its category transfers, soul-gem recovery, and Junk fallback exclude any ignored copies left after a failed return. Disabling the option restores normal sorting. Player deposit helpers accept an explicit ignore flag; only Quick Transfer passes it, so manual deposits and crafting returns retain their existing policy.
 

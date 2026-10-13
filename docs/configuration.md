@@ -114,7 +114,7 @@ Framework wrappers come from its submodule's resources header and resolve `SKSEM
 
 ## Ignore list
 
-Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ignore List picker. Items remaining when it closes are added by base record, and every deposited copy is returned. Removing an item before closing cancels that addition. Normal activation, manual vault actions, and crafting loans do not use the list. Quick Transfer, its hotkey, and its spell always skip ignored records, including physical soul gems.
+Sneak-activate a container assigned to Arcane Vault, Sort or Quick Transfer to open an empty Ignore List picker. Items remaining when it closes are added by base record, and every deposited copy is returned. Removing an item before closing cancels that addition. Normal activation, manual vault actions, and crafting loans do not use the list. Quick Transfer, its hotkey, and its spell always skip ignored records, including physical soul gems.
 
 The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
 

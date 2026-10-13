@@ -55,7 +55,8 @@ enum class Container : std::uint8_t {
     HealthPotions,
     MagickaPotions,
     StaminaPotions,
-    EnchantedItems
+    EnchantedItems,
+    QuickTransfer
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -122,6 +123,7 @@ enum class ContainerGroup {
     switch (a_container) {
     case Container::Master:       return "Vault.Arcane";
     case Container::Sort:         return "Vault.Conduit";
+    case Container::QuickTransfer: return "Vault.QuickTransfer";
     case Container::Alchemy:      return "Vault.Alchemy";
     case Container::Armor:        return "Vault.Armor";
     case Container::Clothing:     return "Vault.Clothing";

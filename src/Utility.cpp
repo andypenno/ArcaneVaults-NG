@@ -20,7 +20,7 @@ void Utility::AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::For
     const auto translationKey = ContainerTranslationKey(a_name);
     auto* baseContainer = container->GetBaseObject() ? container->GetBaseObject()->As<RE::TESObjectCONT>() : nullptr;
     if (baseContainer && !translationKey.empty()) {
-        const auto translatedName = std::format("{} {}", Translate(std::string(translationKey)),
+        const auto translatedName = a_name == Container::QuickTransfer ? std::string(Translate("Vault.QuickTransfer")) : std::format("{} {}", Translate(std::string(translationKey)),
             Translate(a_name == Container::Valuables || a_name == Container::FilledSoulgems ||
                 a_name == Container::EmptySoulgems || a_name == Container::StolenItems ? "Vault.Archive" : "Vault.Vault"));
         baseContainer->SetFullName(translatedName.c_str());
@@ -47,7 +47,7 @@ bool Utility::RunContainerAction(const RE::TESObjectREFR* container, RE::TESObje
         if (entry.container && entry.container->GetFormID() == container->GetFormID() && entry.action) {
             Stores::GetSingleton()->ResetNavigation();
             auto* player = RE::PlayerCharacter::GetSingleton();
-            if ((name == Container::Master || name == Container::Sort) && player && player->IsSneaking())
+            if ((name == Container::Master || name == Container::Sort || name == Container::QuickTransfer) && player && player->IsSneaking())
                 Stores::GetSingleton()->IgnoreMenu(source);
             else
                 entry.action(source);
@@ -313,6 +313,9 @@ void Utility::LoadAllForms() {
 
 void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Ignore, RE::FormID(0xDD3), ContainerGroup::Special);
+
+    AddContainer(dataHandler, Container::QuickTransfer, RE::FormID(0xDEF), ContainerGroup::Special,
+        [](RE::TESObjectREFR*) { Stores::GetSingleton()->OffloadItems(); });
 
     // Sorting Chest
     AddContainer(dataHandler, Container::Master, RE::FormID(0xD93), ContainerGroup::Special, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->VaultMenu(a_source); }); 

@@ -79,7 +79,7 @@ struct Tasks {
 Tasks* GetTaskInterface() { static Tasks tasks; return &tasks; }
 }
 const char* Translate(const char* key) { return key; }
-enum class Container { Trade, Master, Sort, Armor, Weapon, HeavyArmor, LightArmor, Clothing, Jewelry, Archery, OneHand, TwoHand, Staff };
+enum class Container { QuickTransfer, Trade, Master, Sort, Armor, Weapon, HeavyArmor, LightArmor, Clothing, Jewelry, Archery, OneHand, TwoHand, Staff };
 '''
 header = (ROOT / "src/Stores.h").read_text()
 program += header[header.index("using MenuAction"):header.index("class Stores {")]

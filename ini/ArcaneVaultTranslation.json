@@ -42,6 +42,8 @@
 
 	"Vault.AssignArcane": "Bind Arcane Vault",
 	"Vault.AssignSort": "Bind Sort Vault",
+	"Vault.AssignQuickTransfer": "Bind Quick Transfer",
+	"Vault.QuickTransfer": "Quick Transfer",
 	"Vault.AssignVault": "Bind Vault",
 	"Vault.AssignArchive": "Bind Archive",
 	"Vault.AssignRemove": "Remove Binding",
@@ -153,7 +155,7 @@
 
 	"Ignore": "Ignore List",
 	"Options.ReturnIgnoredItems": "Return Ignored Items",
-	"Ignore.Help": "Sneak-open Arcane Vault or Sort.\nDeposit items, then close.\nItems return; Quick Transfer skips all copies.",
+	"Ignore.Help": "Sneak-use Arcane Vault, Sort\nor Quick Transfer.\nDeposit items, then close.\nItems return; Quick Transfer skips all copies.",
 	"Ignore.Search": "Search",
 	"Ignore.Identifier": "Plugin And Local ID",
 	"Ignore.Missing": "<Missing Record>",

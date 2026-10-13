@@ -20,6 +20,7 @@ program = r'''
 #include <algorithm>
 #include <cassert>
 #include <deque>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -30,6 +31,7 @@ namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace std {
 string format(const char*, const char* label) { return "[" + string(label) + "]"; }
+string format(const char*, const char* a, const char* b) { return string(a)+" "+b; }
 }
 namespace RE {
 using FormID = unsigned;
@@ -77,16 +79,22 @@ struct Tasks {
 Tasks* GetTaskInterface() { static Tasks tasks; return &tasks; }
 }
 struct RedirectManager {
-    int assignments = 0;
+    int assignments = 0; RE::TESObjectREFR* destination=nullptr;
     static RedirectManager* GetSingleton() { static RedirectManager r; return &r; }
-    bool Add(RE::TESObjectREFR*, RE::TESObjectREFR*) { ++assignments; return true; }
+    bool Add(RE::TESObjectREFR*, RE::TESObjectREFR* target) { ++assignments; destination=target; return true; }
+    void Remove(RE::TESObjectREFR*) {}
 };
 const char* Translate(const char* key) { return key; }
+struct MenuOption { std::string text; std::function<void()> action; };
 struct Stores {
     RE::ObjectRefHandle navigationSource_{};
     std::function<void()> returnToVault_;
     std::string called;
     bool closed = false;
+    std::vector<MenuOption> options;
+    void OffloadItems() { called="OffloadItems"; }
+    void VaultAssignment(RE::TESObjectREFRPtr);
+    void ShowDynamicMessageBox(std::string_view, std::vector<MenuOption> values, std::int32_t) { options=std::move(values); }
     static Stores* GetSingleton() { static Stores s; return &s; }
     void ResetNavigation() { navigationSource_ = {}; returnToVault_ = {}; }
     void CloseStoreObject(RE::TESObjectREFR*) { closed = true; }
@@ -99,7 +107,7 @@ struct Stores {
     }
 '''
 for method in sorted(set(re.findall(r"Stores::GetSingleton\(\)->(\w+)\(", registry))):
-    if method not in {"VaultMenu", "OpenBookArchive"}:
+    if method not in {"VaultMenu", "OpenBookArchive", "OffloadItems"}:
         program += f'    void {method}(RE::TESObjectREFR*) {{ called = "{method}"; }}\n'
 program += r'''
 };
@@ -114,6 +122,7 @@ struct Utility {
         auto& ref = references[kind]; ref = {id, true, std::string(ContainerTranslationKey(kind))};
         containerMap[kind] = {&ref, group, std::move(action)};
     }
+    RE::TESObjectREFR* GetContainer(Container kind) { auto it=containerMap.find(kind);return it==containerMap.end()?nullptr:it->second.container; }
     void LoadContainers(RE::TESDataHandler*);
     std::vector<ContainerChoice> GetVaultChoices(RE::TESObjectREFR* source = nullptr) const;
     std::vector<ContainerChoice> GetArchiveChoices(RE::TESObjectREFR* source = nullptr) const;
@@ -124,6 +133,7 @@ header = (ROOT / "src/ContainerMenu.h").read_text()
 program += header[header.index("class ContainerSelectionState"):header.index("class ContainerListMenu")]
 program += 'struct ContainerListMenu { static constexpr std::string_view MENU_NAME = "List"; };\n'
 program += registry
+program += body("src/Stores.cpp", "void Stores::VaultAssignment(")
 for name in ("GetVaultChoices", "GetArchiveChoices", "GetGroupedChoices"):
     program += body("src/Utility.cpp", "std::vector<Utility::ContainerChoice> Utility::"+name+"(")
 for signature in ["ContainerSelectionState* ContainerSelectionState::GetSingleton(",
@@ -173,6 +183,17 @@ int main() {
     state->Begin(source, {}); assert(state->GetTitle() == "Select destination");
     assert(!state->Complete(-1)); assert(state->GetTitle().empty());
     source->alive = true;
+    stores->VaultAssignment(source);
+    auto quick=std::ranges::find_if(stores->options,[](const auto& option){return option.text=="Vault.AssignQuickTransfer";});
+    assert(quick!=stores->options.end());quick->action();
+    auto* redirect=RedirectManager::GetSingleton();auto& quickEntry=utility->containerMap.at(Container::QuickTransfer);
+    assert(redirect->destination==quickEntry.container && quickEntry.a_group==ContainerGroup::Special);
+    const auto shown=RE::UIMessageQueue::GetSingleton()->shown;stores->closed=false;stores->called.clear();
+    quickEntry.action(source.get());assert(stores->called=="OffloadItems" && !stores->closed);
+    assert(RE::UIMessageQueue::GetSingleton()->shown==shown);
+    const auto assignmentsBefore=redirect->assignments;quickEntry.container=nullptr;
+    quick->action();assert(redirect->assignments==assignmentsBefore);
+    quickEntry.container=redirect->destination;redirect->assignments=0;
     for (auto& [kind, entry] : utility->containerMap)
         if (entry.container) RE::TESForm::forms[entry.container->id] = entry.container;
     state->Begin(source, utility->GetArchiveChoices());

@@ -590,6 +590,12 @@ void Stores::VaultAssignment(RE::TESObjectREFRPtr a_source) {
         if (destination && destination != source) RedirectManager::GetSingleton()->Add(source, destination);
     }});
 
+    options.push_back({Translate("Vault.AssignQuickTransfer"), [utility, a_source] {
+        auto* source = a_source.get();
+        auto* destination = utility->GetContainer(Container::QuickTransfer);
+        if (destination && destination != source) RedirectManager::GetSingleton()->Add(source, destination);
+    }});
+
     options.push_back({Translate("Vault.AssignVault"), [this, a_source] {
         auto choices = Utility::GetSingleton()->GetVaultChoices();
         choices.insert(choices.begin(), Utility::ContainerChoice{
