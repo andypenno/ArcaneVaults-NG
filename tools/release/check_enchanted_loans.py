@@ -38,10 +38,18 @@ common = common.replace(
         if(replaceExtras)for(auto& remaining:row.extras)remaining=std::make_shared<ExtraDataList>(*remaining);
         if(++successfulMoves>=refuseAfter)refuse=true;"""
 )
+common = common.replace(
+    "int bulkTransfers=0,bulkLimit=", "std::function<void()> duringDispatch{};int bulkTransfers=0,bulkLimit="
+).replace(
+    "auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;",
+    "if(duringDispatch){duringDispatch();}auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;"
+)
 events = (ROOT / "src/Events.cpp").read_text()
 loan = events[events.index("class CraftingLoanState {"):events.index("class FurnitureActivation {")]
 start = events.index("    static bool ActivateCraftLoan(")
 hook = events[start:events.index("\n    }", start) + 6]
+start = events.index("    RE::BSEventNotifyControl ProcessEvent(", events.index("class CraftingMenuEventHandler"))
+close_handler = events[start:events.index("\n    }", start) + 6].replace(" ProcessEvent(", " CraftingCloseEvent(").replace(" override", "")
 stores_source = (ROOT / "src/Stores.cpp").read_text()
 start = stores_source.index("    int MoveItems(")
 junk = stores_source[start:stores_source.index("\n    }", start) + 6]
@@ -51,6 +59,8 @@ for name, counter in (("BeginJunkLoan", "junkLoans"), ("EndJunkLoan", "junkRetur
     junk += body.replace(f"void Stores::{name}() {{", f"void Stores::{name}() {{++{counter};")
 program = '#include "common.hpp"\n' + junk + loan + r'''
 namespace RE {
+struct CraftingMenu {inline static constexpr std::string_view MENU_NAME="CraftingMenu";};
+struct MenuOpenCloseEvent {std::string menuName;bool opening;};
 struct TESFurniture {
     struct WorkBenchData {enum class BenchType {kNone,kEnchanting};};
     struct Field {WorkBenchData::BenchType value=WorkBenchData::BenchType::kEnchanting;auto get()const{return value;}};
@@ -60,7 +70,7 @@ struct TESFurniture {
 }
 bool NativeActivate(RE::TESFurniture* base,RE::TESObjectREFR*,RE::TESObjectREFR*,std::uint8_t,RE::TESBoundObject*,std::int32_t){return base->activation;}
 auto activate_=NativeActivate;
-''' + hook + r'''
+''' + hook + close_handler + r'''
 void Stores::PlayerToStore(ItemCategory,Container,int,int,bool,CategoryMask){++materialReturns;}
 int main() {
     auto* player=RE::PlayerCharacter::GetSingleton();auto* u=Utility::GetSingleton();
@@ -81,6 +91,8 @@ int main() {
             ref->rows.clear();ref->refuse=ref->replaceExtras=false;ref->limit=ref->refuseAfter=INT_MAX;ref->successfulMoves=0;
             ref->missingChanges=false;ref->changes.bulkTransfers=0;ref->changes.bulkLimit=INT_MAX;
             ref->changes.bulkRefuse=ref->changes.lastKeepOwnership=false;
+            ref->deferTransfers=false;ref->deliveries.clear();
+            ref->changes.duringDispatch={};
         }
         RE::SCRIPT_FUNCTION::equipped.clear();settings->GSC_CraftingLoan=settings->GSC_EnchantedItemsLoan=false;
         u->bench=BenchType::Enchanting;stores->materialLoans=stores->materialReturns=stores->junkLoans=stores->junkReturns=0;
@@ -151,6 +163,80 @@ int main() {
     EnchantedItems::EndLoan();assert(count(weapons,sword)==3 && count(armor,helmet)==2 && count(*player,sword)==0);
     reset();weapons.Put(&sword,70000);EnchantedItems::BeginLoan();tasks->Run();EnchantedItems::EndLoan();
     assert(count(weapons,sword)==70000 && count(*player,sword)==0);
+
+    reset();seed();player->Put(&sword,0,1,&owner,"carried");archive.deferTransfers=true;
+    settings->GSC_EnchantedItemsLoan=true;session->EnterCrafting(&bench);session->ExitCrafting();
+    assert(count(*player,sword)==1 && archive.deliveries.size()==2);
+    while(!archive.deliveries.empty()){
+        auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();tasks->Run();
+        assert(count(*player,sword)==1 && count(*player,helmet)==0);
+    }
+    assert(count(weapons,sword)==3 && count(armor,helmet)==2 && player->rows[&sword].extras.front()->metadata=="carried");
+
+    reset();seed();archive.deferTransfers=true;archive.changes.bulkLimit=2;
+    EnchantedItems::BeginLoan();assert(EnchantedItems::HasPendingLoan());
+    while(!archive.deliveries.empty()){
+        auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();tasks->Run();
+    }
+    assert(!EnchantedItems::HasPendingLoan() && count(*player,sword)==0 && count(*player,helmet)==0);
+    assert(count(weapons,sword)==3 && count(armor,helmet)==2);
+
+    reset();seed();archive.changes.duringDispatch=[] { EnchantedItems::EndLoan(); };
+    EnchantedItems::BeginLoan();tasks->Run();
+    assert(!EnchantedItems::HasPendingLoan() && count(*player,sword)==0 && count(*player,helmet)==0);
+    assert(count(weapons,sword)==3 && count(armor,helmet)==2);
+
+    reset();seed();archive.deferTransfers=true;EnchantedItems::BeginLoan();
+    while(!archive.deliveries.empty()){
+        auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();
+    }
+    player->RemoveItem(&sword,3,RE::ITEM_REMOVE_REASON::kStoreInContainer,player->rows[&sword].extras.front().get(),&consumed);
+    EnchantedItems::EndLoan();tasks->Run();
+    assert(!EnchantedItems::HasPendingLoan() && count(consumed,sword)==3 && count(weapons,sword)==0);
+    assert(count(*player,helmet)==0 && count(armor,helmet)==2);
+
+    reset();player->Put(&plain,0,2,&owner,"same");player->rows[&plain].extras.back()->enchantment=RE::ExtraEnchantment{&normal};
+    RE::EnchantmentItem lateFire,lateFrost;
+    for(auto* enchantment:{&lateFire,&lateFrost}){weapons.Put(&plain,0,3,&owner,"same");weapons.rows[&plain].extras.back()->enchantment=RE::ExtraEnchantment{enchantment};}
+    archive.deferTransfers=true;archive.limit=1;settings->GSC_EnchantedItemsLoan=true;
+    session->EnterCrafting(&bench);session->ExitCrafting();assert(EnchantedItems::HasPendingLoan() && !EnchantedItems::Gather());
+    settings->GSC_CraftingLoan=true;u->bench=BenchType::Alchemy;session->EnterCrafting(&bench);
+    assert(stores->materialLoans==0 && archive.deliveries.size()==6);
+    while(!archive.deliveries.empty()){
+        auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();tasks->Run();
+        assert(count(*player,plain)==2 && player->rows[&plain].extras.front()->enchantment->enchantment==&normal);
+    }
+    assert(!EnchantedItems::HasPendingLoan() && count(weapons,plain)==6);
+    std::map<RE::EnchantmentItem*,int> lateCounts;
+    for(auto& extra:weapons.rows[&plain].extras){assert(extra->owner==&owner && extra->metadata=="same");lateCounts[extra->enchantment->enchantment]+=extra->count;}
+    assert((lateCounts==std::map<RE::EnchantmentItem*,int>{{&lateFire,3},{&lateFrost,3}}));
+    archive.deferTransfers=false;u->bench=BenchType::Enchanting;session->EnterCrafting(&bench);tasks->Run();session->ExitCrafting();
+    assert(count(*player,plain)==2 && count(weapons,plain)==6);
+
+    for(int protection=0;protection<4;++protection){
+        reset();seed();archive.deferTransfers=true;EnchantedItems::BeginLoan();EnchantedItems::EndLoan();
+        while(!archive.deliveries.empty()){
+            auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();
+            if(player->rows[&sword].total){
+                if(protection==0)player->rows[&sword].favorite=true;
+                if(protection==1)player->rows[&sword].quest=true;
+                if(protection==2)player->rows[&sword].extras.front()->worn=true;
+                if(protection==3)RE::SCRIPT_FUNCTION::equipped.insert(&sword);
+            }
+            tasks->Run();
+        }
+        assert(!EnchantedItems::HasPendingLoan() && count(*player,sword)==3 && count(weapons,sword)==0 && count(armor,helmet)==2);
+        assert(!InventoryStacks::HasOrigin(player->rows[&sword].extras.front().get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword));
+    }
+    reset();seed();settings->GSC_EnchantedItemsLoan=true;session->EnterCrafting(&bench);
+    RE::MenuOpenCloseEvent opening{"CraftingMenu",true},closing{"CraftingMenu",false},other{"InventoryMenu",false};
+    const auto queued=tasks->queue.size();CraftingCloseEvent(nullptr,nullptr);CraftingCloseEvent(&opening,nullptr);CraftingCloseEvent(&other,nullptr);
+    assert(tasks->queue.size()==queued);CraftingCloseEvent(&closing,nullptr);assert(count(*player,sword)==3);
+    tasks->Run();assert(count(*player,sword)==0 && count(weapons,sword)==3);
+    session->EnterCrafting(&bench);CraftingCloseEvent(&closing,nullptr);session->EnterCrafting(&bench);tasks->Run();
+    assert(count(*player,sword)==3 && count(weapons,sword)==0);session->ExitCrafting();
+    session->EnterCrafting(&bench);CraftingCloseEvent(&closing,nullptr);session->Reset();tasks->Run();
+    assert(count(*player,sword)==3 && count(weapons,sword)==0);
 
     for(int protection=0;protection<4;++protection) {
         reset();seed();EnchantedItems::BeginLoan();tasks->Run();

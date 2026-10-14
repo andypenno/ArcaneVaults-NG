@@ -8,4 +8,5 @@ namespace EnchantedItems {
     bool Recover();
     void BeginLoan();
     void EndLoan();
+    bool HasPendingLoan();
 }

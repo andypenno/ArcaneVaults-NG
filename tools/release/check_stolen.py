@@ -137,6 +137,7 @@ struct TESObjectREFR {
     struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false,favorite=false;};
     unsigned id;int limit=std::numeric_limits<int>::max();bool refuse=false;unsigned changed=0;
     bool missingChanges=false;
+    bool deferTransfers=false;std::deque<std::function<void()>> deliveries;
     std::map<TESBoundObject*,Row> rows;
     struct Changes {
         TESObjectREFR* source;
@@ -165,6 +166,17 @@ struct TESObjectREFR {
         auto& row=rows[item];row.total+=plain+count;if(count)row.extras.push_back(std::make_shared<ExtraDataList>(ExtraDataList{count,owner,metadata,{}}));
     }
     void RemoveItem(TESBoundObject* item,int requested,ITEM_REMOVE_REASON,ExtraDataList* extra,TESObjectREFR* target){
+        if(deferTransfers && target->id==0x14){
+            deferTransfers=false;TESObjectREFR detached{0xFFFFFF};
+            RemoveItem(item,requested,ITEM_REMOVE_REASON::kStoreInContainer,extra,&detached);deferTransfers=true;
+            auto row=detached.rows[item];TESForm::refs.erase(detached.id);
+            if(row.total>0)deliveries.push_back([item,target,row,from=id]{
+                auto& out=target->rows[item];out.total+=row.total;
+                for(auto& copy:row.extras)out.extras.push_back(copy);
+                ScriptEventSourceHolder::GetSingleton()->Send({from,target->id,item->id,row.total});
+            });
+            return;
+        }
         assert(!inspectionOpen);if(refuse)return;
         auto& row=rows[item];int count=std::min({requested,row.total,limit});if(count<=0)return;
         auto& out=target->rows[item];

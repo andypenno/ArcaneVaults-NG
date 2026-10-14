@@ -74,7 +74,9 @@ The SkyUILib bridge passes option labels as separate ActionScript arguments, con
 
 ## Crafting loans
 
-Enchanted equipment is selected and tagged in its archive first. Lending validates the staged physical counts and the player's signed item-count capacity, then calls the native bulk transfer once with ownership retained. Missing inventory changes or a partial/refused delivery use the existing return and archive-recovery paths. Returns remain selective by origin so carried copies and protected items retain their existing policy. Native delivery timing and arrivals after table exit still need separate investigation.
+Enchanted equipment is selected and tagged in its archive first. Lending validates the staged physical counts and the player's signed item-count capacity, then calls the native bulk transfer once with ownership retained. Missing inventory changes or a partial/refused dispatch use the return and archive-recovery paths. Returns remain selective by origin so carried copies and protected items retain their existing policy.
+
+The enchanted loan tracks quantities removed from the archive and quantities received by the player. Closing CraftingMenu queues a game-thread return for the matching crafting session. Outstanding deliveries keep the loan active after close; coalesced archive-to-player receipt tasks return late tagged copies to their parents. New crafting loans wait until those receipts settle. Consumed items are not recreated, and protected copies remain carried. Reset invalidates queued receipt and close tasks. This relies on standard container-change events reporting actual arrivals; delayed delivery timing still needs game verification.
 
 The furniture hook selects the bench through `Utility::GetBenchType`, which checks known keywords first and bench data second. `CraftingMenu` close returns materials through the same transfer helpers.
 

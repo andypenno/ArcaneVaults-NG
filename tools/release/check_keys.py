@@ -54,6 +54,7 @@ settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
 program = r'''
 #include <algorithm>
+#include <atomic>
 #include <utility>
 #include <array>
 #include <cassert>
@@ -320,7 +321,8 @@ program += item_source[item_source.index("CategoryMask ToMask("):item_source.ind
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
 namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
-namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} }
+namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} bool HasPendingLoan(){return false;} }
+namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }
 namespace Soulgems {
     std::unordered_set<RE::FormID> sortExcluded;
     void Recover(const std::unordered_set<RE::FormID>& excluded = {}) { sortExcluded = excluded; } void Deposit(int, bool = false) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}

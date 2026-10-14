@@ -8,6 +8,7 @@
 #include "ItemClass.h"
 #include "DepositLearning.h"
 #include "EnchantedItems.h"
+#include <atomic>
 #include <utility>
 
 //==============================================
@@ -271,6 +272,8 @@ public:
 
     void EnterCrafting(RE::TESObjectREFR* a_furniture) {
         if (loanBench_) ExitCrafting();
+        ++session_;
+        if (EnchantedItems::HasPendingLoan()) return;
 
         auto* stores = Stores::GetSingleton();
         auto* utility = Utility::GetSingleton();
@@ -324,6 +327,7 @@ public:
     }
 
     void Reset() {
+        ++session_;
         loanBench_.reset();
         materialsLoan_ = false;
         Soulgems::ResetLoan();
@@ -333,6 +337,7 @@ public:
 
     void ExitCrafting() {
         if (!loanBench_) return;
+        ++session_;
         const auto benchType = *loanBench_;
         loanBench_.reset();
         if (benchType == BenchType::Enchanting) EnchantedItems::EndLoan();
@@ -373,8 +378,16 @@ public:
         }
     }
 
+    void QueueExitCrafting() {
+        const auto session = session_.load();
+        SKSE::GetTaskInterface()->AddTask([this, session] {
+            if (session == session_) ExitCrafting();
+        });
+    }
+
 private:
     std::optional<BenchType> loanBench_;
+    std::atomic<std::uint64_t> session_{};
     bool materialsLoan_{};
 };
 
@@ -420,7 +433,7 @@ public:
             return RE::BSEventNotifyControl::kContinue;
 
         if (!a_event->opening)
-            CraftingLoanState::GetSingleton()->ExitCrafting();
+            CraftingLoanState::GetSingleton()->QueueExitCrafting();
 
         return RE::BSEventNotifyControl::kContinue;
     }

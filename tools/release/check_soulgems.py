@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 implementation = (ROOT / "src/Soulgems.cpp").read_text().replace('#include "Utility.h"', '').replace('#include "Settings.h"', '')
 program = r'''
 #include <algorithm>
+#include <atomic>
 #include <utility>
 #include <array>
 #include <cassert>
@@ -154,7 +155,8 @@ struct Stores {
     void PlayerToStore(ItemCategory,Container) {}
 };
 '''
-program += "namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} }\n"
+program += "namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} bool HasPendingLoan(){return false;} }\n"
+program += "namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }\n"
 program += loan
 program += r'''
 int main() {
