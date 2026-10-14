@@ -61,7 +61,7 @@ int main() {
         int deposited=0;for(const auto& [item,row]:bank.rows)deposited+=row.total;
         if(inventory==0){assert(queue->shows==shows && !timeout);}
         else if(readiness!=8 && readiness!=9){assert(!timeout && ProbeClock::tick.time_since_epoch()<std::chrono::seconds(1));}
-        else assert(timeout && ProbeClock::tick.time_since_epoch()>=std::chrono::seconds(5));
+        else assert(timeout && ProbeClock::tick.time_since_epoch()>=std::chrono::seconds(1) && ProbeClock::tick.time_since_epoch()<std::chrono::milliseconds(1100));
         const bool usable=readiness==0 || readiness==1 || readiness==2 || readiness==7;
         assert(deposited==(inventory==4 && usable?3:0));
         for(auto& ring:rings){
@@ -75,6 +75,30 @@ int main() {
             <<",\"refreshes\":"<<refreshed<<",\"readiness_timeout\":"<<(timeout?"true":"false")<<",\"phases\":[";
         for(std::size_t i=0;i<phases.size();++i)std::cout<<(i?",":"")<<phases[i];
         std::cout<<"]}\n";
+    }
+    for(int budget=0;budget<3;++budget){
+        player->rows.clear();bank.rows.clear();player->Put(&rings[0],3);ProbeClock::tick={};
+        RE::InventoryMenu::empty=RE::InventoryMenu::uninitialized=RE::InventoryMenu::missingList=false;
+        RE::InventoryMenu::missingMovie=budget==1;ui->messageBox=budget==0;queue->refuseHide=budget==2;
+        const auto input=RE::input;const auto blocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
+        bool done=false;int worked=0;long closeAt=-1,revealAt=-1;
+        PlayerEquipment::Run([&]{assert(!ui->menu);++worked;},[&]{assert(!ui->menu && RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);done=true;});
+        for(int step=0;!done && step<150;++step){
+            const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count();
+            if(budget!=1 || ms>=752)queue->ProcessCommands();
+            auto request=PlayerEquipment::pending;assert(request);PlayerEquipment::Poll(request);tasks->RunUI();tasks->Run();
+            if(request->phase==PlayerEquipment::Phase::Closing && closeAt<0)closeAt=ms;
+            if(budget==2 && ui->menu && request->worked && ui->menu->uiMovie->visible && revealAt<0)revealAt=ms;
+            if(budget==2 && revealAt>=0){assert(worked==0);queue->refuseHide=false;queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);}
+            ProbeClock::tick+=std::chrono::milliseconds(16);
+        }
+        assert(done && worked==(budget==2?0:1) && player->rows[&rings[0]].total==3);
+        const auto elapsed=std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count();
+        if(budget==0)assert(closeAt<0 && elapsed>=1000 && elapsed<1100);
+        if(budget==1)assert(closeAt>=1000 && closeAt<1050 && elapsed<1100);
+        if(budget==2)assert(revealAt-closeAt>=1000 && revealAt-closeAt<1050);
+        ui->messageBox=false;RE::InventoryMenu::missingMovie=false;
+        std::cout<<"{\"budget\":"<<budget<<",\"simulated_ms\":"<<elapsed<<",\"close_at\":"<<closeAt<<",\"reveal_at\":"<<revealAt<<"}\n";
     }
 }
 '''
@@ -114,10 +138,11 @@ def main():
         "inventory":["empty", "ten worn rings", "favourited only", "ignored only", "ten worn rings and three spares"],
         "readiness":["display root", "undefined root with readable rows", "plain-object root", "display root with empty rows", "plain-object root with empty rows", "undefined root with empty rows", "display root with invalid row objects", "delayed row objects", "missing movie", "missing list", "undefined root with invalid row objects"],
         "harness_sha256":hashlib.sha256(program.encode()).hexdigest(),
-        "cases":[json.loads(line) for line in output.splitlines()]}
+        "cases":[json.loads(line) for line in output.splitlines() if "\"budget\"" not in line],
+        "budgets":[json.loads(line) for line in output.splitlines() if "\"budget\"" in line]}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(f"PASS: 55 idle/transfer and UI-readiness cases; simulated results in {args.output}")
+    print(f"PASS: 55 idle/transfer cases and 3 lifecycle-budget cases; simulated results in {args.output}")
 
 
 if __name__ == "__main__":

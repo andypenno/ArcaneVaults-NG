@@ -57,11 +57,12 @@ namespace PlayerEquipment {
     namespace {
         using Clock = std::chrono::steady_clock;
         enum class Phase { Waiting, Opening, Reading, Closing };
+        constexpr auto inspectionBudget = std::chrono::seconds(1);
         struct Request {
             std::function<void()> work, complete;
             std::atomic<bool> cancelled{};
             Phase phase{Phase::Waiting};
-            Clock::time_point deadline{Clock::now() + std::chrono::seconds(5)};
+            Clock::time_point deadline{Clock::now() + inspectionBudget};
             RE::IMenu* owned{};
             Snapshot snapshot;
             Clock::time_point retry{};
@@ -145,7 +146,7 @@ namespace PlayerEquipment {
             if (!Active(request)) return;
             request->phase = Phase::Closing;
             request->retry = Clock::now() + std::chrono::milliseconds(100);
-            request->deadline = Clock::now() + std::chrono::seconds(5);
+            request->deadline = Clock::now() + inspectionBudget;
             if (auto* queue = RE::UIMessageQueue::GetSingleton())
                 queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
             Later(request);
@@ -163,7 +164,6 @@ namespace PlayerEquipment {
                     Work(request, {}); Finish(request); return;
                 }
                 request->phase = Phase::Opening;
-                request->deadline = Clock::now() + std::chrono::seconds(5);
                 queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
                 Later(request);
                 return;
@@ -245,7 +245,7 @@ namespace PlayerEquipment {
                         if (!request->cancelled && menu && menu.get() == request->owned && menu->uiMovie)
                             menu->uiMovie->SetVisible(true);
                     });
-                    request->deadline = Clock::now() + std::chrono::seconds(5);
+                    request->deadline = Clock::now() + inspectionBudget;
                 } else if (!request->worked && Clock::now() >= request->retry) {
                     queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
                     request->retry = Clock::now() + std::chrono::milliseconds(100);
