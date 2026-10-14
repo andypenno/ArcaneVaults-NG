@@ -1,12 +1,16 @@
 """Exercise enchanted-copy lending and real crafting-session routing with engine stubs."""
 
 from pathlib import Path
+import argparse
 import subprocess
 import tempfile
 
 import check_stolen
 
 ROOT = check_stolen.ROOT
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--sanitize", action="store_true", help="Check native memory access and undefined behaviour")
+args = parser.parse_args()
 common = check_stolen.common.replace(
     "struct Settings {", "struct Settings {bool GSC_CraftingLoan=false,GSC_EnchantedItemsLoan=false;"
 ).replace(
@@ -25,12 +29,21 @@ namespace Soulgems {
     inline void BeginLoan(bool){++loans;}inline void EndLoan(){++returns;}inline void ResetLoan(){}
 }
 '''
+common = common.replace(
+    "bool refuse=false;unsigned changed=0;",
+    "bool refuse=false,replaceExtras=false;int successfulMoves=0,refuseAfter=INT_MAX;unsigned changed=0;"
+).replace(
+    "row.total-=count;out.total+=count;",
+    """row.total-=count;out.total+=count;
+        if(replaceExtras)for(auto& remaining:row.extras)remaining=std::make_shared<ExtraDataList>(*remaining);
+        if(++successfulMoves>=refuseAfter)refuse=true;"""
+)
 events = (ROOT / "src/Events.cpp").read_text()
 loan = events[events.index("class CraftingLoanState {"):events.index("class FurnitureActivation {")]
 start = events.index("    static bool ActivateCraftLoan(")
 hook = events[start:events.index("\n    }", start) + 6]
 stores_source = (ROOT / "src/Stores.cpp").read_text()
-start = stores_source.index("    void MoveItems(")
+start = stores_source.index("    int MoveItems(")
 junk = stores_source[start:stores_source.index("\n    }", start) + 6]
 for name, counter in (("BeginJunkLoan", "junkLoans"), ("EndJunkLoan", "junkReturns")):
     start = stores_source.index(f"void Stores::{name}(")
@@ -64,7 +77,9 @@ int main() {
     auto count=[](auto& ref,auto& item){return InventoryStacks::Count(&ref,&item);};
     auto reset=[&] {
         session->Reset();EnchantedItems::Reset();tasks->Run();
-        for(auto* ref:std::array<RE::TESObjectREFR*,6>{player,&weapons,&armor,&archive,&consumed,&junkBank}){ref->rows.clear();ref->refuse=false;ref->limit=INT_MAX;}
+        for(auto* ref:std::array<RE::TESObjectREFR*,6>{player,&weapons,&armor,&archive,&consumed,&junkBank}){
+            ref->rows.clear();ref->refuse=ref->replaceExtras=false;ref->limit=ref->refuseAfter=INT_MAX;ref->successfulMoves=0;
+        }
         RE::SCRIPT_FUNCTION::equipped.clear();settings->GSC_CraftingLoan=settings->GSC_EnchantedItemsLoan=false;
         u->bench=BenchType::Enchanting;stores->materialLoans=stores->materialReturns=stores->junkLoans=stores->junkReturns=0;
         Soulgems::loans=Soulgems::returns=0;
@@ -152,6 +167,95 @@ int main() {
     assert(ActivateCraftLoan(&furniture,&bench,player,0,nullptr,1));
     assert(count(*player,sword)==0 && count(weapons,sword)==3 && Soulgems::loans==0);
 
+    reset();player->Put(&sword,0,2,&owner,"original");
+    for(int i=0;i<16;++i){weapons.Put(&sword,0,1,&owner,"weapon"+std::to_string(i));armor.Put(&sword,0,1,&owner,"armor"+std::to_string(i));}
+    for(auto* ref:std::array<RE::TESObjectREFR*,4>{player,&weapons,&armor,&archive})ref->replaceExtras=true;
+    EnchantedItems::BeginLoan();assert(count(*player,sword)==34);EnchantedItems::EndLoan();
+    assert(count(*player,sword)==2 && count(weapons,sword)==16 && count(armor,sword)==16);
+    for(auto* ref:{&weapons,&armor})for(auto& extra:ref->rows[&sword].extras){
+        assert(extra->count==1 && extra->owner==&owner && extra->metadata.starts_with(ref==&weapons?"weapon":"armor"));
+        assert(!InventoryStacks::HasOrigin(extra.get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword));
+    }
+
+    reset();junkBank.Put(&plain,0,5,&owner,"junk");
+    player->Put(&plain,0,2,&owner,"carried junk");junkBank.limit=1;junkBank.refuseAfter=2;
+    stores->BeginJunkLoan();assert(count(*player,plain)==4 && count(junkBank,plain)==3);
+    assert(stores->junkLoan_.at(plain.GetFormID())==std::pair(2,2));
+    player->limit=1;stores->EndJunkLoan();assert(count(*player,plain)==2 && count(junkBank,plain)==5);
+
+    reset();seed();EnchantedItems::BeginLoan();player->limit=1;player->refuseAfter=1;
+    EnchantedItems::EndLoan();assert(count(*player,sword)+count(weapons,sword)==3 && count(*player,helmet)+count(armor,helmet)==2);
+    for(auto& [item,row]:player->rows){(void)item;for(auto& extra:row.extras)assert(!InventoryStacks::HasOrigin(extra.get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword));}
+
+    reset();seed();assert(EnchantedItems::Gather());
+    archive.RemoveItem(&sword,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,archive.rows[&sword].extras.front().get(),player);
+    archive.RemoveItem(&helmet,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,archive.rows[&helmet].extras.front().get(),player);
+    assert(tasks->queue.size()==1);tasks->Run();
+    for(auto& [item,row]:player->rows){(void)item;for(auto& extra:row.extras)assert(!InventoryStacks::HasOrigin(extra.get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword));}
+
+    reset();seed();assert(EnchantedItems::Gather());
+    archive.RemoveItem(&sword,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,archive.rows[&sword].extras.front().get(),player);
+    EnchantedItems::Reset();
+    archive.RemoveItem(&helmet,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,archive.rows[&helmet].extras.front().get(),player);
+    assert(tasks->queue.size()==2);tasks->Run();
+    for(auto& [item,row]:player->rows){(void)item;for(auto& extra:row.extras)assert(!InventoryStacks::HasOrigin(extra.get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword));}
+
+    reset();seed();assert(EnchantedItems::Gather());
+    archive.RemoveItem(&sword,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,archive.rows[&sword].extras.front().get(),player);
+    EnchantedItems::BeginLoan();assert(count(*player,sword)==3);tasks->Run();EnchantedItems::EndLoan();
+    assert(count(*player,sword)==1 && count(weapons,sword)==2 && count(armor,helmet)==2);
+
+    reset();archive.Put(&sword,0,2,&owner,"malformed archive");archive.rows[&sword].duplicate=true;
+    assert(!EnchantedItems::Recover() && count(archive,sword)==2);
+    reset();seed();EnchantedItems::BeginLoan();weapons.Put(&sword,INT_MAX);
+    EnchantedItems::EndLoan();assert(count(*player,sword)==3 && count(weapons,sword)==INT_MAX);
+
+    reset();RE::EnchantmentItem fire,frost,carriedEnchantment;
+    for(auto* enchantment:{&fire,&frost}) {
+        weapons.Put(&plain,0,3,&owner,"same metadata");
+        weapons.rows[&plain].extras.back()->enchantment=RE::ExtraEnchantment{enchantment};
+    }
+    weapons.Put(&plain,0,4,&owner,"unenchanted");player->Put(&plain,0,2,&owner,"same metadata");
+    player->rows[&plain].extras.back()->enchantment=RE::ExtraEnchantment{&carriedEnchantment};
+    for(auto* ref:std::array<RE::TESObjectREFR*,3>{&weapons,&archive,player}){ref->replaceExtras=true;ref->limit=1;}
+    const auto enchantmentCounts=[&](RE::TESObjectREFR& ref){
+        std::map<RE::EnchantmentItem*,int> counts;
+        for(auto& extra:ref.rows[&plain].extras){assert(extra->owner==&owner);counts[extra->enchantment?extra->enchantment->enchantment:nullptr]+=extra->count;}
+        return counts;
+    };
+    EnchantedItems::BeginLoan();tasks->Run();
+    assert(enchantmentCounts(*player)==(std::map<RE::EnchantmentItem*,int>{{&fire,3},{&frost,3},{&carriedEnchantment,2}}));
+    assert(enchantmentCounts(weapons)==(std::map<RE::EnchantmentItem*,int>{{nullptr,4}}));
+    EnchantedItems::EndLoan();
+    assert(enchantmentCounts(*player)==(std::map<RE::EnchantmentItem*,int>{{&carriedEnchantment,2}}));
+    assert(enchantmentCounts(weapons)==(std::map<RE::EnchantmentItem*,int>{{nullptr,4},{&fire,3},{&frost,3}}));
+
+    reset();weapons.Put(&sword,0,1,&owner,"first");weapons.Put(&sword,0,1,&owner,"second");
+    int selections=0;
+    auto first=InventoryStacks::Read(&weapons,[&](auto*,auto&,auto*){++selections;return true;},&sword,true);
+    assert(first.size()==1 && first.front().extra->metadata=="first" && selections==1);
+    weapons.rows[&sword].extras.back()->count=2;
+    assert(InventoryStacks::Read(&weapons,{},&sword,true).empty());
+    weapons.rows[&sword].extras.back()->count=1;weapons.rows[&sword].duplicate=true;
+    assert(InventoryStacks::Read(&weapons,{},&sword,true).empty());
+
+    reset();weapons.Put(&sword,0,3,&owner,"counted move");weapons.limit=1;
+    assert(InventoryStacks::Move(InventoryStacks::Read(&weapons,{},&sword,true).front(),&armor)==1);
+    assert(count(weapons,sword)==2 && count(armor,sword)==1);
+    weapons.refuse=true;
+    assert(InventoryStacks::Move(InventoryStacks::Read(&weapons,{},&sword,true).front(),&armor)==0);
+    assert(count(weapons,sword)==2 && count(armor,sword)==1);
+    armor.Put(&helmet,0,1,&owner,"other base");
+    auto* key=&RE::TESDataHandler::GetSingleton()->enchantedKeyword;
+    auto* otherKey=&RE::TESDataHandler::GetSingleton()->keyword;
+    armor.rows[&sword].extras.front()->SetLinkedRef(&weapons,key);
+    armor.rows[&sword].extras.front()->SetLinkedRef(&archive,otherKey);
+    armor.rows[&helmet].extras.front()->SetLinkedRef(&weapons,key);
+    InventoryStacks::ClearOrigins(&armor,key,&sword);
+    assert(!InventoryStacks::HasOrigin(armor.rows[&sword].extras.front().get(),key));
+    assert(armor.rows[&sword].extras.front()->GetLinkedRef(otherKey)==&archive);
+    assert(armor.rows[&helmet].extras.front()->GetLinkedRef(key)==&weapons);
+
 }
 '''
 
@@ -166,6 +270,7 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-enchanted-loan-") as tmp:
         module.write_text('#include "common.hpp"\n' + "\n".join(line for line in (ROOT / f"src/{name}.cpp").read_text().splitlines() if not line.startswith("#include")))
         modules.append(str(module))
     binary = tmp / "check"
-    subprocess.run(["g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT), str(cpp), *modules, "-o", str(binary)], check=True)
-    subprocess.run([str(binary)], check=True)
-print("PASS: independent/default-disabled enchanting loans, original copies and metadata, consumption, protections, partial/large transfers, failure, reset, delayed events and other bench isolation")
+    sanitizers = ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"] if args.sanitize else []
+    subprocess.run(["g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", *sanitizers, "-I", str(ROOT), str(cpp), *modules, "-o", str(binary)], check=True, timeout=90)
+    subprocess.run([str(binary)], check=True, timeout=60)
+print("PASS: enchanting loans, replaced same-base stacks, metadata/origins, partial/refused/capacity transfers, Junk ledger, coalesced/reset/new-loan cleanup, protections and bench isolation")

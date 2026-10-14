@@ -8,6 +8,7 @@ namespace {
     RE::BGSKeyword* originKeyword{};
     std::atomic<std::uint64_t> generation{};
     std::atomic<bool> loanActive{};
+    std::atomic<bool> cleanupQueued{};
     RE::FormID archiveID{};
 
     RE::TESObjectREFR* Archive() {
@@ -23,10 +24,13 @@ namespace {
         RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event,
             RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
             if (event && !loanActive && archiveID && event->oldContainer == archiveID && event->newContainer == 0x14 && event->itemCount > 0) {
+                if (cleanupQueued.exchange(true)) return RE::BSEventNotifyControl::kContinue;
                 const auto session = generation.load();
                 SKSE::GetTaskInterface()->AddTask([session] {
-                    if (session == generation)
+                    if (session == generation) {
+                        cleanupQueued = false;
                         InventoryStacks::ClearOrigins(RE::PlayerCharacter::GetSingleton(), originKeyword);
+                    }
                 });
             }
             return RE::BSEventNotifyControl::kContinue;
@@ -46,6 +50,7 @@ namespace EnchantedItems {
     void Reset() {
         ++generation;
         loanActive = false;
+        cleanupQueued = false;
     }
 
     bool Eligible(RE::TESBoundObject* item, const RE::InventoryEntryData& entry, RE::ExtraDataList* extra) {
@@ -79,17 +84,23 @@ namespace EnchantedItems {
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!archive || !player || !originKeyword) return false;
         const auto parents = Parents();
-        while (InventoryStacks::HasItems(archive)) {
-            // Engine transfers can replace extra lists, so read them again after each move.
-            const auto stacks = InventoryStacks::Read(archive);
-            if (stacks.empty()) return false;
-            const auto& stack = stacks.front();
-            auto* origin = stack.extra ? stack.extra->GetLinkedRef(originKeyword) : nullptr;
-            if (InventoryStacks::HasOrigin(stack.extra, originKeyword) && !origin) return false;
-            auto* target = origin ? origin : player;
-            if (target != player && std::ranges::find(parents, target) == parents.end()) return false;
-            if (!InventoryStacks::Move(stack, target)) return false;
-            InventoryStacks::ClearOrigins(target, originKeyword);
+        for (const auto& [item, count] : archive->GetInventoryCounts()) {
+            if (!item || count <= 0) continue;
+            for (;;) {
+                // Engine transfers can replace extra lists, so read them again after each move.
+                const auto stacks = InventoryStacks::Read(archive, {}, item, true);
+                if (stacks.empty()) {
+                    if (InventoryStacks::Count(archive, item) > 0) return false;
+                    break;
+                }
+                const auto& stack = stacks.front();
+                auto* origin = stack.extra ? stack.extra->GetLinkedRef(originKeyword) : nullptr;
+                if (InventoryStacks::HasOrigin(stack.extra, originKeyword) && !origin) return false;
+                auto* target = origin ? origin : player;
+                if (target != player && std::ranges::find(parents, target) == parents.end()) return false;
+                if (!InventoryStacks::Move(stack, target)) return false;
+                InventoryStacks::ClearOrigins(target, originKeyword, item);
+            }
         }
         InventoryStacks::ClearOrigins(player, originKeyword);
         for (auto* source : parents) InventoryStacks::ClearOrigins(source, originKeyword);
@@ -106,13 +117,16 @@ namespace EnchantedItems {
             stores->AllToStore(child, Container::Armor);
         for (auto* source : Parents()) {
             if (!source || source == archive) return false;
-            for (;;) {
-                const auto stacks = InventoryStacks::Read(source, Eligible);
-                if (stacks.empty()) break;
-                const auto marked = InventoryStacks::MarkOrigin(stacks.front(), originKeyword);
-                if (!marked || !InventoryStacks::Move(*marked, archive)) {
-                    Recover();
-                    return false;
+            for (const auto& [item, count] : source->GetInventoryCounts()) {
+                if (!item || count <= 0) continue;
+                for (;;) {
+                    const auto stacks = InventoryStacks::Read(source, Eligible, item, true);
+                    if (stacks.empty()) break;
+                    const auto marked = InventoryStacks::MarkOrigin(stacks.front(), originKeyword);
+                    if (!marked || !InventoryStacks::Move(*marked, archive)) {
+                        Recover();
+                        return false;
+                    }
                 }
             }
         }
@@ -123,15 +137,20 @@ namespace EnchantedItems {
         if (loanActive) EndLoan();
         if (!Gather()) return;
         ++generation;
+        cleanupQueued = false;
         loanActive = true;
         auto* archive = Archive();
         auto* player = RE::PlayerCharacter::GetSingleton();
-        while (InventoryStacks::HasItems(archive)) {
-            const auto stacks = InventoryStacks::Read(archive);
-            if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) {
-                EndLoan();
-                Recover();
-                return;
+        for (const auto& [item, count] : archive->GetInventoryCounts()) {
+            if (!item || count <= 0) continue;
+            for (;;) {
+                const auto stacks = InventoryStacks::Read(archive, {}, item, true);
+                if (stacks.empty() && InventoryStacks::Count(archive, item) == 0) break;
+                if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) {
+                    EndLoan();
+                    Recover();
+                    return;
+                }
             }
         }
     }
@@ -139,23 +158,36 @@ namespace EnchantedItems {
     void EndLoan() {
         if (!loanActive.exchange(false)) return;
         ++generation;
+        cleanupQueued = false;
         auto* player = RE::PlayerCharacter::GetSingleton();
         const auto parents = Parents();
         const auto* command = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
         const auto equipped = command ? command->conditionFunction : nullptr;
-        for (;;) {
-            const auto stacks = InventoryStacks::Read(player, [&](auto* item, auto& entry, auto* extra) {
-                if (!InventoryStacks::HasOrigin(extra, originKeyword) || entry.IsQuestObject() || entry.IsFavorited() || entry.IsWorn()) return false;
-                auto* origin = extra->GetLinkedRef(originKeyword);
-                if (!origin || std::ranges::find(parents, origin) == parents.end()) return false;
-                double worn{};
-                return !equipped || !equipped(player, item, nullptr, worn) || worn == 0.0;
-            });
-            if (stacks.empty()) break;
-            const auto& stack = stacks.front();
-            auto* origin = stack.extra->GetLinkedRef(originKeyword);
-            if (!InventoryStacks::Move(stack, origin)) break;
-            InventoryStacks::ClearOrigins(origin, originKeyword);
+        for (const auto& [item, count] : player->GetInventoryCounts()) {
+            if (!item || count <= 0) continue;
+            std::unordered_set<RE::TESObjectREFR*> destinations;
+            const auto clearDestinations = [&] {
+                for (auto* destination : destinations) InventoryStacks::ClearOrigins(destination, originKeyword, item);
+            };
+            for (;;) {
+                const auto stacks = InventoryStacks::Read(player, [&](auto* candidate, auto& entry, auto* extra) {
+                    if (!InventoryStacks::HasOrigin(extra, originKeyword) || entry.IsQuestObject() || entry.IsFavorited() || entry.IsWorn()) return false;
+                    auto* origin = extra->GetLinkedRef(originKeyword);
+                    if (!origin || std::ranges::find(parents, origin) == parents.end()) return false;
+                    double worn{};
+                    return !equipped || !equipped(player, candidate, nullptr, worn) || worn == 0.0;
+                }, item, true);
+                if (stacks.empty()) break;
+                const auto& stack = stacks.front();
+                auto* origin = stack.extra->GetLinkedRef(originKeyword);
+                destinations.insert(origin);
+                if (!InventoryStacks::Move(stack, origin)) {
+                    clearDestinations();
+                    InventoryStacks::ClearOrigins(player, originKeyword);
+                    return;
+                }
+            }
+            clearDestinations();
         }
         InventoryStacks::ClearOrigins(player, originKeyword);
     }

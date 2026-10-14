@@ -458,7 +458,7 @@ program += "struct Settings {\n" + settings_fields + r'''
     }
 };
 '''
-move_start = source.index("    void MoveItems(")
+move_start = source.index("    int MoveItems(")
 program += source[move_start:source.index("\n    }", move_start) + 6]
 program += r'''
 namespace InventoryStacks {
@@ -471,10 +471,10 @@ std::vector<Stack> Read(RE::TESObjectREFR* source,std::function<bool(RE::TESBoun
 }
 int Count(RE::TESObjectREFR* source,RE::TESBoundObject* item){return source->inventory[item].first;}
 std::optional<Stack> Materialize(const Stack& stack){return stack;}
-bool Move(const Stack& stack,RE::TESObjectREFR* target) {
+int Move(const Stack& stack,RE::TESObjectREFR* target) {
     const int before=Count(stack.source,stack.item);
     stack.source->RemoveItem(stack.item,stack.count,RE::ITEM_REMOVE_REASON::kStoreInContainer,stack.extra,target);
-    return Count(stack.source,stack.item)<before;
+    return before-Count(stack.source,stack.item);
 }
 }
 

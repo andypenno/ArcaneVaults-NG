@@ -9,12 +9,12 @@ namespace InventoryStacks {
         int count;
     };
     using Select = std::function<bool(RE::TESBoundObject*, RE::InventoryEntryData&, RE::ExtraDataList*)>;
-    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {}, RE::TESBoundObject* item = nullptr);
+    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {}, RE::TESBoundObject* item = nullptr, bool firstOnly = false);
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item);
     bool HasItems(RE::TESObjectREFR* source);
-    bool Move(const Stack& stack, RE::TESObjectREFR* target);
+    int Move(const Stack& stack, RE::TESObjectREFR* target);
     std::optional<Stack> Materialize(const Stack& stack);
     bool HasOrigin(RE::ExtraDataList* extra, RE::BGSKeyword* keyword);
-    void ClearOrigins(RE::TESObjectREFR* source, RE::BGSKeyword* keyword);
+    void ClearOrigins(RE::TESObjectREFR* source, RE::BGSKeyword* keyword, RE::TESBoundObject* item = nullptr);
     std::optional<Stack> MarkOrigin(const Stack& stack, RE::BGSKeyword* keyword);
 }

@@ -3,7 +3,7 @@
 #include <unordered_set>
 
 namespace InventoryStacks {
-    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem) {
+    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem, bool firstOnly) {
         std::vector<Stack> result;
         if (!source) return result;
         for (const auto& [item, data] : source->GetInventory([onlyItem](RE::TESBoundObject& item) { return !onlyItem || &item == onlyItem; })) {
@@ -13,6 +13,7 @@ namespace InventoryStacks {
             std::unordered_set<RE::ExtraDataList*> visited;
             std::int64_t explicitCount{};
             bool valid = true;
+            // A first-stack request still validates every physical count in the entry.
             if (entry->extraLists) {
                 for (auto* extra : *entry->extraLists) {
                     if (!extra) continue;
@@ -23,14 +24,15 @@ namespace InventoryStacks {
                     }
                     explicitCount += count;
                     // The aggregate owner can belong to a different copy of this base record.
-                    if (!select || select(item, *entry, extra))
+                    if ((!firstOnly || selected.empty()) && (!select || select(item, *entry, extra)))
                         selected.push_back({source, item, extra, count});
                 }
             }
             if (!valid) continue;
-            if (explicitCount < data.first && (!select || select(item, *entry, nullptr)))
+            if (explicitCount < data.first && (!firstOnly || selected.empty()) && (!select || select(item, *entry, nullptr)))
                 selected.push_back({source, item, nullptr, static_cast<int>(data.first - explicitCount)});
             result.insert(result.end(), selected.begin(), selected.end());
+            if (firstOnly && !result.empty()) break;
         }
         return result;
     }
@@ -48,15 +50,15 @@ namespace InventoryStacks {
         return false;
     }
 
-    bool Move(const Stack& stack, RE::TESObjectREFR* target) {
-        if (!target || target == stack.source) return false;
+    int Move(const Stack& stack, RE::TESObjectREFR* target) {
+        if (!target || target == stack.source) return 0;
         const int before = Count(stack.source, stack.item);
         const int targetBefore = Count(target, stack.item);
         const int count = (std::min)(stack.count, (std::numeric_limits<int>::max)() - targetBefore);
-        if (count <= 0) return false;
+        if (count <= 0) return 0;
         stack.source->RemoveItem(stack.item, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, stack.extra, target);
         const int removed = before - Count(stack.source, stack.item);
-        return removed > 0 && removed <= count && Count(target, stack.item) - targetBefore == removed;
+        return removed > 0 && removed <= count && Count(target, stack.item) - targetBefore == removed ? removed : 0;
     }
 
     bool HasOrigin(RE::ExtraDataList* extra, RE::BGSKeyword* keyword) {
@@ -67,9 +69,9 @@ namespace InventoryStacks {
         return false;
     }
 
-    void ClearOrigins(RE::TESObjectREFR* source, RE::BGSKeyword* keyword) {
+    void ClearOrigins(RE::TESObjectREFR* source, RE::BGSKeyword* keyword, RE::TESBoundObject* item) {
         if (!source || !keyword) return;
-        for (const auto& stack : Read(source)) {
+        for (const auto& stack : Read(source, {}, item)) {
             if (!HasOrigin(stack.extra, keyword)) continue;
             auto* links = stack.extra->GetByType<RE::ExtraLinkedRef>();
             for (auto i = links->linkedRefs.size(); i > 0; --i)

@@ -61,7 +61,7 @@ namespace {
     template<class Select>
     void MoveAll(RE::TESObjectREFR* source, RE::TESObjectREFR* target, Select select) {
         if (!source || !target || source == target) return;
-        const auto inventory = source->GetInventory();
+        const auto inventory = source->GetInventory([](RE::TESBoundObject& item) { return item.As<RE::TESSoulGem>() != nullptr; });
         std::vector<Stack> stacks;
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->template As<RE::TESSoulGem>() : nullptr;
@@ -76,7 +76,7 @@ namespace {
         Counts counts;
         if (!source) return counts;
         std::vector<Stack> stacks;
-        const auto inventory = source->GetInventory();
+        const auto inventory = source->GetInventory([](RE::TESBoundObject& item) { return item.As<RE::TESSoulGem>() != nullptr; });
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
             if (!gem || !data.second || !ReadStacks(gem, data.first, *data.second, stacks)) continue;
@@ -171,7 +171,7 @@ namespace Soulgems {
             } else {
                 const auto carried = CountGems(player);
                 const auto playerInventory = player->GetInventory();
-                const auto inventory = source->GetInventory();
+                const auto inventory = source->GetInventory([](RE::TESBoundObject& item) { return item.As<RE::TESSoulGem>() != nullptr; });
                 std::vector<Stack> stacks;
                 for (const auto& [item, data] : inventory) {
                     auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
@@ -231,7 +231,7 @@ namespace Soulgems {
         auto* player = RE::PlayerCharacter::GetSingleton();
         auto* bank = Utility::GetSingleton()->GetContainer(Container::Soulgem);
         if (!player || !bank) { ResetLoan(); return; }
-        const auto inventory = player->GetInventory();
+        const auto inventory = player->GetInventory([](RE::TESBoundObject& item) { return loanForms.contains(item.GetFormID()); });
         std::vector<Stack> stacks;
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;

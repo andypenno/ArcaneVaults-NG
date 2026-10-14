@@ -12,6 +12,7 @@ program = r'''
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -69,7 +70,11 @@ struct TESObjectREFR {
     using Inventory = std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>>;
     Inventory inventory;
     inline static std::vector<std::unique_ptr<ExtraDataList>> extras;
-    Inventory GetInventory() const { return inventory; }
+    Inventory GetInventory(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;}) const {
+        Inventory selected;
+        for(const auto& [item,data]:inventory) if(item && filter(*item)) selected[item]=data;
+        return selected;
+    }
     void Put(TESBoundObject* item,int count,std::optional<SOUL_LEVEL> soul={},std::string owner={},bool explicitStack=false) {
         auto& data=inventory[item];data.first+=count;
         if (!data.second) data.second=std::make_shared<InventoryEntryData>();
