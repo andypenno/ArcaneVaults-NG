@@ -193,9 +193,10 @@ struct TESDataHandler { BGSKeyword keyword{0x01000DE0},enchantedKeyword{0x01000D
 struct SendHUDMessage {inline static std::string message;static void ShowHUDMessage(const char* text){message=text;} };
 using BSFixedString=std::string;
 struct GFxValue {
-    enum Kind {Undefined,Number,Bool,DisplayObject} kind=Undefined;double number=0;bool boolean=false;
+    enum Kind {Undefined,Number,Bool,DisplayObject,Object,Array} kind=Undefined;double number=0;bool boolean=false;
     std::map<std::string,GFxValue> members;
-    bool GetMember(const char* name,GFxValue* value)const{auto i=members.find(name);if(i==members.end())return false;*value=i->second;return true;}
+    bool GetMember(const char* name,GFxValue* value)const{assert(IsObject());auto i=members.find(name);if(i==members.end())return false;*value=i->second;return true;}
+    bool IsObject()const{return kind==Object || kind==Array || kind==DisplayObject;}
     bool IsDisplayObject()const{return kind==DisplayObject;}
     bool IsNumber()const{return kind==Number;}bool IsBool()const{return kind==Bool;}
     double GetNumber()const{return number;}bool GetBool()const{return boolean;}
@@ -258,7 +259,7 @@ struct InventoryMenu:IMenu {
         auto add=[&](TESBoundObject* item,int count,const std::vector<ExtraDataList*>& extras,bool worn) {
             auto entry=std::make_shared<InventoryEntryData>();entry->object=item;entry->countDelta=count+(wrongCount?1:0);
             for(auto* extra:extras){if(cloneIDs){auto copy=std::make_shared<ExtraDataList>(*extra);entry->lists.push_back(copy.get());clones.push_back(copy);}else entry->lists.push_back(extra);}
-            auto row=std::make_unique<ItemList::Item>();row->data.objDesc=entry.get();row->data.owner=wrongOwner?999:message.data->inventoryRef;
+            auto row=std::make_unique<ItemList::Item>();row->obj.kind=GFxValue::Object;row->data.objDesc=entry.get();row->data.owner=wrongOwner?999:message.data->inventoryRef;
             if(!missingFields){GFxValue state;state.kind=GFxValue::Number;state.number=nan?std::numeric_limits<double>::quiet_NaN():worn?3:0;row->obj.members["equipState"]=state;
                 GFxValue eq;eq.kind=GFxValue::Bool;eq.boolean=worn;row->obj.members["isEquipped"]=eq;}
             if(wrongStateType)row->obj.members["equipState"].kind=GFxValue::Bool;

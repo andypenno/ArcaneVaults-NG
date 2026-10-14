@@ -17,7 +17,7 @@ namespace PlayerEquipment {
             }
             for (auto* row : rows) {
                 auto* entry = row->data.objDesc;
-                if (row->data.owner != owner || entry->countDelta <= 0) return std::nullopt;
+                if (row->data.owner != owner || entry->countDelta <= 0 || !row->obj.IsObject()) return std::nullopt;
                 RE::GFxValue state, equipped;
                 const bool hasState = row->obj.GetMember("equipState", &state);
                 const bool hasEquipped = row->obj.GetMember("isEquipped", &equipped);
@@ -180,7 +180,15 @@ namespace PlayerEquipment {
                     if (menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
                         auto* inventory = skyrim_cast<RE::InventoryMenu*>(menu.get());
                         auto* list = inventory->GetRuntimeData().itemList;
-                        const bool ready = menu->uiMovie && list && list->root.IsDisplayObject();
+                        bool ready = menu->uiMovie && list && list->root.IsObject();
+                        if (!ready && menu->uiMovie && list) {
+                            for (auto* row : list->items) {
+                                if (row && row->data.objDesc && row->data.objDesc->object && row->obj.IsObject()) {
+                                    ready = true;
+                                    break;
+                                }
+                            }
+                        }
                         if (!ready && Clock::now() < request->deadline) {
                             SKSE::GetTaskInterface()->AddTask([request] {
                                 if (Active(request) && request->phase == Phase::Reading) {
