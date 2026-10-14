@@ -67,7 +67,11 @@ struct InventoryEntryData {
     bool IsWorn() const { return worn; }
 };
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
+struct TESObjectREFR;
+struct ObjectRefHandle {TESObjectREFR* object=nullptr;struct Pointer {TESObjectREFR* object;explicit operator bool()const{return object!=nullptr;}TESObjectREFR* get()const{return object;}};Pointer get()const{return {object};}};
+struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};ObjectRefHandle::Pointer actor,targetFurniture;FurnitureEventType type;};
 struct TESObjectREFR {
+    ObjectRefHandle GetHandle(){return {this};}
     using Inventory = std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>>;
     Inventory inventory;
     inline static std::vector<std::unique_ptr<ExtraDataList>> extras;

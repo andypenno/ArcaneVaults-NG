@@ -284,6 +284,7 @@ public:
 
         if (benchType == BenchType::None || (!materials && !enchanted)) return;
         loanBench_ = benchType;
+        loanFurniture_ = a_furniture->GetHandle();
         materialsLoan_ = materials;
         if (!materials) {
             if (enchanted) EnchantedItems::BeginLoan();
@@ -329,6 +330,7 @@ public:
     void Reset() {
         ++session_;
         loanBench_.reset();
+        loanFurniture_ = {};
         materialsLoan_ = false;
         Soulgems::ResetLoan();
         EnchantedItems::Reset();
@@ -340,6 +342,7 @@ public:
         ++session_;
         const auto benchType = *loanBench_;
         loanBench_.reset();
+        loanFurniture_ = {};
         if (benchType == BenchType::Enchanting) EnchantedItems::EndLoan();
         if (!std::exchange(materialsLoan_, false)) return;
         auto* stores = Stores::GetSingleton();
@@ -385,8 +388,19 @@ public:
         });
     }
 
+    void FurnitureEvent(const RE::TESFurnitureEvent& event) {
+        const auto session = session_.load();
+        SKSE::GetTaskInterface()->AddTask([this, event, session] {
+            if (session != session_ || event.actor.get() != RE::PlayerCharacter::GetSingleton() ||
+                event.type != RE::TESFurnitureEvent::FurnitureEventType::kExit) return;
+            const auto furniture = loanFurniture_.get();
+            if (furniture && furniture.get() == event.targetFurniture.get()) ExitCrafting();
+        });
+    }
+
 private:
     std::optional<BenchType> loanBench_;
+    RE::ObjectRefHandle loanFurniture_;
     std::atomic<std::uint64_t> session_{};
     bool materialsLoan_{};
 };
@@ -421,7 +435,8 @@ private:
     static inline REL::Relocation<decltype(ActivateCraftLoan)> activate_;
 };
 
-class CraftingMenuEventHandler final : public RE::BSTEventSink<RE::MenuOpenCloseEvent> {
+class CraftingMenuEventHandler final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>,
+    public RE::BSTEventSink<RE::TESFurnitureEvent> {
 public:
     static CraftingMenuEventHandler* GetSingleton() {
         static CraftingMenuEventHandler singleton;
@@ -439,8 +454,15 @@ public:
     }
 
     static void Register() {
-        RE::UI::GetSingleton()->AddEventSink(CraftingMenuEventHandler::GetSingleton());
+        RE::UI::GetSingleton()->AddEventSink<RE::MenuOpenCloseEvent>(CraftingMenuEventHandler::GetSingleton());
+        RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESFurnitureEvent>(CraftingMenuEventHandler::GetSingleton());
         logger::info("Handler Installed: Crafting Menu");
+    }
+
+    RE::BSEventNotifyControl ProcessEvent(const RE::TESFurnitureEvent* event,
+        RE::BSTEventSource<RE::TESFurnitureEvent>*) override {
+        if (event) CraftingLoanState::GetSingleton()->FurnitureEvent(*event);
+        return RE::BSEventNotifyControl::kContinue;
     }
 };
 

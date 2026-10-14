@@ -201,7 +201,21 @@ namespace EnchantedItems {
             if (item && count > 0) loanItems[item->GetFormID()].expected = count;
         loanActive = true;
         dispatching = true;
-        changes->RemoveAllItems(archive, player, false, true, false);
+        const auto session = generation.load();
+        for (const auto& [item, count] : inventory) {
+            if (!item || count <= 0) continue;
+            int remaining = count;
+            while (remaining > 0 && session == generation && !ending) {
+                const auto stacks = InventoryStacks::Read(archive, {}, item, true);
+                if (session != generation) return;
+                if (stacks.empty()) { ending = true; break; }
+                const int moved = InventoryStacks::Move(stacks.front(), player);
+                if (session != generation) return;
+                if (!moved) { ending = true; break; }
+                remaining -= moved;
+            }
+            if (session != generation) return;
+        }
         dispatching = false;
         const auto remaining = archive->GetInventoryCounts();
         const auto received = player->GetInventoryCounts([&](RE::TESBoundObject& item) { return inventory.contains(&item); });

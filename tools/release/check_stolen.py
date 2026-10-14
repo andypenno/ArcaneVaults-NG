@@ -120,6 +120,8 @@ struct InventoryEntryData {
 };
 struct Ref { TESObjectREFR* value;explicit operator bool() const{return value!=nullptr;}TESObjectREFR* get()const{return value;} };
 struct Handle { unsigned id=0;unsigned native_handle()const{return id;}Ref get()const {return {TESForm::refs.contains(id)?TESForm::refs[id]:nullptr};} };
+using ObjectRefHandle=Handle;
+struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};Ref actor,targetFurniture;FurnitureEventType type;};
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESContainerChangedEvent { unsigned oldContainer,newContainer,baseObj;int itemCount; };
 enum class BSEventNotifyControl { kContinue };

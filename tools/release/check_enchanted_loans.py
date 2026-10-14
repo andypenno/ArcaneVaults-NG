@@ -2,6 +2,12 @@
 
 from pathlib import Path
 import argparse
+import json
+import hashlib
+import os
+import statistics
+import signal
+import atexit
 import subprocess
 import tempfile
 
@@ -10,7 +16,13 @@ import check_stolen
 ROOT = check_stolen.ROOT
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--sanitize", action="store_true", help="Check native memory access and undefined behaviour")
+parser.add_argument("--probe-deliveries", type=Path, help="Record alternative native dispatch and receipt orders")
+parser.add_argument("--time-deliveries", type=Path, help="Measure synchronous and deferred loan phases at 100/1000 copies or stacks")
+parser.add_argument("--samples", type=int, default=3)
+parser.add_argument("--sizes", type=int, nargs="+", default=[100,1000])
 args = parser.parse_args()
+if args.time_deliveries and (args.probe_deliveries or args.sanitize):
+    parser.error("Timing runs exclude the delivery probe and sanitizers")
 common = check_stolen.common.replace(
     "struct Settings {", "struct Settings {bool GSC_CraftingLoan=false,GSC_EnchantedItemsLoan=false;"
 ).replace(
@@ -44,6 +56,7 @@ common = common.replace(
     "auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;",
     "if(duringDispatch){duringDispatch();}auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;"
 )
+common=common.replace("if(deferTransfers && target->id==0x14){", "if(changes.duringDispatch && target->id==0x14){auto callback=std::exchange(changes.duringDispatch,{});callback();}if(deferTransfers && target->id==0x14){")
 events = (ROOT / "src/Events.cpp").read_text()
 loan = events[events.index("class CraftingLoanState {"):events.index("class FurnitureActivation {")]
 start = events.index("    static bool ActivateCraftLoan(")
@@ -107,7 +120,7 @@ int main() {
     weapons.Put(&artifact,2);weapons.Put(&staff,2);weapons.Put(&plain,2);
     session->EnterCrafting(&bench);tasks->Run();
     assert(count(*player,sword)==4 && count(*player,helmet)==2 && count(weapons,sword)==0 && count(archive,sword)==0);
-    assert(archive.changes.bulkTransfers==1 && archive.changes.lastKeepOwnership);
+    assert(archive.changes.bulkTransfers==0);
     assert(count(weapons,artifact)==2 && count(weapons,staff)==2 && count(weapons,plain)==2);
     assert(Soulgems::loans==0 && stores->junkLoans==0 && stores->materialLoans==0);
     auto* borrowed=player->rows[&sword].extras.back().get();
@@ -124,6 +137,15 @@ int main() {
         reset();seed();settings->GSC_EnchantedItemsLoan=true;u->bench=type;
         session->EnterCrafting(&bench);session->ExitCrafting();
         assert(count(weapons,sword)==3 && count(*player,sword)==0 && Soulgems::loans==0 && stores->junkLoans==0);
+    }
+    for(auto type:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::Enchanting,BenchType::StaffEnchanting}){
+        reset();seed();settings->GSC_CraftingLoan=settings->GSC_EnchantedItemsLoan=true;u->bench=type;
+        session->EnterCrafting(&bench);
+        RE::TESFurnitureEvent exit{{player},{&bench},RE::TESFurnitureEvent::FurnitureEventType::kExit};
+        session->FurnitureEvent(exit);tasks->Run();
+        assert(stores->junkLoans==1 && stores->junkReturns==1 && !EnchantedItems::HasPendingLoan());
+        assert(count(*player,sword)==0 && count(weapons,sword)==3 && count(armor,helmet)==2);
+        if(type==BenchType::Smithing || type==BenchType::Enchanting)assert(Soulgems::loans==1 && Soulgems::returns==1);
     }
     reset();seed();settings->GSC_CraftingLoan=true;session->EnterCrafting(&bench);
     assert(count(weapons,sword)==3 && Soulgems::loans==1 && stores->junkLoans==1);
@@ -142,7 +164,7 @@ int main() {
     for(bool overflow:{false,true}) {
         reset();seed();const int held=INT_MAX-(overflow?2:3);player->Put(&sword,held);
         EnchantedItems::BeginLoan();
-        assert(archive.changes.bulkTransfers==(overflow?0:1));
+        assert(archive.changes.bulkTransfers==0);
         assert(count(*player,sword)==held+(overflow?0:3));
         EnchantedItems::EndLoan();
         assert(count(*player,sword)==held && count(weapons,sword)==3 && count(armor,helmet)==2);
@@ -152,7 +174,7 @@ int main() {
         archive.changes.bulkRefuse=failure==0;archive.changes.bulkLimit=failure==1?2:INT_MAX;
         archive.missingChanges=failure==2;
         EnchantedItems::BeginLoan();tasks->Run();EnchantedItems::EndLoan();
-        assert(archive.changes.bulkTransfers==(failure==2?0:1));
+        assert(archive.changes.bulkTransfers==0);
         assert(count(*player,sword)==2 && count(*player,helmet)==0 && count(weapons,sword)==3 && count(armor,helmet)==2);
         assert(count(archive,sword)==0 && count(archive,helmet)==0 && player->rows[&sword].extras.front()->metadata=="carried");
     }
@@ -166,7 +188,7 @@ int main() {
 
     reset();seed();player->Put(&sword,0,1,&owner,"carried");archive.deferTransfers=true;
     settings->GSC_EnchantedItemsLoan=true;session->EnterCrafting(&bench);session->ExitCrafting();
-    assert(count(*player,sword)==1 && archive.deliveries.size()==2);
+    assert(count(*player,sword)==1 && archive.deliveries.size()==1);
     while(!archive.deliveries.empty()){
         auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();tasks->Run();
         assert(count(*player,sword)==1 && count(*player,helmet)==0);
@@ -201,7 +223,7 @@ int main() {
     archive.deferTransfers=true;archive.limit=1;settings->GSC_EnchantedItemsLoan=true;
     session->EnterCrafting(&bench);session->ExitCrafting();assert(EnchantedItems::HasPendingLoan() && !EnchantedItems::Gather());
     settings->GSC_CraftingLoan=true;u->bench=BenchType::Alchemy;session->EnterCrafting(&bench);
-    assert(stores->materialLoans==0 && archive.deliveries.size()==6);
+    assert(stores->materialLoans==0 && archive.deliveries.size()==1);
     while(!archive.deliveries.empty()){
         auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();tasks->Run();
         assert(count(*player,plain)==2 && player->rows[&plain].extras.front()->enchantment->enchantment==&normal);
@@ -369,6 +391,196 @@ int main() {
 }
 '''
 
+if args.probe_deliveries or args.time_deliveries:
+    if (args.probe_deliveries or args.time_deliveries).exists():
+        parser.error("Choose a new report path")
+    common = common.replace("inline bool inspectionOpen=false;", "inline bool bulkDispatch=false;inline bool inspectionOpen=false;")
+    common = common.replace("if(deferTransfers && target->id==0x14){", "if(bulkDispatch && deferTransfers && target->id==0x14){")
+    common = common.replace("auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;", "struct BulkScope{BulkScope(){bulkDispatch=true;}~BulkScope(){bulkDispatch=false;}} scope;auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;")
+    common = common.replace("bool deferTransfers=false;", "int deliveryOrder=0;bool earlyReceipt=false;bool deferTransfers=false;")
+    common = common.replace("struct ScriptEventSourceHolder {", "inline int receiptMode=0;\nstruct ScriptEventSourceHolder {")
+    common = common.replace("void Send(TESContainerChangedEvent e){for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);}", r'''
+    void Send(TESContainerChangedEvent e){
+        const bool loan=e.oldContainer==1003 && e.newContainer==0x14;
+        if(loan && receiptMode==1)return;
+        if(loan && receiptMode==3)e.oldContainer=1001;
+        for(int i=0;i<(loan && receiptMode==2?3:1);++i)for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);
+    }''')
+    common = common.replace("for(auto& copy:row.extras)out.extras.push_back(copy);", r'''
+        for(auto& copy:row.extras){
+            if(receiptMode==4)std::erase_if(copy->links.linkedRefs,[](auto& link){return link.keyword->id==0x01000DED;});
+            out.extras.push_back(copy);
+        }''')
+    common = common.replace("if(row.total>0)deliveries.push_back([item,target,row,from=id]{", "if(earlyReceipt && row.total>0)ScriptEventSourceHolder::GetSingleton()->Send({id,target->id,item->id,row.total});\n            if(row.total>0)deliveries.push_back([item,target,row,from=id,early=earlyReceipt]{")
+    common = common.replace("ScriptEventSourceHolder::GetSingleton()->Send({from,target->id,item->id,row.total});", "if(!early)ScriptEventSourceHolder::GetSingleton()->Send({from,target->id,item->id,row.total});")
+    needle = "assert(owner==source && !stealing);++bulkTransfers;lastKeepOwnership=keepOwnership;if(bulkRefuse)return;"
+    assert needle in common
+    common = common.replace(needle, needle + r'''
+    if(source->deliveryOrder==2 || source->deliveryOrder==4){
+        source->refuse=source->deliveryOrder==2;source->deliveryOrder=0;
+        source->deliveries.push_back([this,owner,target,stealing,keepOwnership]{
+            source->refuse=false;RemoveAllItems(owner,target,stealing,keepOwnership,false);
+        });
+        return;
+    }
+''')
+    setup = program[:program.index("    reset();seed();session->EnterCrafting(&bench);")]
+    setup = setup.replace("ref->deferTransfers=false;", "ref->deliveryOrder=0;ref->earlyReceipt=false;ref->deferTransfers=false;")
+    setup = setup.replace("RE::EnchantmentItem normal;", "RE::EnchantmentItem normal,fire,frost;")
+    setup = setup.replace('weapons.Put(&sword,0,3,&owner,"borrowed sword");', '''
+        for(auto* enchantment:{&fire,&frost}){
+            weapons.Put(&sword,0,enchantment==&fire?1:2,&owner,"borrowed sword");
+            weapons.rows[&sword].extras.back()->enchantment=RE::ExtraEnchantment{enchantment};
+        }''')
+    program = setup + r'''
+    (void)artifact;(void)staff;(void)plain;
+    RE::TESFurniture furniture;
+    for(int order=0;order<5;++order)for(int scenario=0;scenario<17;++scenario){
+        reset();seed();player->Put(&sword,0,1,&owner,"carried");
+        RE::receiptMode=scenario<=4?scenario:0;
+        archive.deliveryOrder=order;archive.deferTransfers=order!=0;archive.earlyReceipt=order==3;
+        settings->GSC_EnchantedItemsLoan=true;furniture.activation=scenario!=14;
+        assert(ActivateCraftLoan(&furniture,&bench,player,0,nullptr,1)==furniture.activation);furniture.activation=true;
+        const int heldAtBegin=count(*player,sword);
+        const bool drainingBeforeClose=EnchantedItems::HasPendingLoan();
+        if(scenario==9 && !archive.deliveries.empty()){
+            auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();tasks->Run();
+        }
+        if(scenario==5)player->refuse=true;
+        if(scenario==6)weapons.Put(&sword,INT_MAX-3);
+        if(scenario==7)RE::SCRIPT_FUNCTION::equipped.insert(&sword);
+        RE::MenuOpenCloseEvent closing{"CraftingMenu",false};
+        if(scenario!=15)CraftingCloseEvent(&closing,nullptr);
+        tasks->Run();
+        if(scenario==8){CraftingCloseEvent(&closing,nullptr);CraftingCloseEvent(&closing,nullptr);tasks->Run();}
+        if(scenario==11 || scenario==12){
+            u->bench=scenario==11?BenchType::Enchanting:BenchType::Alchemy;
+            settings->GSC_CraftingLoan=scenario==12;session->EnterCrafting(&bench);
+            CraftingCloseEvent(&closing,nullptr);tasks->Run();
+        }
+        if(scenario==13){session->Reset();tasks->Run();}
+        const bool oldDeliveries=!archive.deliveries.empty();
+        if(scenario==16){
+            session->Reset();tasks->Run();armor.Put(&helmet,0,1,&owner,"borrowed helmet");
+            session->EnterCrafting(&bench);CraftingCloseEvent(&closing,nullptr);tasks->Run();
+        }
+        const bool drainingAfterClose=EnchantedItems::HasPendingLoan();
+        const int beforeArrival=count(*player,sword);
+        int deliveries=0;
+        std::vector<std::pair<int,int>> arrivals;
+        if(scenario==2)std::reverse(archive.deliveries.begin(),archive.deliveries.end());
+        while(!archive.deliveries.empty()){
+            assert(++deliveries<20);
+            auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();
+            const int beforeCleanup=count(*player,sword)+count(*player,helmet);
+            if(scenario!=10)tasks->Run();
+            arrivals.emplace_back(beforeCleanup,count(*player,sword)+count(*player,helmet));
+        }
+        tasks->Run();
+        const int held=count(*player,sword),returned=count(weapons,sword);
+        const std::int64_t capacitySeed=scenario==6?INT_MAX-3:0;
+        assert(static_cast<std::int64_t>(held)+returned+count(archive,sword)==4+capacitySeed);
+        assert(count(*player,helmet)+count(armor,helmet)+count(archive,helmet)==2+(scenario==16?1:0));
+        std::map<RE::EnchantmentItem*,int> enchantments;
+        for(auto* ref:{static_cast<RE::TESObjectREFR*>(player),&weapons,&archive})
+            for(auto& extra:ref->rows[&sword].extras){
+                assert(extra->owner==&owner);assert(extra->metadata=="carried" || extra->metadata=="borrowed sword");
+                enchantments[extra->enchantment?extra->enchantment->enchantment:nullptr]+=extra->count;
+            }
+        assert((enchantments==std::map<RE::EnchantmentItem*,int>{{nullptr,1},{&fire,1},{&frost,2}}));
+        int carried=0,marked=0;
+        for(auto& extra:player->rows[&sword].extras){
+            if(extra->metadata=="carried")carried+=extra->count;
+            if(InventoryStacks::HasOrigin(extra.get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword))marked+=extra->count;
+        }
+        assert(carried==1);
+        const bool restored=held==1 && returned==3 && count(*player,helmet)==0 && count(armor,helmet)==2;
+        const bool protectedCase=scenario==5 || scenario==6 || scenario==7 || scenario==13 || scenario==15 || scenario==16;
+        if(protectedCase)assert(held>=beforeArrival);
+
+        const bool sessionIsolated=scenario!=16 || (count(*player,helmet)==(oldDeliveries?2:0) && count(armor,helmet)==(oldDeliveries?1:3));
+        std::cout<<"{\"order\":"<<order<<",\"scenario\":"<<scenario<<",\"protected_case\":"<<(protectedCase?"true":"false")<<",\"held_at_begin\":"<<heldAtBegin
+            <<",\"draining_before_close\":"<<(drainingBeforeClose?"true":"false")
+            <<",\"draining_after_close\":"<<(drainingAfterClose?"true":"false")
+            <<",\"held_after_close\":"<<beforeArrival<<",\"held_final\":"<<held
+            <<",\"returned_final\":"<<returned<<",\"marked_final\":"<<marked
+            <<",\"pending_final\":"<<(EnchantedItems::HasPendingLoan()?"true":"false")
+            <<",\"restored\":"<<(restored?"true":"false")<<",\"session_isolated\":"<<(sessionIsolated?"true":"false")<<",\"held_helmet_final\":"<<count(*player,helmet)<<",\"returned_helmet_final\":"<<count(armor,helmet)<<",\"arrivals\":[";
+        for(std::size_t i=0;i<arrivals.size();++i){
+            if(i)std::cout<<",";
+            std::cout<<"{\"visible_before_cleanup\":"<<arrivals[i].first<<",\"visible_after_cleanup\":"<<arrivals[i].second<<"}";
+        }
+        std::cout<<"]}\n";
+    }
+}
+'''
+    program = program.replace('#include "common.hpp"', '#include "common.hpp"\n#include <iostream>')
+
+if args.time_deliveries:
+    def stop_timings(_signal, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM,stop_timings)
+    if args.samples<2:parser.error("Use at least two repeats")
+    if not all(0<=size<=1000 for size in args.sizes):parser.error("Sizes must be between zero and 1000")
+    common=common.replace("inline bool inspectionOpen=false;", "struct ScanCounters{inline static std::uint64_t calls=0,extras=0;static void Reset(){calls=extras=0;}};inline bool inspectionOpen=false;")
+    common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;", "++ScanCounters::calls;std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;")
+    common=common.replace("for(auto& x:row.extras)e->lists.push_back(x.get());", "for(auto& x:row.extras){++ScanCounters::extras;e->lists.push_back(x.get());}")
+    program=setup.replace("int main() {", "int main(int argc,char** argv) {") + r'''
+    (void)artifact;(void)staff;(void)plain;(void)seed;(void)fire;(void)frost;
+    assert(argc==4);const int size=std::stoi(argv[1]),shape=std::stoi(argv[2]),batch=std::stoi(argv[3]);
+    assert(size>=0 && size<=1000 && shape>=0 && shape<=1 && batch>=0);
+    reset();player->Put(&sword,0,1,&owner,"carried");
+    std::vector<RE::EnchantmentItem> variants(size);
+    if(shape==0){
+        weapons.Put(&sword,0,size,&owner,"loan");
+        if(size)weapons.rows[&sword].extras.back()->enchantment=RE::ExtraEnchantment{&normal};
+    }else for(int i=0;i<size;++i){
+        weapons.Put(&sword,0,1,&owner,"loan");weapons.rows[&sword].extras.back()->enchantment=RE::ExtraEnchantment{&variants[i]};
+    }
+    archive.deferTransfers=batch>0;settings->GSC_EnchantedItemsLoan=true;RE::TESFurniture furniture;
+    auto phase=[&](const char* name,int frame,const auto& action){
+        RE::ScanCounters::Reset();const auto start=std::chrono::steady_clock::now();action();
+        const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+        std::cout<<"{\"phase\":\""<<name<<"\",\"frame\":"<<frame<<",\"cpu_ms\":"<<ms
+            <<",\"inventory_calls\":"<<RE::ScanCounters::calls<<",\"extra_visits\":"<<RE::ScanCounters::extras
+            <<",\"held\":"<<count(*player,sword)<<",\"returned\":"<<count(weapons,sword)<<",\"pending\":"<<(EnchantedItems::HasPendingLoan()?"true":"false")<<"}\n";
+    };
+    phase("dispatch",0,[&]{assert(ActivateCraftLoan(&furniture,&bench,player,0,nullptr,1));tasks->Run();});
+    phase(batch==0?"close_and_settlement":"close",0,[&]{RE::MenuOpenCloseEvent event{"CraftingMenu",false};CraftingCloseEvent(&event,nullptr);tasks->Run();});
+    int frame=0;
+    while(!archive.deliveries.empty()){
+        assert(batch>0 && ++frame<=1000);
+        phase(archive.deliveries.size()<=static_cast<std::size_t>(batch)?"final_delivery_settlement":"delivery_cleanup",frame,[&]{
+            for(int i=0;i<batch && !archive.deliveries.empty();++i){auto deliver=std::move(archive.deliveries.front());archive.deliveries.pop_front();deliver();}
+            tasks->Run();
+        });
+    }
+    assert(count(*player,sword)==1 && count(weapons,sword)==size && count(archive,sword)==0 && !EnchantedItems::HasPendingLoan());
+    assert(player->rows[&sword].extras.front()->metadata=="carried");
+    std::map<RE::EnchantmentItem*,int> actual,expected;
+    if(shape==0 && size)expected[&normal]=size;
+    else for(auto& variant:variants)expected[&variant]=1;
+    for(auto& extra:weapons.rows[&sword].extras){
+        assert(extra->owner==&owner && extra->metadata=="loan" && extra->enchantment);
+        assert(!InventoryStacks::HasOrigin(extra.get(),&RE::TESDataHandler::GetSingleton()->enchantedKeyword));
+        actual[extra->enchantment->enchantment]+=extra->count;
+    }
+    assert(actual==expected);
+}
+'''
+    program=program.replace('#include "common.hpp"','#include "common.hpp"\n#include <iostream>')
+    args.time_deliveries.parent.mkdir(parents=True,exist_ok=True)
+    timing={"pid":os.getpid(),"running":True,"complete":False,"commit":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
+        "boundary":"Production dispatch, close and deferred arrival/return CPU costs with instrumented engine stubs. Native engine/UI costs are excluded. Frames are controlled batches, not measured Skyrim frames. Every completed sample validates counts, ownership, custom enchantments, carried copies and marker cleanup.",
+        "compiler":subprocess.check_output(["g++","--version"],text=True).splitlines()[0],
+        "source_sha256":{name:hashlib.sha256((ROOT/f"src/{name}.cpp").read_bytes()).hexdigest() for name in ("EnchantedItems","InventoryStacks","Events")},
+        "harness_sha256":hashlib.sha256((common+program).encode()).hexdigest(),"samples":[]}
+    args.time_deliveries.write_text(json.dumps(timing,indent=2)+"\n")
+    def finish_timings():
+        timing["running"]=False;timing["pid"]=None
+        args.time_deliveries.write_text(json.dumps(timing,indent=2)+"\n")
+    atexit.register(finish_timings)
+
 with tempfile.TemporaryDirectory(prefix="arcanevault-enchanted-loan-") as tmp:
     tmp = Path(tmp)
     (tmp / "common.hpp").write_text("#pragma once\n#include <climits>\n#include <utility>\n" + common)
@@ -381,6 +593,38 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-enchanted-loan-") as tmp:
         modules.append(str(module))
     binary = tmp / "check"
     sanitizers = ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"] if args.sanitize else []
-    subprocess.run(["g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", *sanitizers, "-I", str(ROOT), str(cpp), *modules, "-o", str(binary)], check=True, timeout=90)
+    optimization=["-O2"] if args.time_deliveries else []
+    subprocess.run(["g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", *optimization, *sanitizers, "-I", str(ROOT), str(cpp), *modules, "-o", str(binary)], check=True, timeout=90)
+    if args.time_deliveries:
+        for size in args.sizes:
+            for shape in (0,1):
+                for sample in range(args.samples):
+                    for batch in ((0,1,32) if sample%2==0 else (32,1,0)):
+                        output=subprocess.check_output([str(binary),str(size),str(shape),str(batch)],text=True,timeout=60)
+                        phases=[json.loads(line) for line in output.splitlines()]
+                        timing["samples"].append({"size":size,"shape":shape,"batch":batch,"sample":sample,"validated":True,"phases":phases})
+                        args.time_deliveries.write_text(json.dumps(timing,indent=2)+"\n")
+                    print(f"Validated deferred-loan timing size={size} shape={shape} repeat={sample+1}/{args.samples}",flush=True)
+        timing["summary"]=[]
+        for size in args.sizes:
+            for shape in (0,1):
+                for batch in (0,1,32):
+                    rows=[s for s in timing["samples"] if (s["size"],s["shape"],s["batch"])==(size,shape,batch)]
+                    for phase in ("dispatch","close","delivery_cleanup","final_delivery_settlement","close_and_settlement"):
+                        totals=[sum(p["cpu_ms"] for p in s["phases"] if p["phase"]==phase) for s in rows]
+                        timing["summary"].append({"size":size,"shape":shape,"batch":batch,"phase":phase,"min_ms":min(totals),"median_ms":statistics.median(totals),"max_ms":max(totals)})
+        timing["complete"]=True
+        args.time_deliveries.write_text(json.dumps(timing,indent=2)+"\n")
+        print(f"PASS: {len(timing['samples'])} deferred-loan timing round trips; report {args.time_deliveries}")
+        raise SystemExit(0)
+    if args.probe_deliveries:
+        cases=[json.loads(line) for line in subprocess.check_output([str(binary)],text=True,timeout=60).splitlines()]
+        args.probe_deliveries.parent.mkdir(parents=True,exist_ok=True)
+        args.probe_deliveries.write_text(json.dumps({"boundary":"Production enchanted loan and crafting session with alternative engine scheduling models. Actual Skyrim scheduling is unknown. Every case asserts conservation, ownership and distinct custom enchantments sharing one base. Refused/full/equipped/reset policies are classified separately. Scenario 15 supplies no terminal menu event after successful activation, so the plugin receives no cancellation signal. Scenario 16 requires old native receipts to remain separate from a new loan of the same base after reset.","orders":["immediate","source removed before delayed arrival","source removal queued, recovery temporarily refused","receipt before visible arrival","source removal queued, recovery allowed"],"scenarios":["normal","missing receipts","duplicated receipts, reverse delivery","wrong receipt source","origin marker lost","player refuses returns","parent at capacity","matching base equipped","repeated close","one delivery before close","coalesced delivery cleanup","reopen and close enchanting","switch and close alchemy","reset with native deliveries pending","activation fails before menu opens","activation succeeds but menu never opens","reset then new loan sharing old delivery base"],"cases":cases},indent=2)+"\n")
+        controls=[case for case in cases if case["scenario"]==0 and case["order"] in (0,1,4)]
+        assert len(controls)==3 and all(case["restored"] for case in controls)
+        failures=sum((not case["restored"] and not case["protected_case"]) or not case["session_isolated"] for case in cases)
+        print(f"Enchanted delivery probe: {failures} failed return cases; report {args.probe_deliveries}")
+        raise SystemExit(1 if failures else 0)
     subprocess.run([str(binary)], check=True, timeout=60)
 print("PASS: enchanting loans, replaced same-base stacks, metadata/origins, partial/refused/capacity transfers, Junk ledger, coalesced/reset/new-loan cleanup, protections and bench isolation")

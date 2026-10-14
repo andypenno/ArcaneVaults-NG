@@ -185,7 +185,7 @@ struct InventoryEntryData {
 };
 struct TESObjectREFR;
 struct Handle {
-    TESObjectREFR* object;
+    TESObjectREFR* object=nullptr;
     struct Pointer {
         TESObjectREFR* object;
         operator bool() const { return object != nullptr; }
@@ -193,6 +193,8 @@ struct Handle {
     };
     Pointer get() const;
 };
+using ObjectRefHandle=Handle;
+struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};Handle::Pointer actor,targetFurniture;FurnitureEventType type;};
 struct TESObjectREFR {
     int removeLimit = INT_MAX, removeCalls = 0;
     bool rejectMove = false;
