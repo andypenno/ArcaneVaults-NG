@@ -207,14 +207,14 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* currentAmmo = player->GetCurrentAmmo();
     const auto inventory = player->GetInventoryCounts();
     for (const auto& [item, total] : inventory) {
-        if (!item || total <= 0 || item->As<RE::TESSoulGem>()) continue;
+        if (!item || total <= a_keepCount || item->As<RE::TESSoulGem>()) continue;
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
         const auto fresh = player->GetInventory([item](RE::TESBoundObject& candidate) { return &candidate == item; });
         const auto found = fresh.find(item);
         if (found == fresh.end()) continue;
         const auto& data = found->second;
-        if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
+        if (!data.second || data.first <= a_keepCount) continue;
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
@@ -246,7 +246,6 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         int count = InventoryStacks::Count(player, item) - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);
         while (count > 0) {
-            stacks = read();
             if (stacks.empty()) break;
             const auto next = std::ranges::find_if(stacks, [&](const InventoryStacks::Stack& stack) { return !protectedStacks.contains(stack.extra) &&
                 (!stack.extra || (!stack.extra->HasType<RE::ExtraWorn>() && !stack.extra->HasType<RE::ExtraWornLeft>())); });
@@ -262,6 +261,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
             if (!moved) break;
             DepositLearning::RecordAutomaticTransfer(player, chest, item, moved);
             count -= moved;
+            if (count > 0) stacks = read();
         }
     }
 }
@@ -272,12 +272,11 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!player || !chest || i_count < 0 || (a_target && *a_target <= 0)) return;
 
-    const auto inventory = chest->GetInventory();
+    const auto inventory = chest->GetInventory([a_category](RE::TESBoundObject& item) {
+        return !item.As<RE::TESSoulGem>() && HasCategory(ClassifyItem(&item), a_category);
+    });
     for (const auto& [item, data] : inventory) {
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
-
-        const auto categories = ClassifyItem(item);
-        if (!HasCategory(categories, a_category)) continue;
 
         int count = i_count == 0 ? data.first : (std::min)(data.first, i_count);
         if (a_target) {

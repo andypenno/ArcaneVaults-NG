@@ -251,8 +251,11 @@ namespace PlayerEquipment {
         if (pending) return;
         auto* player = RE::PlayerCharacter::GetSingleton();
         bool equipment = false;
-        if (player) for (const auto& [item, data] : player->GetInventory())
-            if (item && data.first > 0 && (item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>())) equipment = true;
+        if (player) for (const auto& [item, data] : player->GetInventory([](RE::TESBoundObject& item) {
+            return item.As<RE::TESObjectARMO>() || item.As<RE::TESObjectWEAP>();
+        })) {
+            if (item && data.first > 0) { equipment = true; break; }
+        }
         auto request = std::make_shared<Request>();
         request->work = std::move(work); request->complete = std::move(complete);
         pending = request;
