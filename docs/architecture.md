@@ -74,6 +74,8 @@ The SkyUILib bridge passes option labels as separate ActionScript arguments, con
 
 ## Crafting loans
 
+Enchanted equipment is selected and tagged in its archive first. Lending validates the staged physical counts and the player's signed item-count capacity, then calls the native bulk transfer once with ownership retained. Missing inventory changes or a partial/refused delivery use the existing return and archive-recovery paths. Returns remain selective by origin so carried copies and protected items retain their existing policy. Native delivery timing and arrivals after table exit still need separate investigation.
+
 The furniture hook selects the bench through `Utility::GetBenchType`, which checks known keywords first and bench data second. `CraftingMenu` close returns materials through the same transfer helpers.
 
 | Bench | Entry transfer | Exit transfer |

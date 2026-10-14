@@ -31,8 +31,8 @@ def common_source():
     text=text.replace("inline static std::map<unsigned,TESObjectREFR*> refs;", "inline static std::map<unsigned,TESObjectREFR*> refs;inline static std::map<unsigned,void*> objects;")
     text=text.replace("return refs.contains(id)?refs[id]:nullptr;", "if constexpr(std::is_same_v<T,TESSoulGem>)return objects.contains(id)?static_cast<T*>(objects[id]):nullptr;else return refs.contains(id)?refs[id]:nullptr;")
     text=text.replace("auto GetInventory(std::function", "std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> GetInventory(std::function")
-    text=text.replace("inline bool inspectionOpen=false;", "struct Counters { inline static std::uint64_t calls=0,visits=0,copies=0,moves=0;static void Reset(){calls=visits=copies=moves=0;} };\ninline bool inspectionOpen=false;")
-    text=text.replace("        void AddEntryData(InventoryEntryData* entry){", "        void RemoveAllItems(TESObjectREFR* owner,TESObjectREFR* target,bool,bool,bool){assert(owner==source);auto snapshot=source->GetInventory();for(auto& [item,data]:snapshot){(void)data;while(source->rows[item].total>0)source->RemoveItem(item,source->rows[item].total,ITEM_REMOVE_REASON::kStoreInContainer,nullptr,target);}}\n        void AddEntryData(InventoryEntryData* entry){")
+    text=text.replace("inline bool inspectionOpen=false;", "struct Counters { inline static std::uint64_t calls=0,visits=0,copies=0,moves=0,bulks=0;static void Reset(){calls=visits=copies=moves=bulks=0;} };\ninline bool inspectionOpen=false;")
+    text=text.replace("++bulkTransfers;", "++bulkTransfers;++Counters::bulks;")
     text=text.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;", "++Counters::calls;std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;")
     text=text.replace("for(const auto& [item,row]:rows){", "for(const auto& [item,row]:rows){++Counters::visits;")
     text=text.replace("++inventoryCopies;", "++inventoryCopies;++Counters::copies;")
@@ -97,7 +97,8 @@ int main(int argc,char** argv){
   const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
   std::cout<<"{\"bench\":"<<bench<<",\"size\":"<<size<<",\"mode\":"<<mode<<",\"sample\":"<<sample<<",\"scenario\":"<<scenario
    <<",\"phase\":\""<<phase<<"\",\"ms\":"<<ms<<",\"inventory_calls\":"<<RE::Counters::calls
-   <<",\"entries_visited\":"<<RE::Counters::visits<<",\"entries_copied\":"<<RE::Counters::copies<<",\"moves\":"<<RE::Counters::moves<<"}\n"<<std::flush;
+   <<",\"entries_visited\":"<<RE::Counters::visits<<",\"entries_copied\":"<<RE::Counters::copies<<",\"moves\":"<<RE::Counters::moves
+   <<",\"bulk_calls\":"<<RE::Counters::bulks<<"}\n"<<std::flush;
  };
  if(mode==0){
   run("prepare",[&]{if(utility->bench==BenchType::Enchanting)assert(EnchantedItems::Gather());});
@@ -211,7 +212,7 @@ def main():
       key=(sample["bench"],sample["size"],sample["mode"],sample["phase"],sample["variant"],sample["scenario"]);groups.setdefault(key,[]).append(sample)
     report["summary"]=[{"bench":key[0],"size":key[1],"mode":key[2],"phase":key[3],"variant":key[4],"scenario":key[5],
       "min_ms":min(s["ms"] for s in rows),"median_ms":statistics.median(s["ms"] for s in rows),"max_ms":max(s["ms"] for s in rows),
-      "inventory_calls":rows[0]["inventory_calls"],"entries_visited":rows[0]["entries_visited"],"entries_copied":rows[0]["entries_copied"],"moves":rows[0]["moves"]} for key,rows in groups.items()]
+      "inventory_calls":rows[0]["inventory_calls"],"entries_visited":rows[0]["entries_visited"],"entries_copied":rows[0]["entries_copied"],"moves":rows[0]["moves"],"bulk_calls":rows[0]["bulk_calls"]} for key,rows in groups.items()]
     args.output.write_text(json.dumps(report,indent=2)+"\n")
     print(f"PASS: crafting counts, metadata, carried items and loan/manual timings in {args.output}")
 

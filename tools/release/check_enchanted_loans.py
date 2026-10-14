@@ -79,6 +79,8 @@ int main() {
         session->Reset();EnchantedItems::Reset();tasks->Run();
         for(auto* ref:std::array<RE::TESObjectREFR*,6>{player,&weapons,&armor,&archive,&consumed,&junkBank}){
             ref->rows.clear();ref->refuse=ref->replaceExtras=false;ref->limit=ref->refuseAfter=INT_MAX;ref->successfulMoves=0;
+            ref->missingChanges=false;ref->changes.bulkTransfers=0;ref->changes.bulkLimit=INT_MAX;
+            ref->changes.bulkRefuse=ref->changes.lastKeepOwnership=false;
         }
         RE::SCRIPT_FUNCTION::equipped.clear();settings->GSC_CraftingLoan=settings->GSC_EnchantedItemsLoan=false;
         u->bench=BenchType::Enchanting;stores->materialLoans=stores->materialReturns=stores->junkLoans=stores->junkReturns=0;
@@ -93,6 +95,7 @@ int main() {
     weapons.Put(&artifact,2);weapons.Put(&staff,2);weapons.Put(&plain,2);
     session->EnterCrafting(&bench);tasks->Run();
     assert(count(*player,sword)==4 && count(*player,helmet)==2 && count(weapons,sword)==0 && count(archive,sword)==0);
+    assert(archive.changes.bulkTransfers==1 && archive.changes.lastKeepOwnership);
     assert(count(weapons,artifact)==2 && count(weapons,staff)==2 && count(weapons,plain)==2);
     assert(Soulgems::loans==0 && stores->junkLoans==0 && stores->materialLoans==0);
     auto* borrowed=player->rows[&sword].extras.back().get();
@@ -123,6 +126,27 @@ int main() {
     assert(count(*player,sword)==0 && count(weapons,sword)==3 && count(junkBank,sword)==1);
     assert(junkBank.rows[&sword].extras.front()->metadata=="junk sword");
 
+    reset();EnchantedItems::BeginLoan();EnchantedItems::EndLoan();assert(archive.changes.bulkTransfers==0);
+    for(bool overflow:{false,true}) {
+        reset();seed();const int held=INT_MAX-(overflow?2:3);player->Put(&sword,held);
+        EnchantedItems::BeginLoan();
+        assert(archive.changes.bulkTransfers==(overflow?0:1));
+        assert(count(*player,sword)==held+(overflow?0:3));
+        EnchantedItems::EndLoan();
+        assert(count(*player,sword)==held && count(weapons,sword)==3 && count(armor,helmet)==2);
+    }
+    for(int failure=0;failure<3;++failure) {
+        reset();seed();player->Put(&sword,0,2,&owner,"carried");
+        archive.changes.bulkRefuse=failure==0;archive.changes.bulkLimit=failure==1?2:INT_MAX;
+        archive.missingChanges=failure==2;
+        EnchantedItems::BeginLoan();tasks->Run();EnchantedItems::EndLoan();
+        assert(archive.changes.bulkTransfers==(failure==2?0:1));
+        assert(count(*player,sword)==2 && count(*player,helmet)==0 && count(weapons,sword)==3 && count(armor,helmet)==2);
+        assert(count(archive,sword)==0 && count(archive,helmet)==0 && player->rows[&sword].extras.front()->metadata=="carried");
+    }
+    reset();seed();archive.rows[&sword].duplicate=true;EnchantedItems::BeginLoan();
+    assert(archive.changes.bulkTransfers==0 && count(*player,sword)==0 && count(weapons,sword)+count(archive,sword)==3);
+    archive.rows[&sword].duplicate=false;assert(EnchantedItems::Recover() && count(weapons,sword)==3);
     reset();seed();archive.limit=1;EnchantedItems::BeginLoan();tasks->Run();player->limit=1;
     EnchantedItems::EndLoan();assert(count(weapons,sword)==3 && count(armor,helmet)==2 && count(*player,sword)==0);
     reset();weapons.Put(&sword,70000);EnchantedItems::BeginLoan();tasks->Run();EnchantedItems::EndLoan();

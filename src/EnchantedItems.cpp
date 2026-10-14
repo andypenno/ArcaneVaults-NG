@@ -2,6 +2,8 @@
 #include "InventoryStacks.h"
 #include "Utility.h"
 #include <atomic>
+#include <limits>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace {
@@ -136,21 +138,40 @@ namespace EnchantedItems {
     void BeginLoan() {
         if (loanActive) EndLoan();
         if (!Gather()) return;
+        auto* archive = Archive();
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        const auto inventory = archive->GetInventoryCounts();
+        const auto carried = player->GetInventoryCounts([&](RE::TESBoundObject& item) { return inventory.contains(&item); });
+        std::unordered_map<RE::TESBoundObject*, std::int64_t> staged;
+        for (const auto& stack : InventoryStacks::Read(archive)) staged[stack.item] += stack.count;
+        bool hasItems{};
+        for (const auto& [item, count] : inventory) {
+            if (!item || count <= 0) continue;
+            hasItems = true;
+            const int held = carried.contains(item) ? (std::max)(0, carried.at(item)) : 0;
+            if (staged[item] != count || count > (std::numeric_limits<int>::max)() - held) {
+                Recover();
+                return;
+            }
+        }
+        if (!hasItems) return;
+        auto* changes = archive->GetInventoryChanges();
+        if (!changes) { Recover(); return; }
         ++generation;
         cleanupQueued = false;
         loanActive = true;
-        auto* archive = Archive();
-        auto* player = RE::PlayerCharacter::GetSingleton();
-        for (const auto& [item, count] : archive->GetInventoryCounts()) {
+        changes->RemoveAllItems(archive, player, false, true, false);
+        const auto remaining = archive->GetInventoryCounts();
+        const auto received = player->GetInventoryCounts([&](RE::TESBoundObject& item) { return inventory.contains(&item); });
+        for (const auto& [item, count] : inventory) {
             if (!item || count <= 0) continue;
-            for (;;) {
-                const auto stacks = InventoryStacks::Read(archive, {}, item, true);
-                if (stacks.empty() && InventoryStacks::Count(archive, item) == 0) break;
-                if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) {
-                    EndLoan();
-                    Recover();
-                    return;
-                }
+            const int held = carried.contains(item) ? (std::max)(0, carried.at(item)) : 0;
+            const int left = remaining.contains(item) ? remaining.at(item) : 0;
+            const int after = received.contains(item) ? received.at(item) : 0;
+            if (left != 0 || after != held + count) {
+                EndLoan();
+                Recover();
+                return;
             }
         }
     }

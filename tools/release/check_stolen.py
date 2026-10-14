@@ -136,18 +136,21 @@ struct TESObjectREFR {
     struct ChangeFlags {static constexpr unsigned kInventory=32;};
     struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false,favorite=false;};
     unsigned id;int limit=std::numeric_limits<int>::max();bool refuse=false;unsigned changed=0;
+    bool missingChanges=false;
     std::map<TESBoundObject*,Row> rows;
     struct Changes {
         TESObjectREFR* source;
         std::vector<InventoryEntryData*> entries;
         std::vector<InventoryEntryData*>* entryList=&entries;
+        int bulkTransfers=0,bulkLimit=std::numeric_limits<int>::max();bool bulkRefuse=false,lastKeepOwnership=false;
+        void RemoveAllItems(TESObjectREFR* owner,TESObjectREFR* target,bool stealing,bool keepOwnership,bool);
         void AddEntryData(InventoryEntryData* entry){
             entry->add=[this,item=entry->object](ExtraDataList* extra){source->rows[item].extras.emplace_back(extra);};
             entries.push_back(entry);
         }
         ~Changes(){for(auto* entry:entries)delete entry;}
     } changes{this,{},nullptr};
-    Changes* GetInventoryChanges(){changes.entryList=&changes.entries;return &changes;}
+    Changes* GetInventoryChanges(){changes.entryList=&changes.entries;return missingChanges?nullptr:&changes;}
 
     explicit TESObjectREFR(unsigned value):id(value){TESForm::refs[id]=this;}
     unsigned GetFormID()const{return id;}Handle GetHandle()const{return {id};}
@@ -176,6 +179,15 @@ struct TESObjectREFR {
         ScriptEventSourceHolder::GetSingleton()->Send({id,target->id,item->id,count});
     }
 };
+inline void TESObjectREFR::Changes::RemoveAllItems(TESObjectREFR* owner,TESObjectREFR* target,bool stealing,bool keepOwnership,bool){
+    assert(owner==source && !stealing);++bulkTransfers;lastKeepOwnership=keepOwnership;if(bulkRefuse)return;
+    auto snapshot=source->GetInventoryCounts();int remaining=bulkLimit;
+    for(auto& [item,total]:snapshot){(void)total;while(source->rows[item].total>0 && remaining>0){
+        const int before=source->rows[item].total;
+        source->RemoveItem(item,std::min(before,remaining),ITEM_REMOVE_REASON::kStoreInContainer,nullptr,target);
+        const int moved=before-source->rows[item].total;if(moved<=0)break;remaining-=moved;
+    }}
+}
 inline bool allocationFails=false;
 inline int nativeConstructions=0;
 inline void* malloc(std::size_t size){return allocationFails ? nullptr : ::operator new(size);}
