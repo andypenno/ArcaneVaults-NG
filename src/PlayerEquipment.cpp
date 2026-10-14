@@ -178,10 +178,10 @@ namespace PlayerEquipment {
                     auto menu = ui ? ui->GetMenu(RE::InventoryMenu::MENU_NAME) : RE::GPtr<RE::IMenu>{};
                     Snapshot snapshot;
                     if (menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
-                        if (menu->uiMovie) menu->uiMovie->SetVisible(false);
                         auto* inventory = skyrim_cast<RE::InventoryMenu*>(menu.get());
-                        if ((!inventory->GetRuntimeData().itemList || inventory->GetRuntimeData().itemList->items.empty()) &&
-                            Clock::now() < request->deadline) {
+                        auto* list = inventory->GetRuntimeData().itemList;
+                        const bool ready = menu->uiMovie && list && list->root.IsDisplayObject();
+                        if (!ready && Clock::now() < request->deadline) {
                             SKSE::GetTaskInterface()->AddTask([request] {
                                 if (Active(request) && request->phase == Phase::Reading) {
                                     request->phase = Phase::Opening;
@@ -190,8 +190,12 @@ namespace PlayerEquipment {
                             });
                             return;
                         }
-                        try { snapshot = Read(skyrim_cast<RE::InventoryMenu*>(menu.get()), RE::PlayerCharacter::GetSingleton()); }
-                        catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
+                        if (ready) try {
+                            auto* player = RE::PlayerCharacter::GetSingleton();
+                            if (player && list->items.empty()) list->Update(player);
+                            snapshot = Read(inventory, player);
+                        } catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
+                        if (menu->uiMovie) menu->uiMovie->SetVisible(false);
                     }
                     SKSE::GetTaskInterface()->AddTask([request, snapshot = std::move(snapshot)] {
                         if (!Active(request) || request->phase != Phase::Reading) return;

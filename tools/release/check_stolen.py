@@ -193,9 +193,10 @@ struct TESDataHandler { BGSKeyword keyword{0x01000DE0},enchantedKeyword{0x01000D
 struct SendHUDMessage {inline static std::string message;static void ShowHUDMessage(const char* text){message=text;} };
 using BSFixedString=std::string;
 struct GFxValue {
-    enum Kind {Undefined,Number,Bool} kind=Undefined;double number=0;bool boolean=false;
+    enum Kind {Undefined,Number,Bool,DisplayObject} kind=Undefined;double number=0;bool boolean=false;
     std::map<std::string,GFxValue> members;
     bool GetMember(const char* name,GFxValue* value)const{auto i=members.find(name);if(i==members.end())return false;*value=i->second;return true;}
+    bool IsDisplayObject()const{return kind==DisplayObject;}
     bool IsNumber()const{return kind==Number;}bool IsBool()const{return kind==Bool;}
     double GetNumber()const{return number;}bool GetBool()const{return boolean;}
 };
@@ -218,6 +219,10 @@ template<class T>struct GPtr {
 };
 struct ItemList {
     struct Item {struct Data {InventoryEntryData* objDesc=nullptr;unsigned owner=0;} data;GFxValue obj;};
+    GFxValue root{GFxValue::DisplayObject,0,false,{}};
+    std::function<void()> refresh;
+    inline static int refreshes=0;
+    void Update(TESObjectREFR* source){assert(source==PlayerCharacter::GetSingleton());++refreshes;if(refresh)refresh();}
     inline static std::size_t rowVisits=0;
     struct Rows:std::vector<Item*> {
         struct Iterator {
@@ -233,12 +238,15 @@ struct ItemList {
 struct InventoryMenu:IMenu {
     inline static constexpr std::string_view MENU_NAME="InventoryMenu";
     inline static bool empty=false,grouped=false,missingFields=false,wrongOwner=false,wrongCount=false,cloneIDs=false,nan=false;
-    inline static bool wrongStateType=false,wrongEquippedType=false,missingMovie=false,missingList=false;
+    inline static bool wrongStateType=false,wrongEquippedType=false,missingMovie=false,missingList=false,uninitialized=false;
     inline static unsigned created=0,destroyed=0,updates=0;
     ItemList list;struct Data {ItemList* itemList;} runtime{&list};
     std::vector<std::unique_ptr<ItemList::Item>> items;std::vector<std::shared_ptr<InventoryEntryData>> entries;
     std::vector<std::shared_ptr<ExtraDataList>> clones;
     InventoryMenu(){++created;PlayerControls::GetSingleton()->blockPlayerInput=true;
+        if(uninitialized)list.root.kind=GFxValue::Undefined;
+        list.refresh=[this]{InventoryUpdateData data{PlayerCharacter::GetSingleton()->id};
+            UIMessage message{std::string(MENU_NAME),UI_MESSAGE_TYPE::kInventoryUpdate,&data};ProcessMessage(message);};
         if(missingMovie)uiMovie.reset();
         if(missingList)runtime.itemList=nullptr;}
     ~InventoryMenu()override{++destroyed;PlayerControls::GetSingleton()->blockPlayerInput=true;}
@@ -373,6 +381,7 @@ void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*
 #include "src/EnchantedItems.h"
 #include "src/PlayerEquipment.h"
 '''
+program += "namespace PlayerEquipment { void PollForCheck(); }\n"
 common = program
 program = '#include "common.hpp"\n'
 stores_source=(ROOT / "src/Stores.cpp").read_text()
@@ -389,6 +398,8 @@ for name in ("InventoryStacks", "StolenItems", "EnchantedItems", "PlayerEquipmen
         text=text.replace("std::chrono::milliseconds(16)","std::chrono::milliseconds(1)")
         text=text.replace("std::chrono::milliseconds(100)","std::chrono::milliseconds(5)")
     modules[name] = '#include "common.hpp"\n' + "\n".join(line for line in text.splitlines() if not line.startswith("#include"))
+    if name=="PlayerEquipment":
+        modules[name] += "\nnamespace PlayerEquipment { void PollForCheck() { if (auto request = pending) Poll(request); } }\n"
 source=(ROOT / "src/Stores.cpp").read_text()
 for name in ["StolenItemsMenu","OpenStolenItems","ShowStolenItemsMenu","EnchantedItemsMenu"]:
     start=source.index("void Stores::"+name+"(")
@@ -509,6 +520,7 @@ int main(){
         RE::InventoryMenu::empty=RE::InventoryMenu::grouped=RE::InventoryMenu::missingFields=RE::InventoryMenu::wrongOwner=false;
         RE::InventoryMenu::wrongCount=RE::InventoryMenu::cloneIDs=RE::InventoryMenu::nan=false;
         RE::InventoryMenu::wrongStateType=RE::InventoryMenu::wrongEquippedType=false;
+        RE::InventoryMenu::missingMovie=RE::InventoryMenu::missingList=RE::InventoryMenu::uninitialized=false;
         RE::UI::available=true;RE::UI::factoryFails=false;RE::allocationFails=false;s->ignored.clear();DepositLearning::moved=0;
     };
     auto pump=[&](const auto& done){
@@ -650,14 +662,27 @@ int main(){
     RE::UIMessageQueue::rejectHides=1;const auto retries=RE::UIMessageQueue::GetSingleton()->hides;deposit();
     assert(RE::UIMessageQueue::GetSingleton()->hides>=retries+2 && count(*player,ring)==1);
     resetTransfer();player->Put(&ring,2,1,nullptr,"equipped");player->rows[&ring].extras.front()->uiWorn=true;
-    RE::InventoryMenu::empty=true;bool initializedDone=false;
+    RE::InventoryMenu::empty=RE::InventoryMenu::uninitialized=true;bool initializedDone=false;
     menu->OffloadItems([&]{initializedDone=true;});RE::UIMessageQueue::GetSingleton()->ProcessCommands();
-    for(int i=0;i<3;++i){tasks->RunUI();tasks->Run();std::this_thread::sleep_for(std::chrono::milliseconds(2));}
-    assert(!initializedDone && count(*player,ring)==3);
-    RE::InventoryMenu::empty=false;RE::InventoryUpdateData initializedData{player->id};
-    RE::UIMessage initializedMessage{std::string(RE::InventoryMenu::MENU_NAME),RE::UI_MESSAGE_TYPE::kInventoryUpdate,&initializedData};
-    static_cast<RE::InventoryMenu*>(ui->menu)->ProcessMessage(initializedMessage);
-    pump([&]{return initializedDone;});assert(count(*player,ring)==1 && count(armorBank,ring)==2);
+    auto* inspection=static_cast<RE::InventoryMenu*>(ui->menu);const auto refreshes=RE::ItemList::refreshes;
+    PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
+    assert(!initializedDone && inspection->uiMovie->visible && RE::ItemList::refreshes==refreshes);
+    assert(RE::UIMessageQueue::GetSingleton()->commands.empty() && count(*player,ring)==3);
+    inspection->list.root.kind=RE::GFxValue::DisplayObject;RE::InventoryMenu::empty=false;
+    PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
+    assert(RE::ItemList::refreshes==refreshes+1 && !inspection->uiMovie->visible);
+    assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kHide)!=RE::UIMessageQueue::GetSingleton()->commands.end());
+    assert(count(*player,ring)==3);
+    RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();
+    assert(initializedDone && count(*player,ring)==1 && count(armorBank,ring)==2);
+    resetTransfer();player->Put(&ring,3);RE::InventoryMenu::empty=true;bool emptyDone=false;
+    menu->OffloadItems([&]{emptyDone=true;});RE::UIMessageQueue::GetSingleton()->ProcessCommands();
+    const auto emptyRefreshes=RE::ItemList::refreshes;
+    PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
+    assert(RE::ItemList::refreshes==emptyRefreshes+1 && !emptyDone && count(*player,ring)==3);
+    assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kHide)!=RE::UIMessageQueue::GetSingleton()->commands.end());
+    RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();
+    assert(emptyDone && count(*player,ring)==3 && count(armorBank,ring)==0);
     resetTransfer();player->Put(&ring,3);bool refusedDone=false;
     RE::UIMessageQueue::refuseHide=true;
     menu->OffloadItems([&]{refusedDone=true;});
