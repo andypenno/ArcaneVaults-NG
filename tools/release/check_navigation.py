@@ -2,10 +2,15 @@
 
 from pathlib import Path
 import re
+import argparse
+import json
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--probe-return", type=Path, help="Record production and direct-menu Quick Transfer returns with a simulated clock")
+args = parser.parse_args()
 program = r'''
 #include <cassert>
 #include <algorithm>
@@ -24,6 +29,7 @@ struct ObjectRefHandle {
         TESObjectREFR* object;
         explicit operator bool() const { return object != nullptr; }
         TESObjectREFR* get() const { return object; }
+        TESObjectREFR* operator->() const { return object; }
     };
     Pointer get() const;
     std::uintptr_t native_handle() const { return reinterpret_cast<std::uintptr_t>(object); }
@@ -201,6 +207,93 @@ int main() {
     stores->onClose();assert(stores->revisited==2);
 }
 '''
+if args.probe_return:
+    if args.probe_return.exists():
+        parser.error("Choose a new report path")
+    program = program[:program.index("int main() {")]
+    program = program.replace("#include <cassert>", "#include <cassert>\n#include <chrono>\n#include <deque>\n#include <iostream>")
+    program = program.replace("namespace RE {", r'''
+struct ProbeClock {
+    inline static std::chrono::steady_clock::time_point tick{};
+    using time_point=std::chrono::steady_clock::time_point;
+    static time_point now(){return tick;}
+};
+std::deque<std::function<void()>> timers;
+struct TestThread {
+    template<class F> explicit TestThread(F action){timers.emplace_back(std::move(action));}
+    void detach(){}
+};
+namespace logger {template<class... T> void warn(const char*,T...) {}}
+namespace PlayerEquipment {
+    void Run(std::function<void()> work,std::function<void()> complete){work();if(complete)complete();}
+}
+namespace std {template<class... T> string format(const char*,T...){return "Vault";}}
+namespace RE {''', 1)
+    program = program.replace("bool alive = true, open = true;", "bool alive = true, open = true;int state=2,animation=0;")
+    program = program.replace("return source->open ? OPEN_STATE::kOpen : OPEN_STATE::kClosed;", "return static_cast<OPEN_STATE>(source->state);")
+    program = program.replace("source->open = open;", "source->open=open;source->state=open?(source->animation==0?2:3):0;")
+    program = program.replace("    bool archiveCleaned = false;", r'''
+    int transfers{};
+    void OffloadItems(std::function<void()> complete={});
+    void OffloadItemsNow(){++transfers;}
+    void VaultMenu(RE::TESObjectREFR*);
+    void ShowVaultMenu(RE::TESObjectREFR*);
+    void ShowVaultsMenu(RE::TESObjectREFR*){}
+    void ShowVaultArchivesMenu(RE::TESObjectREFR*){}
+    void SortItems(){}
+    void OpenStoreObject(RE::TESObjectREFR*,AnimationCallback);
+    bool archiveCleaned = false;''')
+    start = program.index("void WaitForOpenState(")
+    end = program.index("struct Utility {", start)
+    animation = source[source.index("    using OpenState ="):source.index("\n}\n\nusing AVTranslation")]
+    animation = animation.replace("std::chrono::steady_clock", "ProbeClock").replace("std::thread(", "TestThread(")
+    animation = animation.replace("std::this_thread::sleep_for(std::chrono::milliseconds(16));", "")
+    program = program[:start] + animation + program[end:]
+    for name in ("OffloadItems", "VaultMenu", "OpenStoreObject", "ShowVaultMenu"):
+        start = source.index(f"void Stores::{name}(")
+        end = source.index("\n}",start)+2
+        program += source[start:end]
+    program += r'''
+int main(){
+    for(int state:{2,3,0,1,-1})for(int animation:{0,1,2}){
+        ProbeClock::tick={};timers.clear();RE::box.reset();
+        RE::TESObjectREFR chest;chest.id=99;chest.state=state;chest.animation=animation;
+        auto* stores=Stores::GetSingleton();stores->ResetNavigation();stores->transfers=0;
+        stores->ShowVaultMenu(&chest);
+        auto selected=std::ranges::find(RE::box->buttonText,std::string("Vault.ArcaneOffload"));
+        assert(selected!=RE::box->buttonText.end());
+        auto callback=RE::box->callback;const auto index=selected-RE::box->buttonText.begin();RE::box.reset();
+        callback->Run(static_cast<std::uint8_t>(index));SKSE::GetTaskInterface()->Flush();
+        int elapsed=0;
+        while(!RE::box && elapsed<6000){
+            elapsed+=16;ProbeClock::tick+=std::chrono::milliseconds(16);
+            if(animation==1 && elapsed>=32)chest.state=2;
+            auto ready=std::move(timers);timers.clear();for(auto& timer:ready)timer();
+            SKSE::GetTaskInterface()->Flush();
+        }
+        assert(RE::box && stores->transfers==1);
+        std::cout<<"{\"state\":"<<state<<",\"animation\":"<<animation<<",\"return_ms\":"<<elapsed
+            <<",\"prompt\":"<<(elapsed<=100?"true":"false")<<"}\n";
+    }
+}
+'''
+    program = program.replace("#include <vector>", "#include <vector>\n#include <ranges>")
+    results={}
+    assert sum(program.count(f"if (auto source = sourceHandle.get()) {name}(source.get());") for name in ("VaultMenu","ShowVaultMenu"))==1
+    with tempfile.TemporaryDirectory(prefix="arcanevault-return-probe-") as directory:
+        path=Path(directory)
+        for variant in ("production","direct_menu_control"):
+            candidate=program if variant=="production" else program.replace("if (auto source = sourceHandle.get()) VaultMenu(source.get());","if (auto source = sourceHandle.get()) ShowVaultMenu(source.get());")
+            (path/"check.cpp").write_text(candidate)
+            subprocess.run(["c++","-std=c++20","-Wall","-Wextra","-Werror",str(path/"check.cpp"),"-o",str(path/"check")],check=True,timeout=90)
+            results[variant]=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=15).splitlines()]
+    args.probe_return.parent.mkdir(parents=True,exist_ok=True)
+    args.probe_return.write_text(json.dumps({"boundary":"Production callback, menu builder and animation polling. Equipment completion is immediate in both variants. Times are simulated, not Skyrim measurements.","cases":results},indent=2)+"\n")
+    assert all(case["prompt"] for case in results["direct_menu_control"])
+    failures=sum(not case["prompt"] for case in results["production"])
+    print(f"Quick Transfer return probe: {failures} slow production cases; report {args.probe_return}")
+    raise SystemExit(1 if failures else 0)
+
 with tempfile.TemporaryDirectory(prefix="arcanevault-navigation-check-") as directory:
     path = Path(directory)
     (path / "check.cpp").write_text(program)

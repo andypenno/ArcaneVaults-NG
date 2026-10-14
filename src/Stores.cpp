@@ -536,7 +536,7 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
 
     options.push_back({Translate("Vault.ArcaneOffload"), [this, sourceHandle] {
         OffloadItems([this, sourceHandle] {
-            if (auto source = sourceHandle.get()) VaultMenu(source.get());
+            if (auto source = sourceHandle.get()) ShowVaultMenu(source.get());
         });
     }});
 

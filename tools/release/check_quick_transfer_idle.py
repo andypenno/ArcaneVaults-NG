@@ -59,7 +59,7 @@ int main() {
         }
         assert(done && worked==1 && !ui->menu);
         int deposited=0;for(const auto& [item,row]:bank.rows)deposited+=row.total;
-        if(inventory==0){assert(queue->shows==shows && !timeout);}
+        if(inventory<=3){assert(queue->shows==shows && !timeout);}
         else if(readiness!=8 && readiness!=9){assert(!timeout && ProbeClock::tick.time_since_epoch()<std::chrono::seconds(1));}
         else assert(timeout && ProbeClock::tick.time_since_epoch()>=std::chrono::seconds(1) && ProbeClock::tick.time_since_epoch()<std::chrono::milliseconds(1100));
         const bool usable=readiness==0 || readiness==1 || readiness==2 || readiness==7;
@@ -68,7 +68,7 @@ int main() {
             if(inventory==1 || inventory==4)assert(player->rows[&ring].extras.front()->metadata=="worn" && player->rows[&ring].extras.front()->uiWorn);
         }
         const int refreshed=RE::ItemList::refreshes-refreshes;
-        assert(refreshed==(inventory!=0 && ((readiness>=3 && readiness<=5) || readiness==7 || readiness==10)?1:0));
+        assert(refreshed==(inventory==4 && ((readiness>=3 && readiness<=5) || readiness==7 || readiness==10)?1:0));
         std::cout<<"{\"inventory\":"<<inventory<<",\"readiness\":"<<readiness
             <<",\"simulated_ms\":"<<std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count()
             <<",\"readable_equipment_groups\":"<<readable<<",\"inspection_shows\":"<<queue->shows-shows<<",\"transferred\":"<<deposited
@@ -103,12 +103,58 @@ int main() {
 }
 '''
 
+SCHEDULING = r'''
+    for(int scenario=0;scenario<8;++scenario){
+        player->rows.clear();bank.rows.clear();player->Put(&rings[0],3);ProbeClock::tick={};
+        RE::InventoryMenu::missingMovie=RE::InventoryMenu::missingList=RE::InventoryMenu::uninitialized=RE::InventoryMenu::empty=false;
+        ui->messageBox=false;queue->refuseHide=false;queue->rejectHides=scenario==4?3:0;
+        const auto input=RE::input;const auto blocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
+        bool done=false,interrupted=false;int worked=0;long completed=-1;std::vector<int> phases;
+        PlayerEquipment::Run([&]{assert(!ui->menu);++worked;},[&]{
+            assert(!ui->menu && RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);
+            done=true;completed=std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count();
+        });
+        for(int step=0;step<450;++step){
+            const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count();
+            const bool commandsBlocked=scenario==0 && ms<5000;
+            const bool uiTasksBlocked=scenario==1 && ms<5000;
+            const bool pollBlocked=scenario==2 && ms>=16 && ms<5000;
+            const bool gameTasksBlocked=(scenario==3 || (scenario==2 && ms>=16)) && ms<5000;
+            if(scenario==5)queue->refuseHide=ms<5000;
+            if(!commandsBlocked)queue->ProcessCommands();
+            if(!done && !pollBlocked){
+                auto request=PlayerEquipment::pending;assert(request);phases.push_back(static_cast<int>(request->phase));
+                if(scenario==7 && request->phase==PlayerEquipment::Phase::Closing)ui->messageBox=true;
+                PlayerEquipment::Poll(request);
+                if(scenario==6 && request->phase==PlayerEquipment::Phase::Reading && !interrupted){
+                    queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);queue->ProcessCommands();interrupted=true;
+                }
+            }
+            if(!uiTasksBlocked)tasks->RunUI();
+            if(!gameTasksBlocked)tasks->Run();
+            if(scenario==5 && ms>=5000 && ui->menu){
+                queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);
+            }
+            ProbeClock::tick+=std::chrono::milliseconds(16);
+            if(done && tasks->ui.empty() && tasks->queue.empty() && queue->commands.empty())break;
+        }
+        assert(done && !ui->menu && worked<=1 && player->rows[&rings[0]].total==3);
+        assert(RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);
+        if(scenario==6)assert(interrupted && worked==0);
+        ui->messageBox=false;queue->refuseHide=false;
+        std::cout<<"{\"schedule\":"<<scenario<<",\"completed_ms\":"<<completed<<",\"worked\":"<<worked<<",\"phases\":[";
+        for(std::size_t i=0;i<phases.size();++i)std::cout<<(i?",":"")<<phases[i];
+        std::cout<<"]}\n";
+    }
+'''
+
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=OUTPUT)
     parser.add_argument("--source-ref", help="Run the regression against PlayerEquipment.cpp from a Git revision")
     parser.add_argument("--sanitize", action="store_true", help="Check native memory access and undefined behaviour")
+    parser.add_argument("--probe-scheduling", action="store_true", help="Exercise delayed UI/game tasks, refused Hide and competing menus")
     args=parser.parse_args()
     if args.output.exists():
         parser.error("Choose a new --output path to preserve earlier results")
@@ -119,7 +165,8 @@ def main():
     transformed = transformed[:start] + "        void Later(const std::shared_ptr<Request>&) {}\n" + transformed[end:]
     transformed = "\n".join(line for line in transformed.splitlines() if not line.startswith("#include"))
     clock = "\nstruct ProbeClock { inline static std::chrono::steady_clock::time_point tick{}; using time_point=std::chrono::steady_clock::time_point; static time_point now(){return tick;} };\n"
-    program = harness.program[:harness.program.index("int main(){")] + "\n#include <iostream>\n" + clock + transformed + MAIN
+    cases=MAIN if not args.probe_scheduling else MAIN[:MAIN.rindex("\n}")] + SCHEDULING + "\n}\n"
+    program = harness.program[:harness.program.index("int main(){")] + "\n#include <iostream>\n" + clock + transformed + cases
     with tempfile.TemporaryDirectory(prefix="av-idle-regression-") as directory:
         root=Path(directory)
         (root / "common.hpp").write_text("#pragma once\n" + harness.common)
@@ -138,11 +185,13 @@ def main():
         "inventory":["empty", "ten worn rings", "favourited only", "ignored only", "ten worn rings and three spares"],
         "readiness":["display root", "undefined root with readable rows", "plain-object root", "display root with empty rows", "plain-object root with empty rows", "undefined root with empty rows", "display root with invalid row objects", "delayed row objects", "missing movie", "missing list", "undefined root with invalid row objects"],
         "harness_sha256":hashlib.sha256(program.encode()).hexdigest(),
-        "cases":[json.loads(line) for line in output.splitlines() if "\"budget\"" not in line],
-        "budgets":[json.loads(line) for line in output.splitlines() if "\"budget\"" in line]}
+        "cases":[json.loads(line) for line in output.splitlines() if "\"budget\"" not in line and "\"schedule\"" not in line],
+        "budgets":[json.loads(line) for line in output.splitlines() if "\"budget\"" in line],
+        "scheduling_names":["UI messages withheld five seconds","UI inspection tasks withheld five seconds","game poll withheld five seconds","game completion tasks withheld five seconds","three rejected Hide messages","native Hide refused until user close at five seconds","menu disappears before capture","message box appears during close"],
+        "scheduling":[json.loads(line) for line in output.splitlines() if "\"schedule\"" in line]}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(f"PASS: 55 idle/transfer cases and 3 lifecycle-budget cases; simulated results in {args.output}")
+    print(f"PASS: 55 idle/transfer cases, 3 lifecycle-budget cases and {len(report['scheduling'])} scheduling cases; simulated results in {args.output}")
 
 
 if __name__ == "__main__":

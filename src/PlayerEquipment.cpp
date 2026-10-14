@@ -1,4 +1,5 @@
 #include "PlayerEquipment.h"
+#include "Settings.h"
 #include <cmath>
 #include <atomic>
 #include <chrono>
@@ -266,10 +267,21 @@ namespace PlayerEquipment {
         if (pending) return;
         auto* player = RE::PlayerCharacter::GetSingleton();
         bool equipment = false;
+        const auto* command = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+        const auto equipped = command ? command->conditionFunction : nullptr;
         if (player) for (const auto& [item, data] : player->GetInventory([](RE::TESBoundObject& item) {
             return item.As<RE::TESObjectARMO>() || item.As<RE::TESObjectWEAP>();
         })) {
-            if (item && data.first > 0) { equipment = true; break; }
+            if (!item || data.first <= 0 || !data.second) continue;
+            const bool protectedItem = data.second->IsQuestObject() || data.second->IsFavorited() ||
+                Settings::GetSingleton()->IsIgnored(item);
+            double worn{};
+            const bool wornSingle = data.first == 1 && (data.second->IsWorn() ||
+                (equipped && equipped(player, item, nullptr, worn) && worn != 0.0));
+            if (!protectedItem && !wornSingle) {
+                equipment = true;
+                break;
+            }
         }
         auto request = std::make_shared<Request>();
         request->work = std::move(work); request->complete = std::move(complete);
