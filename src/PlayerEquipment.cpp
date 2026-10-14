@@ -66,6 +66,8 @@ namespace PlayerEquipment {
             Snapshot snapshot;
             Clock::time_point retry{};
             bool worked{};
+            bool refreshRequested{};
+            unsigned rowRetries{};
         };
         std::shared_ptr<Request> pending;
         thread_local const Snapshot* current{};
@@ -180,16 +182,30 @@ namespace PlayerEquipment {
                     if (menu && menu.get() == request->owned && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME)) {
                         auto* inventory = skyrim_cast<RE::InventoryMenu*>(menu.get());
                         auto* list = inventory->GetRuntimeData().itemList;
-                        bool ready = menu->uiMovie && list && list->root.IsObject();
-                        if (!ready && menu->uiMovie && list) {
-                            for (auto* row : list->items) {
+                        const bool ready = menu->uiMovie && list;
+                        bool postpone = !ready;
+                        if (ready && Clock::now() < request->deadline) {
+                            bool rowsReady = list->root.IsObject();
+                            if (!rowsReady) for (auto* row : list->items) {
                                 if (row && row->data.objDesc && row->data.objDesc->object && row->obj.IsObject()) {
-                                    ready = true;
+                                    rowsReady = true;
                                     break;
                                 }
                             }
+                            auto* player = RE::PlayerCharacter::GetSingleton();
+                            if ((list->items.empty() || !rowsReady) && !request->refreshRequested && player) {
+                                request->refreshRequested = true;
+                                auto* data = new RE::InventoryUpdateData{};
+                                data->inventoryRef = player->GetHandle().native_handle();
+                                data->updateObj = nullptr;
+                                RE::UIMessageQueue::GetSingleton()->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kInventoryUpdate, data);
+                                postpone = true;
+                            } else if (!rowsReady && !list->items.empty() && request->rowRetries < 2) {
+                                ++request->rowRetries;
+                                postpone = true;
+                            }
                         }
-                        if (!ready && Clock::now() < request->deadline) {
+                        if (postpone && Clock::now() < request->deadline) {
                             SKSE::GetTaskInterface()->AddTask([request] {
                                 if (Active(request) && request->phase == Phase::Reading) {
                                     request->phase = Phase::Opening;
@@ -200,7 +216,6 @@ namespace PlayerEquipment {
                         }
                         if (ready) try {
                             auto* player = RE::PlayerCharacter::GetSingleton();
-                            if (player && list->items.empty()) list->Update(player);
                             snapshot = Read(inventory, player);
                         } catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
                         if (menu->uiMovie) menu->uiMovie->SetVisible(false);

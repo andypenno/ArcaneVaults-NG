@@ -60,7 +60,7 @@ int main() {
         assert(done && worked==1 && !ui->menu);
         int deposited=0;for(const auto& [item,row]:bank.rows)deposited+=row.total;
         if(inventory==0){assert(queue->shows==shows && !timeout);}
-        else if(readiness!=5 && readiness!=8 && readiness!=9 && readiness!=10){assert(!timeout && ProbeClock::tick.time_since_epoch()<std::chrono::seconds(1));}
+        else if(readiness!=8 && readiness!=9){assert(!timeout && ProbeClock::tick.time_since_epoch()<std::chrono::seconds(1));}
         else assert(timeout && ProbeClock::tick.time_since_epoch()>=std::chrono::seconds(5));
         const bool usable=readiness==0 || readiness==1 || readiness==2 || readiness==7;
         assert(deposited==(inventory==4 && usable?3:0));
@@ -68,7 +68,7 @@ int main() {
             if(inventory==1 || inventory==4)assert(player->rows[&ring].extras.front()->metadata=="worn" && player->rows[&ring].extras.front()->uiWorn);
         }
         const int refreshed=RE::ItemList::refreshes-refreshes;
-        assert(refreshed==(inventory!=0 && (readiness==3 || readiness==4)?1:0));
+        assert(refreshed==(inventory!=0 && ((readiness>=3 && readiness<=5) || readiness==7 || readiness==10)?1:0));
         std::cout<<"{\"inventory\":"<<inventory<<",\"readiness\":"<<readiness
             <<",\"simulated_ms\":"<<std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count()
             <<",\"readable_equipment_groups\":"<<readable<<",\"inspection_shows\":"<<queue->shows-shows<<",\"transferred\":"<<deposited

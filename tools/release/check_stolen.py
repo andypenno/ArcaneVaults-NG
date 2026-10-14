@@ -219,7 +219,7 @@ struct PlayerControls {
 };
 struct Movie {bool visible=true;void SetVisible(bool value){visible=value;}};
 enum class UI_MESSAGE_TYPE {kInventoryUpdate,kShow,kHide};
-struct InventoryUpdateData {unsigned inventoryRef=0;};
+struct InventoryUpdateData {unsigned inventoryRef=0;TESBoundObject* updateObj=nullptr;};
 struct UIMessage {std::string menu;UI_MESSAGE_TYPE type{};InventoryUpdateData* data=nullptr;};
 struct IMenu {
     unsigned refs=1;std::shared_ptr<Movie> uiMovie=std::make_shared<Movie>();
@@ -267,6 +267,7 @@ struct InventoryMenu:IMenu {
     void ProcessMessage(UIMessage& message) {
         assert(message.menu==MENU_NAME && message.type==UI_MESSAGE_TYPE::kInventoryUpdate);
         assert(message.data->inventoryRef==PlayerCharacter::GetSingleton()->id);++updates;
+        list.items.clear();items.clear();entries.clear();clones.clear();
         if(empty)return;
         auto add=[&](TESBoundObject* item,int count,const std::vector<ExtraDataList*>& extras,bool worn) {
             auto entry=std::make_shared<InventoryEntryData>();entry->object=item;entry->countDelta=count+(wrongCount?1:0);
@@ -303,17 +304,18 @@ struct InputState {
 };
 inline InputState input,savedInput;
 struct UIMessageQueue {
-    std::deque<UI_MESSAGE_TYPE> commands;int shows=0,hides=0;
+    std::deque<UI_MESSAGE_TYPE> commands;std::deque<InventoryUpdateData*> payloads;int shows=0,hides=0;
     inline static bool available=true,refuseHide=false;
     inline static int rejectHides=0;
     inline static std::function<void()> afterHide;
     bool savedBlocked=false;
     static UIMessageQueue* GetSingleton(){static UIMessageQueue q;return available?&q:nullptr;}
-    void AddMessage(std::string_view name,UI_MESSAGE_TYPE type,void*) {
-        assert(name==InventoryMenu::MENU_NAME);commands.push_back(type);
+    void AddMessage(std::string_view name,UI_MESSAGE_TYPE type,void* data) {
+        assert(name==InventoryMenu::MENU_NAME);commands.push_back(type);payloads.push_back(static_cast<InventoryUpdateData*>(data));
     }
     void ProcessCommands(){auto* ui=UI::GetSingleton();
         while(!commands.empty()){auto type=commands.front();commands.pop_front();
+            auto* payload=payloads.front();payloads.pop_front();
             if(type==UI_MESSAGE_TYPE::kShow){++shows;if(ui->menu || UI::factoryFails)continue;
                 savedInput=input;savedBlocked=PlayerControls::GetSingleton()->blockPlayerInput;
                 ui->menu=new InventoryMenu;inspectionOpen=true;input.stored=input.enabled;input.enabled=0;input.contexts.insert(input.contexts.end(),{1,2,3});
@@ -321,6 +323,10 @@ struct UIMessageQueue {
                 InventoryUpdateData data{PlayerCharacter::GetSingleton()->id};
                 UIMessage message{std::string(InventoryMenu::MENU_NAME),UI_MESSAGE_TYPE::kInventoryUpdate,&data};
                 inventory->ProcessMessage(message);
+            }else if(type==UI_MESSAGE_TYPE::kInventoryUpdate){
+                assert(payload && !payload->updateObj);++ItemList::refreshes;
+                if(ui->menu){UIMessage message{std::string(InventoryMenu::MENU_NAME),type,payload};static_cast<InventoryMenu*>(ui->menu)->ProcessMessage(message);}
+                delete payload;
             }else if(type==UI_MESSAGE_TYPE::kHide){++hides;if(rejectHides>0){--rejectHides;continue;}if(refuseHide || !ui->menu)continue;
                 ui->menu->Release();ui->menu=nullptr;inspectionOpen=false;input=savedInput;
                 PlayerControls::GetSingleton()->blockPlayerInput=savedBlocked;
@@ -680,8 +686,8 @@ int main(){
     auto* inspection=static_cast<RE::InventoryMenu*>(ui->menu);const auto refreshes=RE::ItemList::refreshes;
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
     assert(!initializedDone && inspection->uiMovie->visible && RE::ItemList::refreshes==refreshes);
-    assert(RE::UIMessageQueue::GetSingleton()->commands.empty() && count(*player,ring)==3);
-    inspection->list.root.kind=RE::GFxValue::DisplayObject;RE::InventoryMenu::empty=false;
+    assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kInventoryUpdate)!=RE::UIMessageQueue::GetSingleton()->commands.end());
+    RE::InventoryMenu::empty=false;RE::UIMessageQueue::GetSingleton()->ProcessCommands();
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
     assert(RE::ItemList::refreshes==refreshes+1 && !inspection->uiMovie->visible);
     assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kHide)!=RE::UIMessageQueue::GetSingleton()->commands.end());
@@ -692,6 +698,7 @@ int main(){
     menu->OffloadItems([&]{emptyDone=true;});RE::UIMessageQueue::GetSingleton()->ProcessCommands();
     const auto emptyRefreshes=RE::ItemList::refreshes;
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
+    RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
     assert(RE::ItemList::refreshes==emptyRefreshes+1 && !emptyDone && count(*player,ring)==3);
     assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kHide)!=RE::UIMessageQueue::GetSingleton()->commands.end());
     RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();
