@@ -93,3 +93,5 @@ Normal non-gem vault loans retain category-based returns and can include materia
 The enchanting-equipment toggle is independent of Crafting Loan and disabled by default. The session captures the bench type and material-loan participation, returns loans even if either option changes during crafting, and rolls back after failed furniture activation. Load/new-game messages clear pending loan bookkeeping without transferring items. Bench detection, including its existing Carpenter's Workbench limitations, is unchanged. Mod filling/consumption changes are left to the installed mod; game testing remains necessary.
 
 Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel the pending container callback and invalidate its picker session. Post-load and new-game tasks recover picker contents on the game thread.
+
+Displayed storage names and menu titles consistently use the Vault suffix for both parent and archive destinations. Vault/Archive groups remain separate for browsing and routing; Quick Transfer retains its action name.

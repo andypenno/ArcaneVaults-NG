@@ -21,8 +21,7 @@ void Utility::AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::For
     auto* baseContainer = container->GetBaseObject() ? container->GetBaseObject()->As<RE::TESObjectCONT>() : nullptr;
     if (baseContainer && !translationKey.empty()) {
         const auto translatedName = a_name == Container::QuickTransfer ? std::string(Translate("Vault.QuickTransfer")) : std::format("{} {}", Translate(std::string(translationKey)),
-            Translate(a_name == Container::Valuables || a_name == Container::FilledSoulgems ||
-                a_name == Container::EmptySoulgems || a_name == Container::StolenItems ? "Vault.Archive" : "Vault.Vault"));
+            Translate("Vault.Vault"));
         baseContainer->SetFullName(translatedName.c_str());
     }
 

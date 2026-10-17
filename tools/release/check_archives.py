@@ -218,3 +218,7 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-archive-check-") as directo
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 print("PASS: every registered vault and archive, alphabetical lists, deferred handlers, contextual return, Back/Exit/cancel, expired source, and no browse assignments")
+
+name_builder=(ROOT/"src/Utility.cpp").read_text().split("void Utility::AddContainer(",1)[1].split("RE::TESObjectREFR* Utility::GetContainer",1)[0]
+assert 'Translate("Vault.Vault")' in name_builder and '"Vault.Archive"' not in name_builder
+assert 'Translate("Vault.Archive")' not in (ROOT/"src/Stores.cpp").read_text()

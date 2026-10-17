@@ -926,7 +926,7 @@ void Stores::ShowPotionMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) PotionMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.Potion"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Potion"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Potion, Container::Concoction, Container::Potion);
 
         if (auto source = sourceHandle.get())
@@ -936,7 +936,7 @@ void Stores::ShowPotionMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Poison"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Poison"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Poison, Container::Concoction, Container::Poison);
 
         if (auto source = sourceHandle.get())
@@ -946,7 +946,7 @@ void Stores::ShowPotionMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Restoritive"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Restoritive"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Restorative, Container::Concoction, Container::Restorative);
 
         if (auto source = sourceHandle.get())
@@ -1065,12 +1065,12 @@ void Stores::ShowBookMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) BookMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.SpellTomes"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.SpellTomes"), Translate("Vault.Vault")), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
             OpenBookArchive(Container::SpellTomes, Container::Book, ItemCategory::SpellTome, source.get(), true);
     }});
 
-    options.push_back({Translate("Vault.SkillBooks"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.SkillBooks"), Translate("Vault.Vault")), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
             OpenBookArchive(Container::SkillBooks, Container::Book, ItemCategory::SkillBook, source.get(), true);
     }});
@@ -1155,7 +1155,7 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) SmithMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.Crafting"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Crafting"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Crafting, Container::Smithing, Container::Crafting);
 
         if (auto source = sourceHandle.get())
@@ -1165,7 +1165,7 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Smelting"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Smelting"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Smelting, Container::Smithing, Container::Smelting);
 
         if (auto source = sourceHandle.get())
@@ -1175,7 +1175,7 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Tanning"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Tanning"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Tanning, Container::Smithing, Container::Tanning);
 
         if (auto source = sourceHandle.get())
@@ -1185,7 +1185,7 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Construction"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Construction"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Construction, Container::Smithing, Container::Construction);
 
         if (auto source = sourceHandle.get())
@@ -1195,7 +1195,7 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Gemstones"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Gemstones"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Gemstone, Container::Smithing, Container::Gemstone);
 
         if (auto source = sourceHandle.get())
@@ -1352,7 +1352,7 @@ void Stores::ShowFoodMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) FoodMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.Cooked"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Cooked"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::CookedFood, Container::Food, Container::CookedFood);
 
         if (auto source = sourceHandle.get())
@@ -1362,7 +1362,7 @@ void Stores::ShowFoodMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Raw"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Raw"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::RawFood, Container::Food, Container::RawFood);
 
         if (auto source = sourceHandle.get())
@@ -1372,7 +1372,7 @@ void Stores::ShowFoodMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Spice"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Spice"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Reagent, Container::Alchemy, Container::Reagent);
 
         if (auto source = sourceHandle.get())
@@ -1490,7 +1490,7 @@ void Stores::ShowArmorMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) ArmorMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.HeavyArmor"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.HeavyArmor"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::HeavyArmor, Container::Armor, Container::HeavyArmor);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::HeavyArmor, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1499,7 +1499,7 @@ void Stores::ShowArmorMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.LightArmor"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.LightArmor"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::LightArmor, Container::Armor, Container::LightArmor);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::LightArmor, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1508,7 +1508,7 @@ void Stores::ShowArmorMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Clothing"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Clothing"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Clothing, Container::Armor, Container::Clothing);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::Clothing, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1517,7 +1517,7 @@ void Stores::ShowArmorMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Jewelry"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Jewelry"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Jewelry, Container::Armor, Container::Jewelry);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::Jewelry, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1665,7 +1665,7 @@ void Stores::ShowWeaponMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) WeaponMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.OneHand"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.OneHand"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::OneHand, Container::Weapon, Container::OneHand);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::OneHand, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1674,7 +1674,7 @@ void Stores::ShowWeaponMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.TwoHand"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.TwoHand"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::TwoHand, Container::Weapon, Container::TwoHand);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::TwoHand, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1683,7 +1683,7 @@ void Stores::ShowWeaponMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Archery"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Archery"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Archery, Container::Weapon, Container::Archery);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::Archery, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1692,7 +1692,7 @@ void Stores::ShowWeaponMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
-    options.push_back({Translate("Vault.Staff"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Staff"), Translate("Vault.Vault")), [this, sourceHandle] {
         StoreToStore(ItemCategory::Staff, Container::Weapon, Container::Staff);
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::Staff, source.get(), [this](RE::TESObjectREFR* a_source) {
@@ -1894,7 +1894,7 @@ void Stores::ShowValuablesMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) ValuablesMenu(source.get());
     }});
 
-    const auto title = std::format("{} {}", Translate("Vault.Valuables"), Translate("Vault.Archive"));
+    const auto title = std::format("{} {}", Translate("Vault.Valuables"), Translate("Vault.Vault"));
     const auto cancelIndex = 1;
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
 }
@@ -1979,7 +1979,7 @@ void Stores::ShowStolenItemsMenu(RE::TESObjectREFR* a_source) {
             if (auto source = handle.get()) StolenItemsMenu(source.get());
         });
     }});
-    const auto title = std::format("{} {}", Translate("Vault.StolenItems"), Translate("Vault.Archive"));
+    const auto title = std::format("{} {}", Translate("Vault.StolenItems"), Translate("Vault.Vault"));
     ShowDynamicMessageBox(title, std::move(options), 1);
 }
 
@@ -2263,11 +2263,11 @@ void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) NotesMenu(source.get());
     }});
-    options.push_back({Translate("Vault.Recipes"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.Recipes"), Translate("Vault.Vault")), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
             OpenBookArchive(Container::Recipes, Container::Notes, ItemCategory::Recipe, source.get(), true);
     }});
-    options.push_back({Translate("Vault.TreasureMaps"), [this, sourceHandle] {
+    options.push_back({std::format("{} {}", Translate("Vault.TreasureMaps"), Translate("Vault.Vault")), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
             OpenBookArchive(Container::TreasureMaps, Container::Notes, ItemCategory::TreasureMap, source.get(), true);
     }});
