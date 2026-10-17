@@ -6,7 +6,7 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 | Operation | Selection and protection |
 | --- | --- |
-| `PlayerToStore` | Positive counts matching a category; skips quest and favorited records; Quick Transfer protects equipped physical copies and ambiguous groups; optional retained count keeps that many per carried base item |
+| `PlayerToStore` | Positive counts matching a category; skips quest records and favourited physical copies; Quick Transfer protects equipped physical copies and ambiguous groups; optional retained count keeps that many per carried base item |
 | `StoreToPlayer` | Positive counts matching a category, without the player's protection checks |
 | `StoreToStore` | Positive counts matching a category; Sort protects favourites and configured ignores |
 | `AllToStore` | `InventoryChanges::RemoveAllItems` outside Sort; Sort protects favourites and configured ignores; rejects identical source/destination enums |
@@ -31,7 +31,7 @@ Player transfers re-read physical stacks after each removal. When explicit equip
 
 `SortItems` consolidates book/note archives and old note storage, returns favourited records, returns ignored records when configured, recovers physical soul gems, then drains Sort in this order: Personal, Gear, Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Note, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
-Opening Sort through either an assigned container or Arcane Vault captures the player's favourited base records before deposits can clear favourite metadata. Closing Sort returns all copies of those records and any entries still marked as favourites. The notification reports actual returns. Return Ignored Items does not disable favourite protection. Failed returns remain in Sort, excluded from category transfers, soul-gem recovery and Junk. Their captured identities survive reopening while items remain in Sort; loading a save or starting a game clears the transient capture.
+Opening Sort captures favourite physical copies using native ExtraHotkey data and the dedicated AV_SortFavorite keyword at 0xDF0 before deposit can clear their favourite metadata. Closing Sort returns marked/favourited copies and restores their favourite state; ordinary copies sharing their base can sort normally. The notification reports actual returns. Return Ignored Items does not disable favourite protection. Failed returns remain in Sort, excluded from category transfers, soul-gem recovery and Junk. Their captured identities survive reopening while items remain in Sort; loading a save or starting a game clears the transient capture.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. All main vaults, including Personal, Junk, Trade and Gear, appear in the scrolling Open Vaults list. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
@@ -305,3 +305,5 @@ Enchanted Items is available through Open Archives and direct assignment. It has
 Ordinary items explicitly classified as Soulgem route to the Soulgem vault through Sort and enabled Quick Transfer. They remain ordinary inventory items; soul states, empty-gem reserves and gem-specific loans apply only to native soul gems.
 
 Explicit Junk overrides are routed before other Sort categories and have an independent Quick Transfer checkbox. Unclassified player inventory is never swept into Junk. Existing Junk crafting loans still return unused borrowed items to Junk.
+
+Favourite selection uses per-copy ExtraHotkey metadata. Ambiguous aggregate favourites retain conservative base protection. The Sort marker survives transfers and save/load, and failed favourite returns stay protected in Sort. Ordinary same-base implicit copies are materialized before removal so native null-list selection cannot take the favourite.

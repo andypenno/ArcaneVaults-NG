@@ -10,6 +10,9 @@ namespace InventoryStacks {
     };
     using Select = std::function<bool(RE::TESBoundObject*, RE::InventoryEntryData&, RE::ExtraDataList*)>;
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {}, RE::TESBoundObject* item = nullptr, bool firstOnly = false);
+    bool IsFavorited(const RE::InventoryEntryData& entry, RE::ExtraDataList* extra);
+    RE::BGSKeyword* FavoriteKeyword();
+    void RestoreFavorites(RE::TESObjectREFR* source);
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item);
     bool HasItems(RE::TESObjectREFR* source);
     int Move(const Stack& stack, RE::TESObjectREFR* target);

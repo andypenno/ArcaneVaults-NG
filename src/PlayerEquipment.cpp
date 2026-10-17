@@ -273,7 +273,9 @@ namespace PlayerEquipment {
             return item.As<RE::TESObjectARMO>() || item.As<RE::TESObjectWEAP>();
         })) {
             if (!item || data.first <= 0 || !data.second) continue;
-            const bool protectedItem = data.second->IsQuestObject() || data.second->IsFavorited() ||
+            const bool favoriteOnly = data.second->IsFavorited() && InventoryStacks::Read(player,
+                [](auto*, auto& entry, auto* extra) { return !InventoryStacks::IsFavorited(entry, extra); }, item).empty();
+            const bool protectedItem = data.second->IsQuestObject() || favoriteOnly ||
                 Settings::GetSingleton()->IsIgnored(item);
             double worn{};
             const bool wornSingle = data.first == 1 && (data.second->IsWorn() ||

@@ -114,6 +114,8 @@ struct AlchemyItem {
 };
 struct TESObjectMISC {};
 struct TESObjectWEAP {};
+struct BGSKeyword {};
+struct ExtraHotkey {};
 struct ExtraWorn {};
 struct ExtraWornLeft {};
 struct ExtraDataList { template<class T> bool HasType() const { return false; } };
@@ -474,6 +476,12 @@ std::vector<Stack> Read(RE::TESObjectREFR* source,std::function<bool(RE::TESBoun
         if(item && data.second && data.first>0 && (!onlyItem || onlyItem==item) && (!select || select(item,*data.second,static_cast<RE::ExtraDataList*>(nullptr)))) result.push_back({source,item,nullptr,data.first});
     return result;
 }
+bool IsFavorited(const RE::InventoryEntryData& entry,RE::ExtraDataList*){return entry.IsFavorited();}
+RE::BGSKeyword* FavoriteKeyword(){return nullptr;}
+bool HasOrigin(RE::ExtraDataList*,RE::BGSKeyword*){return false;}
+void ClearOrigins(RE::TESObjectREFR*,RE::BGSKeyword*){}
+std::optional<Stack> MarkOrigin(const Stack&,RE::BGSKeyword*){return {};}
+void RestoreFavorites(RE::TESObjectREFR*){}
 int Count(RE::TESObjectREFR* source,RE::TESBoundObject* item){return source->inventory[item].first;}
 std::optional<Stack> Materialize(const Stack& stack){return stack;}
 int Move(const Stack& stack,RE::TESObjectREFR* target) {
@@ -1476,7 +1484,7 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 114
+assert validate_esp(ROOT, generate_esp(working)) == 115
 nodes = list(walk(working["records"]))
 assert len([n for n in nodes if n["type"] == "CONT"]) == 53
 for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4,0xDE6,0xDE8,0xDEA,0xDEC,0xDEF)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3,0xDE5,0xDE7,0xDE9,0xDEB,0xDEE)]]:

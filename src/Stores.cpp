@@ -231,14 +231,14 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
-        if (data.second->IsQuestObject() || data.second->IsFavorited()) continue;
+        if (data.second->IsQuestObject()) continue;
         if (currentAmmo && item->GetFormID() == currentAmmo->GetFormID()) continue;
 
         double equipped{};
         const bool formEquipped = isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0;
         const auto read = [player, item] {
-            return InventoryStacks::Read(player, [](auto*, auto& entry, auto*) {
-                return !entry.IsQuestObject() && !entry.IsFavorited();
+            return InventoryStacks::Read(player, [](auto*, auto& entry, auto* extra) {
+                return !entry.IsQuestObject() && !InventoryStacks::IsFavorited(entry, extra);
             }, item);
         };
         auto stacks = read();
@@ -265,7 +265,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
             if (next == stacks.end()) break;
             auto stack = *next;
             stack.count = (std::min)(stack.count, count);
-            if (!stack.extra && !protectedStacks.empty()) {
+            if (!stack.extra && (!protectedStacks.empty() || data.second->IsFavorited())) {
                 const auto physical = InventoryStacks::Materialize(stack);
                 if (!physical) break;
                 stack = *physical;
@@ -313,13 +313,21 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         if (a_source == Container::Sort &&
-            (sortFavorites_.contains(item->GetFormID()) || (data.second && data.second->IsFavorited()) ||
+            (sortFavorites_.contains(item->GetFormID()) ||
              (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
         
-        MoveItems(source, destination, item, data.first);
+        if (a_source == Container::Sort) {
+            for (;;) {
+                const auto stacks = InventoryStacks::Read(source, [](auto*, auto& entry, auto* extra) {
+                    return !InventoryStacks::IsFavorited(entry, extra) &&
+                        !InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                }, item);
+                if (stacks.empty() || !InventoryStacks::Move(stacks.front(), destination)) break;
+            }
+        } else MoveItems(source, destination, item, data.first);
     }
 }
 
@@ -331,10 +339,15 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
 
     if (a_source == Container::Sort) {
         for (const auto& [item, data] : source->GetInventory()) {
-            if (item && data.first > 0 && !sortFavorites_.contains(item->GetFormID()) &&
-                !(data.second && data.second->IsFavorited()) &&
-                !(Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))
-                MoveItems(source, destination, item, data.first);
+            if (!item || data.first <= 0 || sortFavorites_.contains(item->GetFormID()) ||
+                (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item))) continue;
+            for (;;) {
+                const auto stacks = InventoryStacks::Read(source, [](auto*, auto& entry, auto* extra) {
+                    return !InventoryStacks::IsFavorited(entry, extra) &&
+                        !InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                }, item);
+                if (stacks.empty() || !InventoryStacks::Move(stacks.front(), destination)) break;
+            }
         }
         return;
     }
@@ -2108,9 +2121,16 @@ void Stores::CaptureSortFavorites() {
             return entry.first && entry.first->GetFormID() == id && entry.second > 0;
         });
     });
+    auto* keyword = InventoryStacks::FavoriteKeyword();
+    InventoryStacks::ClearOrigins(player, keyword);
     for (const auto& [item, data] : player->GetInventory()) {
-        if (item && data.first > 0 && data.second && data.second->IsFavorited())
-            sortFavorites_.insert(item->GetFormID());
+        if (!item || data.first <= 0 || !data.second || !data.second->IsFavorited()) continue;
+        for (const auto& stack : InventoryStacks::Read(player, [](auto*, auto& entry, auto* extra) {
+            return InventoryStacks::IsFavorited(entry, extra);
+        }, item)) {
+            if (!keyword || !stack.extra || !stack.extra->HasType<RE::ExtraHotkey>() ||
+                !InventoryStacks::MarkOrigin(stack, keyword)) sortFavorites_.insert(item->GetFormID());
+        }
     }
 }
 
@@ -2121,13 +2141,25 @@ bool Stores::ReturnSortFavorites() {
     bool returned = false;
     for (const auto& [item, data] : source->GetInventory()) {
         if (!item || data.first <= 0) continue;
-        if (data.second && data.second->IsFavorited()) sortFavorites_.insert(item->GetFormID());
-        if (!sortFavorites_.contains(item->GetFormID())) continue;
-        MoveItems(source, player, item, data.first);
-        const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
-        const auto found = counts.find(item);
-        if (found == counts.end() || found->second < data.first) returned = true;
+        if (data.second && data.second->IsFavorited()) {
+            auto* keyword = InventoryStacks::FavoriteKeyword();
+            for (const auto& stack : InventoryStacks::Read(source, [](auto*, auto& entry, auto* extra) {
+                return InventoryStacks::IsFavorited(entry, extra);
+            }, item)) {
+                if (!keyword || !stack.extra || !stack.extra->HasType<RE::ExtraHotkey>() ||
+                    !InventoryStacks::MarkOrigin(stack, keyword)) sortFavorites_.insert(item->GetFormID());
+            }
+        }
+        for (;;) {
+            const auto stacks = InventoryStacks::Read(source, [this](auto* candidate, auto& entry, auto* extra) {
+                return sortFavorites_.contains(candidate->GetFormID()) || InventoryStacks::IsFavorited(entry, extra) ||
+                    InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+            }, item);
+            if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) break;
+            returned = true;
+        }
     }
+    InventoryStacks::RestoreFavorites(player);
     return returned;
 }
 

@@ -11,7 +11,7 @@
       "fields": [
         {
           "type": "HEDR",
-          "hex": "48e1da3f7a000000f00d0000"
+          "hex": "48e1da3f7b000000f10d0000"
         },
         {
           "type": "CNAM",
@@ -70,6 +70,24 @@
             {
               "type": "EDID",
               "text": "AV_EnchantedOrigin"
+            },
+            {
+              "type": "CNAM",
+              "hex": "00000000"
+            }
+          ]
+        },
+        {
+          "type": "KYWD",
+          "flags": 0,
+          "form_id": "0x01000DF0",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_SortFavorite"
             },
             {
               "type": "CNAM",

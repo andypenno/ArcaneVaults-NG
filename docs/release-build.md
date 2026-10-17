@@ -19,6 +19,7 @@ python3 tools/release/check_redirects.py
 python3 tools/release/check_ignores.py
 python3 tools/release/check_learning.py
 python3 tools/release/check_stolen.py
+python3 tools/release/check_favorites.py --sanitize
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -109,3 +110,5 @@ The default matrix uses 0/100/300/1,000 types or same-base physical stacks and f
 `bench_crafting_loans.py` compiles the production crafting-session, transfer, Junk and soul-gem code with engine stubs. Run `python3 tools/release/bench_crafting_loans.py --baseline HEAD --samples 4 --output build/benchmarks/crafting-loans-NEW.json`. The default matrix covers all five benches at 0, 100, 300 and 1,000 main types, plus 100/300/1,000 copies in one physical stack and that many distinct physical stacks sharing one base per family. Each case also seeds matching Junk and, for Smithing/Enchanting, gems, while preserving 100 carried favourites. Select a subset with `--sizes`, `--benches` or `--scenarios types quantity stacks`.
 
 Runs are serial and reverse baseline/working and manual/loan order between repeats. Reports retain source/header and harness hashes, raw samples, min/median/max timings, and inventory scan/copy/move counts and native bulk-call counts. Round trips assert quantities, ownership, per-stack metadata and custom enchantments, carried items and origin cleanup. Only completed round trips are marked validated; timeouts preserve partial phases and stop. Existing reports are never overwritten. Native engine, UI, animation and real classification costs are excluded; timings do not predict Skyrim latency.
+
+`check_favorites.py --sanitize` runs production Quick Transfer and Sort code with renamed/custom-enchanted favourites and plain same-base copies, including implicit copies, favourite-clearing deposits, failed returns and Junk fallback. `--source-ref REV` checks the reported failure against an older implementation.

@@ -74,6 +74,7 @@ struct TESBoundObject {
     }
 };
 struct ExtraEnchantment { EnchantmentItem* enchantment; };
+struct ExtraHotkey {};
 struct ExtraWorn {};
 struct ExtraWornLeft {};
 struct ExtraUniqueID {unsigned baseID;std::uint16_t uniqueID;};
@@ -87,16 +88,17 @@ enum class ExtraDataType { kOwnership,kLinkedRef };
 struct ExtraLinkedRef { struct LinkedRef { BGSKeyword* keyword;TESObjectREFR* refr; };std::vector<LinkedRef> linkedRefs; };
 struct ExtraDataList {
     int count=1;TESForm* owner=nullptr;std::string metadata;ExtraLinkedRef links;std::optional<ExtraEnchantment> enchantment{};
-    bool worn=false,leftWorn=false,uiWorn=false;std::optional<ExtraUniqueID> unique{};
+    bool hotkey=false;bool worn=false,leftWorn=false,uiWorn=false;std::optional<ExtraUniqueID> unique{};
     int GetCount() const { return count; }
     void SetCount(std::uint16_t value) { count=value; }
     TESForm* GetOwner() { return owner; }
     template<class T> T* GetByType() { if constexpr(std::is_same_v<T,ExtraEnchantment>)return enchantment?&*enchantment:nullptr;else if constexpr(std::is_same_v<T,ExtraUniqueID>)return unique?&*unique:nullptr;else return links.linkedRefs.empty()?nullptr:&links; }
-    template<class T> bool HasType()const{if constexpr(std::is_same_v<T,ExtraWorn>)return worn;else return leftWorn;}
+    template<class T> bool HasType()const{if constexpr(std::is_same_v<T,ExtraHotkey>)return hotkey;else if constexpr(std::is_same_v<T,ExtraWorn>)return worn;else return leftWorn;}
     TESObjectREFR* GetLinkedRef(BGSKeyword* key) { for(auto& link:links.linkedRefs) if(link.keyword==key)return link.refr;return nullptr; }
     void SetLinkedRef(TESObjectREFR* ref,BGSKeyword* key) { for(auto& link:links.linkedRefs)if(link.keyword==key){link.refr=ref;return;}links.linkedRefs.push_back({key,ref}); }
     bool RemoveByType(ExtraDataType type) { if(type==ExtraDataType::kOwnership)owner=nullptr;else links.linkedRefs.clear();return true; }
     bool Same(const ExtraDataList& other) const {
+        if(hotkey!=other.hotkey)return false;
         if(worn!=other.worn || leftWorn!=other.leftWorn || uiWorn!=other.uiWorn || (enchantment?enchantment->enchantment:nullptr)!=(other.enchantment?other.enchantment->enchantment:nullptr) || owner!=other.owner || metadata!=other.metadata || links.linkedRefs.size()!=other.links.linkedRefs.size())return false;
         for(std::size_t i=0;i<links.linkedRefs.size();++i)if(links.linkedRefs[i].keyword!=other.links.linkedRefs[i].keyword || links.linkedRefs[i].refr!=other.links.linkedRefs[i].refr)return false;
         return true;
@@ -113,7 +115,7 @@ struct InventoryEntryData {
     InventoryEntryData(TESBoundObject* value,int):object(value){}
     void AddExtraList(ExtraDataList* extra){if(add)add(extra);else lists.push_back(extra);}
     bool IsQuestObject()const{return quest;}
-    bool IsFavorited()const{return favorite;}
+    bool IsFavorited()const{return favorite || std::ranges::any_of(lists,[](auto* x){return x && x->hotkey;});}
     bool IsWorn()const{return std::ranges::any_of(lists,[](auto* x){return x && (x->worn || x->leftWorn);});}
     std::vector<ExtraDataList*> lists;std::vector<ExtraDataList*>* extraLists=&lists;
     bool IsOwnedBy(PlayerCharacter*,TESForm* owner,bool defaultTo) { return owner?owner->playerOwned:defaultTo; }
@@ -146,6 +148,7 @@ struct TESObjectREFR {
         std::vector<InventoryEntryData*> entries;
         std::vector<InventoryEntryData*>* entryList=&entries;
         int bulkTransfers=0,bulkLimit=std::numeric_limits<int>::max();bool bulkRefuse=false,lastKeepOwnership=false;
+        void SetFavorite(InventoryEntryData*,ExtraDataList* extra){extra->hotkey=true;}
         void RemoveAllItems(TESObjectREFR* owner,TESObjectREFR* target,bool stealing,bool keepOwnership,bool);
         void AddEntryData(InventoryEntryData* entry){
             entry->add=[this,item=entry->object](ExtraDataList* extra){source->rows[item].extras.emplace_back(extra);};
@@ -215,7 +218,7 @@ struct SCRIPT_FUNCTION {
     static bool Query(TESObjectREFR*,void* item,void*,double& value){value=equipped.contains(static_cast<TESBoundObject*>(item));return succeeds;}
     static SCRIPT_FUNCTION* LocateScriptCommand(std::string_view){static SCRIPT_FUNCTION c{Query};return available?&c:nullptr;}
 };
-struct TESDataHandler { BGSKeyword keyword{0x01000DE0},enchantedKeyword{0x01000DED};static TESDataHandler* GetSingleton(){static TESDataHandler d;return &d;}template<class T>T* LookupForm(unsigned id,std::string_view plugin){assert((id==0xDE0 || id==0xDED) && plugin=="ArcaneVaults-LinkedStorage.esp");return id==0xDE0?&keyword:&enchantedKeyword;} };
+struct TESDataHandler { BGSKeyword keyword{0x01000DE0},enchantedKeyword{0x01000DED},favoriteKeyword{0x01000DF0};static TESDataHandler* GetSingleton(){static TESDataHandler d;return &d;}template<class T>T* LookupForm(unsigned id,std::string_view plugin){assert((id==0xDE0 || id==0xDED || id==0xDF0) && plugin=="ArcaneVaults-LinkedStorage.esp");return id==0xDE0?&keyword:id==0xDED?&enchantedKeyword:&favoriteKeyword;} };
 struct SendHUDMessage {inline static std::string message;static void ShowHUDMessage(const char* text){message=text;} };
 using BSFixedString=std::string;
 struct GFxValue {

@@ -1,4 +1,5 @@
 #include "Soulgems.h"
+#include "InventoryStacks.h"
 #include "Utility.h"
 #include "Settings.h"
 #include <array>
@@ -9,6 +10,8 @@ namespace {
         RE::ExtraDataList* extra;
         int count;
         bool filled;
+        bool favorite{};
+        bool guardedBare{};
     };
 
     using Counts = std::unordered_map<RE::FormID, std::array<int, 2>>;
@@ -17,7 +20,13 @@ namespace {
     std::int64_t remainingLoan{};
 
     bool Protected(RE::TESSoulGem* gem, const RE::InventoryEntryData& entry) {
-        if (entry.IsQuestObject() || entry.IsFavorited() || entry.IsWorn()) return true;
+        if (entry.IsQuestObject() || entry.IsWorn()) return true;
+        if (entry.IsFavorited()) {
+            bool identified = false;
+            if (entry.extraLists) for (auto* extra : *entry.extraLists)
+                identified |= extra && extra->HasType<RE::ExtraHotkey>();
+            if (!identified) return true;
+        }
         std::unordered_set<RE::TESSoulGem*> visited;
         while (gem && visited.insert(gem).second) {
             if (gem->GetFormID() == 0x63B27 || gem->GetFormID() == 0x63B29) return true;
@@ -43,18 +52,27 @@ namespace {
                     return false;
                 explicitCount += count;
                 if (explicitCount > total) return false;
-                stacks.push_back({extra, count, level != RE::SOUL_LEVEL::kNone});
+                stacks.push_back({extra, count, level != RE::SOUL_LEVEL::kNone, extra->HasType<RE::ExtraHotkey>()});
             }
         }
         const auto level = gem->GetContainedSoul();
         if (static_cast<unsigned>(level) > static_cast<unsigned>(RE::SOUL_LEVEL::kGrand)) return false;
         if (explicitCount < total)
-            stacks.push_back({nullptr, static_cast<int>(total - explicitCount), level != RE::SOUL_LEVEL::kNone});
+            stacks.push_back({nullptr, static_cast<int>(total - explicitCount), level != RE::SOUL_LEVEL::kNone, false, entry.IsFavorited()});
         return true;
     }
 
     void Move(RE::TESObjectREFR* source, RE::TESObjectREFR* target, RE::TESSoulGem* gem, const Stack& stack, int count) {
-        if (count > 0)
+        if (stack.favorite) return;
+        if (stack.guardedBare) {
+            while (count > 0) {
+                const auto physical = InventoryStacks::Materialize({source, gem, nullptr, count});
+                if (!physical) return;
+                const int moved = InventoryStacks::Move(*physical, target);
+                if (!moved) return;
+                count -= moved;
+            }
+        } else if (count > 0)
             source->RemoveItem(gem, count, RE::ITEM_REMOVE_REASON::kStoreInContainer, stack.extra, target);
     }
 

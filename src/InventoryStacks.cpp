@@ -37,6 +37,32 @@ namespace InventoryStacks {
         return result;
     }
 
+    bool IsFavorited(const RE::InventoryEntryData& entry, RE::ExtraDataList* extra) {
+        if (!entry.IsFavorited()) return false;
+        if (extra && extra->HasType<RE::ExtraHotkey>()) return true;
+        if (entry.extraLists) for (auto* copy : *entry.extraLists)
+            if (copy && copy->HasType<RE::ExtraHotkey>()) return false;
+        return true;
+    }
+
+    RE::BGSKeyword* FavoriteKeyword() {
+        auto* data = RE::TESDataHandler::GetSingleton();
+        return data ? data->LookupForm<RE::BGSKeyword>(0xDF0, "ArcaneVaults-LinkedStorage.esp") : nullptr;
+    }
+
+    void RestoreFavorites(RE::TESObjectREFR* source) {
+        auto* keyword = FavoriteKeyword();
+        auto* changes = source ? source->GetInventoryChanges() : nullptr;
+        if (!keyword || !changes) return;
+        for (const auto& [item, data] : source->GetInventory()) {
+            if (!item || !data.second || !data.second->extraLists) continue;
+            for (auto* extra : *data.second->extraLists)
+                if (HasOrigin(extra, keyword) && !extra->HasType<RE::ExtraHotkey>())
+                    changes->SetFavorite(data.second.get(), extra);
+        }
+        ClearOrigins(source, keyword);
+    }
+
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item) {
         const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
         const auto found = counts.find(item);

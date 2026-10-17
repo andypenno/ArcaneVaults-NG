@@ -100,6 +100,10 @@ def validate_esp(root, data):
     require(enchanted_origin is not None and enchanted_origin["type"] == "KYWD" and
             any(field.get("text") == "AV_EnchantedOrigin" for field in enchanted_origin["fields"] if field["type"] == "EDID"),
             "Enchanted Items origin keyword is missing or invalid")
+    favorite_origin = by_id.get(0x01000DF0)
+    require(favorite_origin is not None and favorite_origin["type"] == "KYWD" and
+            any(field.get("text") == "AV_SortFavorite" for field in favorite_origin["fields"] if field["type"] == "EDID"),
+            "Sort favourite keyword is missing or invalid")
 
     def check_cells(items, cell=None):
         for node in items:

@@ -24,6 +24,7 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+struct BGSKeyword;
 using FormID = unsigned;
 enum class SOUL_LEVEL { kNone, kPetty, kLesser, kCommon, kGreater, kGrand };
 struct TESForm {
@@ -46,6 +47,7 @@ struct TESSoulGem : TESBoundObject {
     TESSoulGem(FormID id, SOUL_LEVEL value):TESBoundObject(id),soul(value) {}
     SOUL_LEVEL GetContainedSoul() const { return soul; }
 };
+struct ExtraHotkey {};
 struct ExtraSoul {
     SOUL_LEVEL soul;
     SOUL_LEVEL GetContainedSoul() const { return soul; }
@@ -54,7 +56,8 @@ struct ExtraDataList {
     int count;
     std::optional<ExtraSoul> soul;
     std::string owner;
-    bool alive = true;
+    bool alive = true;bool hotkey=false;
+    template<class T> bool HasType()const{return hotkey;}
     int GetCount() const { assert(alive); return count; }
     template<class T> T* GetByType() { assert(alive); return soul ? &*soul : nullptr; }
 };
@@ -63,7 +66,7 @@ struct InventoryEntryData {
     std::vector<ExtraDataList*>* extraLists = nullptr;
     bool quest = false, favorite = false, worn = false;
     bool IsQuestObject() const { return quest; }
-    bool IsFavorited() const { return favorite; }
+    bool IsFavorited() const { return favorite || std::ranges::any_of(lists,[](auto* x){return x->hotkey;}); }
     bool IsWorn() const { return worn; }
 };
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
@@ -99,7 +102,7 @@ struct TESObjectREFR {
             if (chosen) {
                 assert(chosen->alive);
                 moving=std::min(moving,chosen->count);
-                if (target) target->Put(item,moving,chosen->soul?std::optional{chosen->soul->soul}:std::nullopt,chosen->owner,true);
+                if (target) {target->Put(item,moving,chosen->soul?std::optional{chosen->soul->soul}:std::nullopt,chosen->owner,true);target->inventory[item].second->lists.back()->hotkey=chosen->hotkey;}
                 chosen->count-=moving;
                 if (chosen->count==0) {
                     std::erase(data.second->lists,chosen);chosen->alive=false;
@@ -142,6 +145,21 @@ struct Settings {
     bool IsIgnored(const RE::TESBoundObject* item) const { return ignored.contains(item); }
     static Settings* GetSingleton() { static Settings s;return &s; }
 };
+'''
+program += r'''
+#include "src/InventoryStacks.h"
+namespace InventoryStacks {
+std::optional<Stack> Materialize(const Stack& stack){
+    auto copy=std::make_unique<RE::ExtraDataList>();copy->count=std::min(stack.count,32767);
+    auto& entry=stack.source->inventory[stack.item].second;entry->lists.push_back(copy.get());entry->extraLists=&entry->lists;
+    Stack result=stack;result.extra=copy.get();result.count=copy->count;RE::TESObjectREFR::extras.push_back(std::move(copy));return result;
+}
+int Move(const Stack& stack,RE::TESObjectREFR* target){
+    const int before=stack.source->inventory[stack.item].first;
+    stack.source->RemoveItem(stack.item,stack.count,RE::ITEM_REMOVE_REASON::kStoreInContainer,stack.extra,target);
+    return before-stack.source->inventory[stack.item].first;
+}
+}
 '''
 program += implementation
 loan = (ROOT / "src/Events.cpp").read_text()
@@ -320,6 +338,12 @@ int main() {
     assert(sort->inventory[&gem].first==3 && bank->inventory.empty());
     Soulgems::Recover();
     assert(sort->inventory[&gem].first==0 && bank->inventory[&gem].first==3);
+
+    reset();player->Put(&gem,0,RE::SOUL_LEVEL::kGrand,"favourite",true);
+    player->inventory[&gem].first=1;player->inventory[&gem].second->lists.back()->count=1;player->inventory[&gem].second->lists.back()->hotkey=true;
+    player->Put(&gem,3);Soulgems::Deposit(0);
+    assert(player->inventory[&gem].first==1 && bank->inventory[&gem].first==3);
+    assert(player->inventory[&gem].second->lists.front()->hotkey && player->inventory[&gem].second->lists.front()->owner=="favourite");
 
 }
 '''
