@@ -34,6 +34,7 @@ public:
 	bool GSC_OffloadNotes{ false };
 	bool GSC_OffloadPersonal{ false };
 	bool GSC_OffloadGear{ false };
+	bool GSC_OffloadJunk{ true };
 	int GSC_LockpickKeepAmount{ 25 };
 	bool GSC_OffloadScrolls{ false };
 	bool GSC_OffloadSpelltomes{ false };

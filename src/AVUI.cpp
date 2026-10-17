@@ -228,6 +228,8 @@ namespace AVUI {
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Gear"), &setting->GSC_OffloadGear))
 				changeOption = true;
+			if (Checkbox(Translate("Vault.Junk"), &setting->GSC_OffloadJunk))
+				setting->SaveINI();
 			if (Checkbox(Translate("Vault.Personal"), &setting->GSC_OffloadPersonal))
 				changeOption = true;
 		}

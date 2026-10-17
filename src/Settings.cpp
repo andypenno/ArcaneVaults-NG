@@ -78,6 +78,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadNotes, "Offload", "Notes");
 	option(settings.GSC_OffloadPersonal, "Offload", "Personal");
 	option(settings.GSC_OffloadGear, "Offload", "Gear");
+	option(settings.GSC_OffloadJunk, "Offload", "Junk");
 	option(settings.GSC_OffloadScrolls, "Offload", "Scrolls");
 	option(settings.GSC_OffloadSpelltomes, "Offload", "Spelltomes");
 	option(settings.GSC_OffloadCrafting, "Offload", "Crafting");

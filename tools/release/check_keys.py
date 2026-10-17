@@ -1458,6 +1458,14 @@ assert(options.at({"General", "EnchantedItemsLoan"}) == 0);
     utility->inbox.inventory[&soulOverride]=entry(3);stores.SortItems();
     assert(utility->GetContainer(Container::Soulgem)->inventory[&soulOverride].first==10 && utility->junk.inventory[&soulOverride].first==0);
 
+    player->inventory.clear();utility->junk.inventory.clear();
+    RE::TESBoundObject declaredJunk{ItemCategory::Junk},unclassified{ItemCategory::None};
+    player->inventory[&declaredJunk]=entry(5);player->inventory[&unclassified]=entry(4);
+    settings->GSC_OffloadJunk=false;stores.OffloadItems();assert(player->inventory[&declaredJunk].first==5);
+    settings->GSC_OffloadJunk=true;stores.OffloadItems();
+    assert(player->inventory[&declaredJunk].first==0 && utility->junk.inventory[&declaredJunk].first==5);
+    assert(player->inventory[&unclassified].first==4);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1497,3 +1505,5 @@ assert set(map_overrides) == {("Skyrim.esm", local) for local in
 print("PASS: direct Archery ammunition gather/return, withdrawals, deposits and failed/large transfers; native potion effects, exclusions and archive gather/return; ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}
+
+assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Junk")} >= {0xE3CB7,0xCE70B,0xE4897,0x4C3C8,0x4C3C6,0x319E4,0xCC84D,0xAEBF3,0xAEBF7}

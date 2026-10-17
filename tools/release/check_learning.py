@@ -113,7 +113,7 @@ int main() {
     auto open=[&](Container kind){u->kind=kind;DepositLearning::MenuOpened();};
     DepositLearning::Register();open(Container::Alchemy);send(a);tasks->Run();assert(menu->prompts==0);
     s->GSC_LearnDepositOverrides=true;
-    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Junk,Container::Trade,Container::Valuables,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems,Container::EnchantedItems}) {
+    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Trade,Container::Valuables,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems,Container::EnchantedItems}) {
         open(kind);send(a);tasks->Run();assert(menu->prompts==0);
     }
     for(auto [name,cat]:categoryNames) assert(ParseCategories(FormatCategories(ToMask(cat)))==ToMask(cat));
@@ -168,6 +168,9 @@ int main() {
     open(Container::Soulgem);send(a);tasks->Run();menu->Answer(true);
     assert(s->overrides[a.id]==ToMask(ItemCategory::Soulgem) && s->disk==s->overrides);
     const auto soulPrompts=menu->prompts;send(gem);tasks->Run();assert(menu->prompts==soulPrompts);
+
+    open(Container::Junk);send(a);tasks->Run();menu->Answer(true);
+    assert(s->overrides[a.id]==ToMask(ItemCategory::Junk) && s->disk==s->overrides);
 
 }
 '''

@@ -413,6 +413,7 @@ void Stores::SortItems() {
     Soulgems::Recover(sortFavorites_);
     StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Junk, Container::Sort, Container::Junk);
     StoreToStore(ItemCategory::Personal, Container::Sort, Container::Personal);
     StoreToStore(ItemCategory::Gear, Container::Sort, Container::Gear);
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
@@ -441,6 +442,9 @@ void Stores::OffloadItemsNow() {
     ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadJunk)
+        PlayerToStore(ItemCategory::Junk, Container::Junk, 0, 0, true);
 
     if (settings->GSC_OffloadGear) {
         PlayerToStore(ItemCategory::Lockpick, Container::Gear, 0, settings->GSC_LockpickKeepAmount, true);

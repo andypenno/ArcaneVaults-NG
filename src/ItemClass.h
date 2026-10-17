@@ -110,7 +110,8 @@ enum class ItemCategory : std::uint8_t {
     Instrument,
     HealthPotion,
     MagickaPotion,
-    StaminaPotion
+    StaminaPotion,
+    Junk
 };
 
 enum class ContainerGroup {
@@ -179,7 +180,8 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 47> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 48> categoryNames{{
+    { "Junk", ItemCategory::Junk },
     { "Alchemy", ItemCategory::Alchemy },
     { "Armor", ItemCategory::Armor },
     { "Weapon", ItemCategory::Weapon },
