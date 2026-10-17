@@ -26,9 +26,9 @@ common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<In
 common=common.replace("e->countDelta=row.total;", "e->countDelta=row.total-(row.leveled?0:row.baseStock);")
 common=common.replace("bool bulkRefuse=false,lastKeepOwnership=false;", "bool bulkRefuse=false,lastKeepOwnership=false;bool queueBulk=false;inline static std::deque<std::function<void()>> nativeTasks;")
 common=common.replace("if(bulkRefuse)return;", "if(bulkRefuse)return;if(queueBulk){queueBulk=false;nativeTasks.emplace_back([=,this]{RemoveAllItems(owner,target,stealing,keepOwnership,false);});return;}")
-common=common.replace("struct Settings {", "struct Settings {bool GSC_CraftingLoan=false,GSC_EnchantedItemsLoan=false;")
+common=common.replace("struct Settings {", "struct Settings {bool GSC_CraftingLoan=true;")
 common=common.replace("struct Utility {", "struct Utility {BenchType bench=BenchType::Enchanting;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;}")
-common=common.replace("struct Stores {", "struct Stores {void BeginJunkLoan(){}void EndJunkLoan(){}void ResetJunkLoan(){}void AllToPlayer(Container){}void StoreToPlayer(ItemCategory,Container){}")
+common=common.replace("struct Stores {", "struct Stores {int materialReturns=0;void BeginJunkLoan(){}void EndJunkLoan(){++materialReturns;}void ResetJunkLoan(){}void AllToPlayer(Container){}void StoreToPlayer(ItemCategory,Container){}")
 common=common.replace("bool savedBlocked=false;", "int capacity=100;bool rejectQueueHide=false;bool savedBlocked=false;")
 common=common.replace("assert(name==InventoryMenu::MENU_NAME);commands.push_back(type);", "assert(name==InventoryMenu::MENU_NAME);if((type==UI_MESSAGE_TYPE::kHide && rejectQueueHide) || commands.size()>=static_cast<std::size_t>(capacity)){delete static_cast<InventoryUpdateData*>(data);return;}commands.push_back(type);")
 common += r'''
@@ -60,11 +60,10 @@ int main(){
     auto* events=RE::ScriptEventSourceHolder::GetSingleton();auto* session=CraftingLoanState::GetSingleton();
     RE::TESObjectREFR weapons{1001},armor{1002},archive{1003},bench{1004},otherBench{1005},otherActor{1006};
     u->containers[Container::Weapon]=&weapons;u->containers[Container::Armor]=&armor;u->containers[Container::EnchantedItems]=&archive;
-    Settings::GetSingleton()->GSC_EnchantedItemsLoan=true;
+    
     EnchantedItems::Init();CraftingMenuEventHandler::Register();auto registered=events->sinks;
     auto furniture=[&](const RE::TESFurnitureEvent& event){for(auto* sink:events->furniture)sink->ProcessEvent(&event,nullptr);};
     RE::TESBoundObject ring{200,false,true};RE::EnchantmentItem fire,frost;
-    auto* key=&RE::TESDataHandler::GetSingleton()->enchantedKeyword;
     auto count=[&](auto& ref){return InventoryStacks::Count(&ref,&ring);};
     auto reset=[&]{session->Reset();tasks->Run();events->sinks=registered;
         for(auto* ref:{static_cast<RE::TESObjectREFR*>(player),&weapons,&armor,&archive}){
@@ -82,49 +81,18 @@ int main(){
         assert(InventoryStacks::Move(InventoryStacks::Read(&weapons).front(),&armor)==3 && count(armor)==3);
     }
     reset();weapons.onInit=[&]{weapons.Put(&ring,2);};assert(count(weapons)==2 && count(weapons)==2 && weapons.initializations==1);
-    for(int mode=0;mode<8;++mode){
-        reset();seed();OtherSink other;bool acted=false;
-        other.callback=[&](const auto& e){
-            if(e.oldContainer==archive.id && e.newContainer==player->id && !acted){
-                acted=true;
-                if(mode==1)EnchantedItems::EndLoan();
-                if(mode==2)session->Reset();
-                if(mode==7){session->Reset();session->EnterCrafting(&otherBench);}
-                if(mode==4 || mode==5)for(auto& extra:player->rows[&ring].extras)extra->unique=RE::ExtraUniqueID{mode==4?1003u:1001u,static_cast<std::uint16_t>(mode==4?99:1)};
-                if(mode==3){weapons.Put(&ring,0,1,nullptr,"listener");weapons.rows[&ring].extras.back()->enchantment=RE::ExtraEnchantment{&fire};}
-            }
-            return (mode==0 || mode==6)?RE::BSEventNotifyControl::kStop:RE::BSEventNotifyControl::kContinue;
-        };
-        events->sinks.insert((mode%2 || mode==6)?events->sinks.end():events->sinks.begin(),&other);
-        archive.changes.queueBulk=true;session->EnterCrafting(&bench);
-        if(mode==7)assert(!EnchantedItems::HasPendingLoan());
-        session->ExitCrafting();tasks->Run();
-        assert(archive.changes.nativeTasks.empty());
-        if(mode!=2 && mode!=7)assert(count(*player)==1 && count(weapons)==2+(mode==3?1:0));
-        if(mode==7)assert(count(*player)==2 && count(weapons)==1);
-        for(auto& extra:player->rows[&ring].extras)assert(extra->metadata=="carried" || mode==2 || mode==7);
-        std::map<RE::EnchantmentItem*,int> variants;
-        for(auto* ref:{static_cast<RE::TESObjectREFR*>(player),&weapons,&armor,&archive})
-            for(auto& extra:ref->rows[&ring].extras)variants[extra->enchantment?extra->enchantment->enchantment:nullptr]+=extra->count;
-        assert((variants==std::map<RE::EnchantmentItem*,int>{{nullptr,1},{&fire,1+(mode==3?1:0)},{&frost,1}}));
-        for(unsigned short identity:{0,1,65535}){
-            events->Send({archive.id,player->id,ring.id,100,mode==4?999u:0u,identity});tasks->Run();
-        }
-        if(mode!=2 && mode!=7)assert(count(*player)==1);
-    }
-    reset();seed();session->EnterCrafting(&bench);
-    CraftingMenuEventHandler::GetSingleton()->ProcessEvent(static_cast<const RE::TESFurnitureEvent*>(nullptr),nullptr);tasks->Run();assert(count(*player)==3);
+
+    auto* stores=Stores::GetSingleton();
+    reset();seed();session->EnterCrafting(&bench);const int returns=stores->materialReturns;
     RE::TESFurnitureEvent unrelated{{&otherActor},{&bench},RE::TESFurnitureEvent::FurnitureEventType::kExit};
     RE::TESFurnitureEvent stale{{player},{&otherBench},RE::TESFurnitureEvent::FurnitureEventType::kExit};
-    RE::TESFurnitureEvent enter{{player},{&bench},RE::TESFurnitureEvent::FurnitureEventType::kEnter};
     RE::TESFurnitureEvent exit{{player},{&bench},RE::TESFurnitureEvent::FurnitureEventType::kExit};
-    furniture(unrelated);furniture(stale);furniture(enter);tasks->Run();assert(count(*player)==3);
-    furniture(exit);furniture(exit);tasks->Run();assert(count(*player)==1 && count(weapons)==2);
-    reset();seed();session->EnterCrafting(&bench);furniture(exit);session->EnterCrafting(&otherBench);
-    tasks->Run();assert(count(*player)==3);furniture(exit);tasks->Run();assert(count(*player)==3);
+    furniture(unrelated);furniture(stale);tasks->Run();assert(stores->materialReturns==returns);
+    furniture(exit);furniture(exit);tasks->Run();assert(stores->materialReturns==returns+1);
+    reset();session->EnterCrafting(&bench);furniture(exit);session->EnterCrafting(&otherBench);
+    const int nextReturns=stores->materialReturns;tasks->Run();assert(stores->materialReturns==nextReturns);
     RE::TESFurnitureEvent newExit{{player},{&otherBench},RE::TESFurnitureEvent::FurnitureEventType::kExit};
-    furniture(newExit);tasks->Run();assert(count(*player)==1);
-    for(auto& extra:weapons.rows[&ring].extras)assert(!InventoryStacks::HasOrigin(extra.get(),key));
+    furniture(newExit);tasks->Run();assert(stores->materialReturns==nextReturns+1);
     auto* ui=RE::UI::GetSingleton();auto* queue=RE::UIMessageQueue::GetSingleton();
     for(int congested=0;congested<3;++congested)for(int capacity:{1,64,100}){
         reset();player->Put(&ring,0,3);ProbeClock::tick={};queue->capacity=capacity;queue->rejectQueueHide=congested==2;
@@ -190,4 +158,4 @@ with tempfile.TemporaryDirectory(prefix="av-engine-boundaries-") as directory:
     flags=["-fsanitize=address,undefined","-fno-omit-frame-pointer"] if args.sanitize else []
     subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror",*flags,"-I",str(ROOT),str(root/"check.cpp"),*modules,"-o",str(root/"check")],check=True,timeout=90)
     subprocess.run([str(root/"check")],check=True,timeout=20)
-print("PASS: base stock/deltas, cold initialization, event identities, stopped/reentrant sinks, synchronous enchanted lending and furniture exits")
+print("PASS: base stock/deltas, cold initialization, event identities, stopped/reentrant sinks, material-loan furniture exits")

@@ -74,10 +74,6 @@ The SkyUILib bridge passes option labels as separate ActionScript arguments, con
 
 ## Crafting loans
 
-Enchanted equipment is selected and tagged in its archive first. Lending validates the staged physical counts and the player's signed item-count capacity, then moves fresh physical stacks through the shared count-verified transfer helper. It does not dispatch native RemoveAllItems work. A partial/refused move or session change stops further lending. Returns remain selective by origin so carried copies and protected items retain their existing policy.
-
-The enchanted loan tracks quantities removed from the archive and quantities received by the player. Closing CraftingMenu or receiving the player's matching furniture-exit event queues a game-thread return for the matching crafting session. Unrelated actors, old benches and stale queued exits cannot end a newer loan. Outstanding deliveries keep the loan active after close; coalesced archive-to-player receipt tasks return late tagged copies to their parents. New crafting loans wait until those receipts settle. Consumed items are not recreated, and protected copies remain carried. Reset invalidates queued receipt and close tasks. This relies on standard container-change events reporting actual arrivals; delayed delivery timing still needs game verification.
-
 The furniture hook selects the bench through `Utility::GetBenchType`, which checks known keywords first and bench data second. `CraftingMenu` close returns materials through the same transfer helpers.
 
 | Bench | Entry transfer | Exit transfer |
@@ -85,13 +81,13 @@ The furniture hook selects the bench through `Utility::GetBenchType`, which chec
 | Alchemy, including grain mill keyword | Entire Alchemy inventory to player | Player items matching Alchemy to Alchemy |
 | Smithing, including forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts and banked gems present in the existing recipe caches | Smithing items/Catalysts to their parent stores; identifiable unused gem loans to Soulgem |
 | Cooking | Entire Food inventory plus Alchemy Reagents to player | Food and Reagents to their parent stores |
-| Enchanting | Filled gems when Crafting Loan is enabled; eligible stored equipment when Loan Enchanted Items is enabled | Unused gems to Soulgem; surviving tagged equipment to its original Weapon/Armor vault; pre-existing carried copies retained |
+| Enchanting | Filled gems when Crafting Loan is enabled | Unused gems to Soulgem |
 | Staff enchanting | Alchemy Catalysts to player | Catalysts to Alchemy |
 
 Normal non-gem vault loans retain category-based returns and can include materials carried before the loan. Junk loans capture carried and verified moved counts and return excess to Junk before those category returns. Junk returns read only recorded loan forms; soul-gem snapshots exclude unrelated item data. Shared player deposits reject unrelated categories before fetching fresh entry data and reuse the physical transfer helper's verified moved count. Soul gems record pre-loan counts by base form and empty/filled state, plus borrowed and directly linked forms. Returns inspect current stacks, preserve pre-existing counts, and cap the returned total by the loan. Unrecognized mod transformations and ambiguous bare stacks stay on the player for explicit Quick Transfer. Consumed gems are not recreated. Both gem archives consolidate before lending.
 
-The enchanting-equipment toggle is independent of Crafting Loan and disabled by default. The session captures the bench type and material-loan participation, returns loans even if either option changes during crafting, and rolls back after failed furniture activation. Load/new-game messages clear pending loan bookkeeping without transferring items. Bench detection, including its existing Carpenter's Workbench limitations, is unchanged. Mod filling/consumption changes are left to the installed mod; game testing remains necessary.
-
 Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel the pending container callback and invalidate its picker session. Post-load and new-game tasks recover picker contents on the game thread.
 
 Displayed storage names and menu titles consistently use the Vault suffix for both parent and archive destinations. Vault/Archive groups remain separate for browsing and routing; Quick Transfer retains its action name.
+
+Crafting loans are controlled by Crafting Loan and contain materials and soul gems. Enchanted equipment is available only through manual vault access. The retired EnchantedItemsLoan INI key is ignored. Existing carried copies remain carried; normal archive recovery clears old origin markers without recreating items.

@@ -43,7 +43,6 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 	case SKSE::MessagingInterface::kNewGame:
 		PlayerEquipment::Reset();
 		StolenItems::Reset();
-		EnchantedItems::Reset();
 		DepositLearning::Reset();
 		AVEvents::ResetCraftingLoan();
 		AVEvents::CancelContainerMenuCloseCallback();

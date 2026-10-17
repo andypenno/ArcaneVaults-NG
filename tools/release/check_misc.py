@@ -74,7 +74,6 @@ bool toggleSpells = false;
 bool toggleNotes = false;
 bool toggleGear = false;
 bool toggleLearning = false;
-bool toggleEnchantedLoan = false;
 bool toggleStolenTags = false;
 bool toggleSelectedAmmo = false;
 bool waitKey = false;
@@ -110,7 +109,6 @@ bool Checkbox(const char* label, bool* value) {
     shownControls.emplace_back(label);
     if (toggleSpells && (value == &Settings::GetSingleton()->GSC_AssignSpell || value == &Settings::GetSingleton()->GSC_SortSpell)) { *value = !*value; return true; }
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
-    if (toggleEnchantedLoan && value == &Settings::GetSingleton()->GSC_EnchantedItemsLoan) { *value = !*value; return true; }
     if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
     if (toggleStolenTags && value == &Settings::GetSingleton()->GSC_AllowRemovingStolenTags) { *value = !*value; return true; }
     if (toggleLearning && value == &Settings::GetSingleton()->GSC_LearnDepositOverrides) { *value = !*value; return true; }
@@ -203,11 +201,6 @@ int main() {
     ids.clear();RenderTransfer();assert(!settings->GSC_OffloadGear && settings->saves==beforeGear+2);toggleGear=false;
 
 
-    assert(!settings->GSC_EnchantedItemsLoan);toggleEnchantedLoan=true;ids.clear();
-    const int beforeEnchantedLoan=settings->saves;RenderOptions();
-    assert(settings->GSC_EnchantedItemsLoan && settings->saves==beforeEnchantedLoan+1);
-    ids.clear();RenderOptions();assert(!settings->GSC_EnchantedItemsLoan && settings->saves==beforeEnchantedLoan+2);
-    toggleEnchantedLoan=false;
 
     const int beforeSelectedAmmo=settings->saves;
     assert(!settings->GSC_KeepSelectedAmmunition);toggleSelectedAmmo=true;ids.clear();RenderOptions();

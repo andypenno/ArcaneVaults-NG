@@ -323,7 +323,7 @@ program += item_source[item_source.index("CategoryMask ToMask("):item_source.ind
 program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
 namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
-namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} bool HasPendingLoan(){return false;} }
+
 namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }
 namespace Soulgems {
     std::unordered_set<RE::FormID> sortExcluded;
@@ -550,7 +550,7 @@ int main() {
         options[{section, key}] = value;
     });
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
-assert(options.at({"General", "EnchantedItemsLoan"}) == 0);
+assert(!options.contains({"General", "EnchantedItemsLoan"}));
     assert(options.at({"General", "LockpickKeepAmount"}) == 25);
     assert(options.at({"Offload", "Gear"}) == 0);
     assert(options.at({"General", "AlchemyKeepAmount"}) == 1);

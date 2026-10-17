@@ -542,7 +542,7 @@ int main(){
     resetEnchanted();weapons.Put(&sword,8);weapons.limit=2;assert(EnchantedItems::Gather() && count(enchantedBank,sword)==8);weapons.limit=std::numeric_limits<int>::max();
     enchantedBank.refuse=true;assert(!EnchantedItems::Recover() && count(enchantedBank,sword)==8);enchantedBank.refuse=false;assert(EnchantedItems::Recover() && count(weapons,sword)==8);
     weapons.refuse=true;assert(!EnchantedItems::Gather() && count(weapons,sword)==8);weapons.refuse=false;assert(EnchantedItems::Gather());
-    EnchantedItems::Reset();assert(EnchantedItems::Recover() && count(weapons,sword)==8);
+    assert(EnchantedItems::Recover() && count(weapons,sword)==8);
     resetEnchanted();enchantedBank.Put(&plainSword,3);assert(EnchantedItems::Recover() && count(*player,plainSword)==3);
     resetEnchanted();weapons.Put(&sword,2);menu->EnchantedItemsMenu(&source);assert(menu->opened==Container::EnchantedItems && count(enchantedBank,sword)==2);
     close=menu->onClose;close(&source);assert(menu->closed && count(weapons,sword)==2);

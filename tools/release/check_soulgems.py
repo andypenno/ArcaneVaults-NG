@@ -137,7 +137,6 @@ struct Utility {
 program += r'''
 struct Settings {
     bool GSC_CraftingLoan = true;
-    bool GSC_EnchantedItemsLoan = false;
     bool GSC_ReturnIgnoredItems = true;
     std::unordered_set<const RE::TESBoundObject*> ignored;
     bool IsIgnored(const RE::TESBoundObject* item) const { return ignored.contains(item); }
@@ -159,7 +158,7 @@ struct Stores {
     void PlayerToStore(ItemCategory,Container) {}
 };
 '''
-program += "namespace EnchantedItems { void BeginLoan() {} void EndLoan() {} void Reset() {} bool HasPendingLoan(){return false;} }\n"
+program += "\n"
 program += "namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }\n"
 program += loan
 program += r'''

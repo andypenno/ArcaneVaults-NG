@@ -15,7 +15,6 @@ public:
 	int GSC_QuickKeyCode{ -1 };
 	bool GSC_GlobalRedirects{ true };
 	bool GSC_CraftingLoan{ false };
-	bool GSC_EnchantedItemsLoan{ false };
 	bool GSC_ReturnIgnoredItems{ true };
 	bool GSC_LearnDepositOverrides{ false };
 	bool GSC_AllowRemovingStolenTags{ false };

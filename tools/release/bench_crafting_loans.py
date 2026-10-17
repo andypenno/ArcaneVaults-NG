@@ -10,7 +10,7 @@ import tempfile
 import check_stolen
 
 ROOT = check_stolen.ROOT
-FILES = ("src/Stores.cpp", "src/Events.cpp", "src/InventoryStacks.cpp", "src/InventoryStacks.h", "src/Soulgems.cpp", "src/EnchantedItems.cpp")
+FILES = ("src/Stores.cpp", "src/Events.cpp", "src/InventoryStacks.cpp", "src/InventoryStacks.h", "src/Soulgems.cpp")
 
 
 def body(source, signature, ending="\n}\n"):
@@ -38,7 +38,7 @@ def common_source():
     text=text.replace("++inventoryCopies;", "++inventoryCopies;++Counters::copies;")
     text=text.replace("assert(!inspectionOpen);if(refuse)return;", "++Counters::moves;assert(!inspectionOpen);if(refuse)return;")
     text=text.replace("struct Utility {", "struct Utility { BenchType bench=BenchType::None;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;} bool isSmithing(RE::FormID)const{return true;}")
-    text=text.replace("struct Settings {", "struct Settings { bool GSC_CraftingLoan=true,GSC_EnchantedItemsLoan=true,GSC_ReturnIgnoredItems=true;")
+    text=text.replace("struct Settings {", "struct Settings { bool GSC_CraftingLoan=true,GSC_ReturnIgnoredItems=true;")
     text=text.replace("return ToMask(item->armor?ItemCategory::Jewelry:ItemCategory::Weapon);", "return item->categories;")
     text=text.replace("struct Stores {", "struct Stores { std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();} void AllToPlayer(Container);void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = {});")
     text += "\n#include <utility>\n#include <iostream>\n#include \"src/Soulgems.h\"\nnamespace PlayerEquipment { inline const Snapshot* Current(){return nullptr;} }\n"
@@ -54,8 +54,8 @@ int main(int argc,char** argv){
  for(auto kind:{Container::Alchemy,Container::Smithing,Container::Food,Container::Weapon,Container::Armor,Container::Junk,Container::EnchantedItems,Container::Soulgem,Container::EmptySoulgems,Container::FilledSoulgems}){
   banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));utility->containers[kind]=banks[kind].get();
  }
- RE::TESObjectREFR furniture{8000};RE::EnchantmentItem enchantment;std::array<RE::EnchantmentItem,3> customEnchantments;RE::TESForm owner{7000,false};
- utility->bench=static_cast<BenchType>(bench);EnchantedItems::Init();
+ RE::TESObjectREFR furniture{8000};std::array<RE::EnchantmentItem,3> customEnchantments;RE::TESForm owner{7000,false};
+ utility->bench=static_cast<BenchType>(bench);
  std::vector<RE::TESBoundObject> items(types),junk(types);std::vector<RE::TESSoulGem> gems(types);
  std::map<RE::TESBoundObject*,Container> origins;
  std::map<RE::TESBoundObject*,int> expectedCounts;
@@ -78,11 +78,10 @@ int main(int argc,char** argv){
   case BenchType::Smithing:home=Container::Smithing;item.categories=ToMask(ItemCategory::Smithing);break;
   case BenchType::Cooking:home=Container::Food;item.categories=ToMask(ItemCategory::Food);break;
   case BenchType::StaffEnchanting:item.categories=ToMask(ItemCategory::Catalyst)|ToMask(ItemCategory::Alchemy);break;
-  case BenchType::Enchanting:home=i%2?Container::Weapon:Container::Armor;item.weapon=i%2;item.armor=!item.weapon;
-   item.categories=ToMask(item.weapon?ItemCategory::Weapon:ItemCategory::Armor);item.enchantable.formEnchanting=&enchantment;break;
+  case BenchType::Enchanting:break;
   default:assert(false);
   }
-  seed(&item,home,mainCount,"loan");
+  if(utility->bench!=BenchType::Enchanting)seed(&item,home,mainCount,"loan");
   auto& spare=junk[i];spare.id=20000+i;spare.categories=0;seed(&spare,Container::Junk,otherCount,"junk loan");
   if(utility->bench==BenchType::Enchanting || utility->bench==BenchType::Smithing){
    auto& gem=gems[i];gem.id=30000+i;gem.gem=true;RE::TESForm::objects[gem.id]=&gem;
@@ -101,10 +100,8 @@ int main(int argc,char** argv){
    <<",\"bulk_calls\":"<<RE::Counters::bulks<<"}\n"<<std::flush;
  };
  if(mode==0){
-  run("prepare",[&]{if(utility->bench==BenchType::Enchanting)assert(EnchantedItems::Gather());});
   run("take",[&]{
-   if(utility->bench==BenchType::Enchanting)stores->AllToPlayer(Container::EnchantedItems);
-   else for(auto home:{Container::Alchemy,Container::Smithing,Container::Food})stores->AllToPlayer(home);
+   for(auto home:{Container::Alchemy,Container::Smithing,Container::Food})stores->AllToPlayer(home);
    stores->AllToPlayer(Container::Soulgem);stores->AllToPlayer(Container::Junk);
   });
  }else run("take",[&]{CraftingLoanState::GetSingleton()->EnterCrafting(&furniture);});
@@ -181,7 +178,7 @@ def main():
         (root/"src/PlayerEquipment.h").write_text((ROOT/"src/PlayerEquipment.h").read_text())
         (root/"common.hpp").write_text("#pragma once\n"+common);cpp=root/"bench.cpp";cpp.write_text(build_program(sources))
         files=[]
-        for name in ("InventoryStacks","Soulgems","EnchantedItems"):
+        for name in ("InventoryStacks","Soulgems"):
           file=root/(name+".cpp");file.write_text('#include "common.hpp"\n'+"\n".join(line for line in sources["src/"+name+".cpp"].splitlines() if not line.startswith("#include")));files.append(str(file))
         binaries[variant]=root/"bench"
         subprocess.run(["g++","-O2","-std=c++20","-Wall","-Wextra","-Werror","-I",str(root),"-I",str(ROOT),str(cpp),*files,"-o",str(binaries[variant])],check=True,timeout=90)
