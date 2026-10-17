@@ -2,6 +2,9 @@
 import argparse
 import json
 import hashlib
+import os
+import signal
+import statistics
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,12 +16,54 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--output",type=Path,required=True)
 parser.add_argument("--sanitize",action="store_true")
 parser.add_argument("--source-ref")
+parser.add_argument("--profile",action="store_true",help="Profile fixture phases and two test-only candidates against unchanged production")
+parser.add_argument("--samples",type=int,default=5)
+parser.add_argument("--sizes",type=int,nargs="+",default=[0,1000])
 args=parser.parse_args()
 if args.output.exists():parser.error("Choose a new output path")
+if args.profile and args.sanitize:parser.error("Profile runs exclude sanitizers")
+if args.profile and (args.samples<2 or args.samples>10 or any(size<0 or size>1000 for size in args.sizes)):
+    parser.error("Use 2 to 10 samples and sizes between zero and 1000")
 def source(name):
     return subprocess.check_output(["git","show",f"{args.source_ref}:src/{name}.cpp"],cwd=ROOT,text=True) if args.source_ref else (ROOT/f"src/{name}.cpp").read_text()
 stores=source("Stores")
 common=harness.common
+common=common.replace("inline bool inspectionOpen=false;", "inline int inventoryReads=0,bulkCalls=0,emptyBulkCalls=0,removeCalls=0;inline bool inspectionOpen=false;")
+common=common.replace("struct TESObjectREFR {", r'''
+namespace Profile {
+#ifdef AV_PROFILE
+inline constexpr bool enabled=true;
+#else
+inline constexpr bool enabled=false;
+#endif
+inline int candidate=0;
+struct Phase {double inclusiveMs=0,selfMs=0;int calls=0;};
+inline std::map<std::string,Phase> phases;
+struct Scope {
+    inline static thread_local Scope* current=nullptr;
+    const char* name;Scope* parent{};double childrenMs=0;
+    std::chrono::steady_clock::time_point start{};
+    explicit Scope(const char* value):name(value){if(enabled){parent=current;current=this;start=std::chrono::steady_clock::now();}}
+    ~Scope(){if(enabled){
+        const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+        auto& phase=phases[name];phase.inclusiveMs+=ms;phase.selfMs+=ms-childrenMs;++phase.calls;
+        if(parent){parent->childrenMs+=ms;}current=parent;
+    }}
+};
+}
+struct TESObjectREFR {''')
+common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;", "++inventoryReads;std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;")
+common=common.replace("assert(owner==source && !stealing);++bulkTransfers;", "assert(owner==source && !stealing);++bulkCalls;if(!std::ranges::any_of(source->rows,[](auto& row){return row.second.total>0;})){++emptyBulkCalls;}++bulkTransfers;")
+common=common.replace("assert(!inspectionOpen);if(refuse)return;", "assert(!inspectionOpen);++removeCalls;if(refuse)return;")
+common=common.replace("++inventoryReads;std::map", 'Profile::Scope phase{"inventory API stub"};++inventoryReads;std::map')
+common=common.replace("assert(owner==source && !stealing);++bulkCalls;", 'Profile::Scope phase{"bulk API stub"};assert(owner==source && !stealing);++bulkCalls;')
+common=common.replace("struct TESSoulGem {};", "enum class SOUL_LEVEL {kNone,kPetty,kLesser,kCommon,kGreater,kGrand};struct TESSoulGem;")
+common=common.replace("    unsigned id;\n    bool weapon", "    TESBoundObject(unsigned value,bool w=false,bool a=false):id(value),weapon(w),armor(a){}\n    virtual ~TESBoundObject()=default;\n    unsigned id;\n    bool weapon")
+common=common.replace("        else return nullptr;", "        else if constexpr(std::is_same_v<T,TESSoulGem>) return dynamic_cast<T*>(this);else return nullptr;")
+common=common.replace("struct ExtraEnchantment {", "struct TESSoulGem:TESBoundObject {using TESBoundObject::TESBoundObject;SOUL_LEVEL soul=SOUL_LEVEL::kNone;TESSoulGem* linkedSoulGem=nullptr;SOUL_LEVEL GetContainedSoul()const{return soul;}};struct ExtraSoul {SOUL_LEVEL soul;SOUL_LEVEL GetContainedSoul()const{return soul;}};\nstruct ExtraEnchantment {")
+common=common.replace("bool worn=false,leftWorn", "std::optional<ExtraSoul> soul{};bool worn=false,leftWorn")
+common=common.replace("if constexpr(std::is_same_v<T,ExtraEnchantment>)", "if constexpr(std::is_same_v<T,ExtraSoul>)return soul?&*soul:nullptr;else if constexpr(std::is_same_v<T,ExtraEnchantment>)")
+common=common.replace("if(worn!=other.worn", "if((soul?soul->soul:SOUL_LEVEL::kNone)!=(other.soul?other.soul->soul:SOUL_LEVEL::kNone))return false;\n        if(worn!=other.worn")
 common=common.replace("unsigned id;int limit=", "int state=2;bool stalled=false;unsigned id;int limit=")
 common=common.replace("TESObjectREFR* get()const{return value;}", "TESObjectREFR* get()const{return value;}TESObjectREFR* operator->()const{return value;}")
 common=common.replace("enum class ITEM_REMOVE_REASON", "using ObjectRefHandle=Handle;\nenum class ITEM_REMOVE_REASON")
@@ -48,7 +93,7 @@ common=common.replace("struct Stores {", """struct Stores {
 common += r'''
 #include <iostream>
 struct ProbeClock {using time_point=std::chrono::steady_clock::time_point;inline static time_point tick{};static time_point now(){return tick;}};
-std::deque<std::function<void()>> timers;
+inline std::deque<std::function<void()>> timers;
 struct TestThread {template<class F> explicit TestThread(F action){timers.emplace_back(std::move(action));}void detach(){}};
 namespace logger {template<class... T> void warn(const char*,T...) {}}
 namespace RE {
@@ -59,12 +104,25 @@ struct BGSOpenCloseForm {
 };
 struct MessageBoxMenu;
 }
-namespace Soulgems {void Deposit(int,bool){}}
+namespace Soulgems {void Recover(const std::unordered_set<RE::FormID>& = {});void Deposit(int,bool);}
+inline void DumpProfile(double ms){
+    if(!RE::Profile::enabled)return;
+    std::cout<<",\"fixture_cpu_ms\":"<<ms<<",\"phases\":{";bool first=true;
+    for(auto& [name,phase]:RE::Profile::phases){
+        if(!first){std::cout<<",";}first=false;
+        std::cout<<"\""<<name<<"\":{\"inclusive_ms\":"<<phase.inclusiveMs<<",\"self_ms\":"<<phase.selfMs<<",\"calls\":"<<phase.calls<<"}";
+    }
+    std::cout<<"}";
+}
 '''
 
 def body(text,signature,ending="\n}\n"):
     start=text.index(signature)
     return text[start:text.index(ending,start)+len(ending)]
+
+def profiled(text,signature,label):
+    first=text.index(signature);brace=text.index("{",first)
+    return text[:brace+1]+f'RE::Profile::Scope phase{{"{label}"}};'+text[brace+1:]
 
 program='#include "common.hpp"\n'
 item_source=(ROOT/"src/ItemClass.cpp").read_text()
@@ -76,6 +134,12 @@ for name in ("InventoryStacks","PlayerEquipment"):
         start=text.index("        void Later(")
         end=text.index("\n        void Close(",start)
         text=text[:start]+"        void Later(const std::shared_ptr<Request>& request){timers.emplace_back([request]{Poll(request);});}\n"+text[end:]
+        text=profiled(text,"        Snapshot Read(","equipment UI read")
+        text=profiled(text,"        void Work(","equipment validation and work")
+        text=profiled(text,"    void Run(","equipment preflight")
+        needle="            for (const auto& stack : InventoryStacks::Read(player)) fresh[stack.item].push_back(stack);"
+        assert needle in text
+        text=text.replace(needle,"            if(RE::Profile::candidate!=2 || !snapshot.empty())\n"+needle)
     program+="\n".join(line for line in text.splitlines() if not line.startswith("#include"))+"\n"
 program+=body(stores,"    int MoveItems(","\n    }")
 program+=body(stores,"    std::unordered_set<RE::FormID> SelectedAmmunition(","\n    }")
@@ -83,7 +147,12 @@ animation=stores[stores.index("    using OpenState ="):stores.index("\n}\n\nusin
 animation=animation.replace("std::chrono::steady_clock","ProbeClock").replace("std::thread(","TestThread(").replace("std::this_thread::sleep_for(std::chrono::milliseconds(16));","")
 program+=animation
 for name in ("PlayerToStore","StoreToStore","AllToStore","ConsolidateBooks","ConsolidatePotions","KeepAmmunition","OffloadItemsNow","OffloadItems","OpenStoreObject","VaultMenu","ShowVaultMenu"):
-    program+=body(stores,"void Stores::"+name+"(")
+    fragment=body(stores,"void Stores::"+name+"(")
+    if name=="AllToStore":
+        needle="    auto* inventory = source->GetInventoryChanges();"
+        assert needle in fragment
+        fragment=fragment.replace(needle,"    if(RE::Profile::candidate==1 && !InventoryStacks::HasItems(source))return;\n"+needle)
+    program+=profiled(fragment,"void Stores::"+name+"(",name)
 program+=body((ROOT/"src/Utility.cpp").read_text(),"bool Utility::RunContainerAction(")
 program+=r'''
 int main(){
@@ -92,25 +161,32 @@ int main(){
     std::map<Container,std::unique_ptr<RE::TESObjectREFR>> banks;
     for(auto kind:{Container::Armor,Container::Weapon,Container::Book,Container::Notes,Container::Scroll,Container::SpellTomes,Container::SkillBooks,
         Container::Recipes,Container::TreasureMaps,Container::Concoction,Container::Potion,Container::Poison,Container::Restorative,
-        Container::HealthPotions,Container::MagickaPotions,Container::StaminaPotions,Container::Gear,Container::Instruments,Container::Keys,Container::Soulgem}){
+        Container::HealthPotions,Container::MagickaPotions,Container::StaminaPotions,Container::Gear,Container::Instruments,Container::Keys,Container::Soulgem,
+        Container::EmptySoulgems,Container::FilledSoulgems,Container::Smithing,Container::Crafting,Container::Smelting,Container::Construction,Container::Tanning,Container::Gemstone,Container::Sort}){
         banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));utility->containers[kind]=banks[kind].get();
     }
     RE::TESObjectREFR chest{8000},assignment{8001};RE::TESBoundObject ring{200,false,true},note{201},book{202},potion{203},instrument{204},lockpick{205};
+    RE::TESSoulGem gem{206};
     ring.categories=ToMask(ItemCategory::Jewelry)|ToMask(ItemCategory::Armor);note.categories=ToMask(ItemCategory::Note);book.categories=ToMask(ItemCategory::Book);
     potion.categories=ToMask(ItemCategory::Potion);instrument.categories=ToMask(ItemCategory::Gear);lockpick.categories=ToMask(ItemCategory::Lockpick)|ToMask(ItemCategory::Gear);
     auto* settings=Settings::GetSingleton();settings->GSC_OffloadSoulgems=false;settings->GSC_OffloadJewelry=settings->GSC_OffloadNotes=settings->GSC_OffloadBooks=settings->GSC_OffloadGear=true;
     settings->GSC_LockpickKeepAmount=25;
     utility->containerMap[Container::QuickTransfer]={&assignment,[](RE::TESObjectREFR*){Stores::GetSingleton()->OffloadItems();}};
-    for(int entry=0;entry<3;++entry)for(int shape=0;shape<4;++shape)for(bool stalled:{false,true}){
+    for(int entry=0;entry<3;++entry)for(int shape=0;shape<5;++shape)for(bool stalled:{false,true})for(bool gems:{false,true})for(bool archived:{false,true}){
         player->rows.clear();for(auto& [kind,bank]:banks){(void)kind;bank->rows.clear();}
         RE::SCRIPT_FUNCTION::equipped.clear();timers.clear();ProbeClock::tick={};ui->messageBox=false;stores->options.clear();stores->ResetNavigation();
         chest.stalled=stalled;chest.state=stalled?3:2;
+        settings->GSC_OffloadSoulgems=gems;settings->GSC_SoulgemKeepAmount=25;
         if(shape==1 || shape==2){player->Put(&ring,0,1,nullptr,"worn");player->rows[&ring].extras.front()->uiWorn=true;RE::SCRIPT_FUNCTION::equipped.insert(&ring);}
         if(shape==2)player->Put(&ring,0,2,nullptr,"spare");
         if(shape==3){player->Put(&note,2);player->Put(&book,2);player->Put(&lockpick,40);}
-        banks[Container::SkillBooks]->Put(&book,1);banks[Container::Recipes]->Put(&note,1);banks[Container::Scroll]->Put(&note,1);
-        banks[Container::HealthPotions]->Put(&potion,1);banks[Container::Instruments]->Put(&instrument,1);
+        if(shape==4){player->Put(&gem,40);player->Put(&gem,0,10,nullptr,"filled gem");player->rows[&gem].extras.back()->soul=RE::ExtraSoul{RE::SOUL_LEVEL::kGrand};}
+        if(archived){banks[Container::SkillBooks]->Put(&book,1);banks[Container::Recipes]->Put(&note,1);banks[Container::Scroll]->Put(&note,1);
+            banks[Container::HealthPotions]->Put(&potion,1);banks[Container::Instruments]->Put(&instrument,1);}
         const auto input=RE::input;const auto blocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
+        RE::inventoryReads=RE::bulkCalls=RE::emptyBulkCalls=RE::removeCalls=0;
+        RE::Profile::phases.clear();RE::TESObjectREFR::inventoryCopies=0;
+        const auto fixtureStart=std::chrono::steady_clock::now();
         if(entry==0){
             stores->ShowVaultMenu(&chest);
             auto selected=std::ranges::find_if(stores->options,[](auto& option){return option.text=="Vault.ArcaneOffload";});assert(selected!=stores->options.end());
@@ -121,33 +197,110 @@ int main(){
         while((PlayerEquipment::pending || !timers.empty() || !tasks->ui.empty() || !tasks->queue.empty() || !queue->commands.empty()) && elapsed<12000){
             elapsed+=16;ProbeClock::tick+=std::chrono::milliseconds(16);
             queue->ProcessCommands();
-            const bool delayedGamePoll=shape==1 && stalled && elapsed<5000;
             auto ready=std::move(timers);timers.clear();
-            if(delayedGamePoll)timers=std::move(ready);else for(auto& timer:ready)timer();
-            tasks->RunUI();if(!delayedGamePoll)tasks->Run();
+            for(auto& timer:ready)timer();
+            tasks->RunUI();tasks->Run();
             if(RE::input!=input || RE::PlayerControls::GetSingleton()->blockPlayerInput!=blocked)blockedMs+=16;
         }
+        const auto fixtureMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-fixtureStart).count();
         assert(!PlayerEquipment::pending && !ui->menu && RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);
         assert(banks[Container::Armor]->rows[&ring].total==(shape==2?2:0));
         assert(player->rows[&ring].total==(shape==1 || shape==2?1:0));
         if(shape==1 || shape==2)assert(player->rows[&ring].extras.front()->metadata=="worn");
-        assert(banks[Container::SkillBooks]->rows[&book].total==0 && banks[Container::Book]->rows[&book].total==(shape==3?3:1));
-        assert(banks[Container::Recipes]->rows[&note].total==0 && banks[Container::Scroll]->rows[&note].total==0 && banks[Container::Notes]->rows[&note].total==(shape==3?4:2));
-        assert(banks[Container::HealthPotions]->rows[&potion].total==0 && banks[Container::Concoction]->rows[&potion].total==1);
-        assert(banks[Container::Instruments]->rows[&instrument].total==0 && banks[Container::Gear]->rows[&instrument].total==1);
+        assert(banks[Container::SkillBooks]->rows[&book].total==0 && banks[Container::Book]->rows[&book].total==(shape==3?2:0)+archived);
+        assert(banks[Container::Recipes]->rows[&note].total==0 && banks[Container::Scroll]->rows[&note].total==0 && banks[Container::Notes]->rows[&note].total==(shape==3?2:0)+2*archived);
+        assert(banks[Container::HealthPotions]->rows[&potion].total==0 && banks[Container::Concoction]->rows[&potion].total==archived);
+        assert(banks[Container::Instruments]->rows[&instrument].total==0 && banks[Container::Gear]->rows[&instrument].total==archived);
         assert(player->rows[&lockpick].total==(shape==3?25:0) && banks[Container::Gear]->rows[&lockpick].total==(shape==3?15:0));
+        assert(player->rows[&gem].total==(shape==4?(gems?25:50):0));
+        assert(banks[Container::Soulgem]->rows[&gem].total==(shape==4 && gems?25:0));
+        if(shape==4 && gems){assert(banks[Container::Soulgem]->rows[&gem].extras.front()->soul->soul==RE::SOUL_LEVEL::kGrand);assert(player->rows[&gem].extras.empty());}
         assert((entry==0)==!stores->options.empty());
-        std::cout<<"{\"entry\":"<<entry<<",\"shape\":"<<shape<<",\"stalled\":"<<(stalled?"true":"false")<<",\"simulated_ms\":"<<elapsed<<",\"inspection_blocked_ms\":"<<blockedMs<<",\"prompt\":"<<(elapsed<1100?"true":"false")<<"}\n";
+        std::cout<<"{\"entry\":"<<entry<<",\"shape\":"<<shape<<",\"stalled\":"<<(stalled?"true":"false")<<",\"archives_populated\":"<<(archived?"true":"false")<<",\"soulgems_enabled\":"<<(gems?"true":"false")<<",\"inventory_reads\":"<<RE::inventoryReads<<",\"bulk_calls\":"<<RE::bulkCalls<<",\"empty_bulk_calls\":"<<RE::emptyBulkCalls<<",\"remove_calls\":"<<RE::removeCalls<<",\"simulated_ms\":"<<elapsed<<",\"inspection_blocked_ms\":"<<blockedMs<<",\"prompt\":"<<(elapsed<1100?"true":"false");DumpProfile(fixtureMs);std::cout<<"}\n";
     }
 }
 '''
+if args.profile:
+    needle="int main(){"
+    assert needle in program
+    program=program.replace(needle,r'''
+int main(int argc,char** argv){
+    assert(argc==3);RE::Profile::candidate=std::stoi(argv[1]);const int padding=std::stoi(argv[2]);
+    assert(RE::Profile::candidate>=0 && RE::Profile::candidate<=2 && padding>=0 && padding<=1000);
+    std::vector<std::unique_ptr<RE::TESBoundObject>> unrelated;
+    for(int i=0;i<padding;++i)unrelated.push_back(std::make_unique<RE::TESBoundObject>(70000+i));
+''')
+    program=program.replace("        const auto input=RE::input;", "        for(auto& item:unrelated)player->Put(item.get(),1);\n        const auto input=RE::input;")
+    program=program.replace("        assert((entry==0)==!stores->options.empty());", "        for(auto& item:unrelated)assert(player->rows[item.get()].total==1);\n        assert((entry==0)==!stores->options.empty());")
+
+profile={"complete":False,"runner_pid":os.getpid(),"active_child_pid":None,"samples":[]}
+def profile_command(command,timeout):
+    with subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True) as child:
+        profile["active_child_pid"]=child.pid
+        args.output.write_text(json.dumps(profile,indent=2)+"\n")
+        try:
+            output,_=child.communicate(timeout=timeout)
+        except BaseException:
+            child.terminate()
+            try:child.communicate(timeout=5)
+            except subprocess.TimeoutExpired:child.kill();child.communicate()
+            raise
+        finally:
+            profile["active_child_pid"]=None
+            args.output.write_text(json.dumps(profile,indent=2)+"\n")
+        if child.returncode:
+            args.output.with_suffix(".log").write_text(output)
+            raise subprocess.CalledProcessError(child.returncode,command,output=output)
+        return output
+
+if args.profile:
+    args.output.parent.mkdir(parents=True,exist_ok=True)
+    def stop_profile(_signal,_frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM,stop_profile)
 with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
     path=Path(directory);(path/"common.hpp").write_text("#pragma once\n"+common);(path/"check.cpp").write_text(program)
+    soul=source("Soulgems");soul=soul[:soul.index("    void TakeEmpty(")]+"}\n"
+    soul=soul.replace("    Counts carriedBefore;", "").replace("    std::unordered_set<RE::FormID> loanForms;", "").replace("    std::int64_t remainingLoan{};", "")
+    start=soul.index("    Counts CountGems(");soul=soul[:start]+soul[soul.index("\n}\n",start):]
+    soul=profiled(soul,"    void Deposit(","soul gem deposit")
+    soul=profiled(soul,"    void Recover(","soul gem recovery")
+    soul=soul.replace("            if (archive && archive != bank) {", "            if (archive && archive != bank) {\n                if(RE::Profile::candidate==1 && !InventoryStacks::HasItems(archive))continue;")
+    (path/"Soulgems.cpp").write_text('#include "common.hpp"\n'+"\n".join(line for line in soul.splitlines() if not line.startswith("#include")))
     flags=["-fsanitize=address,undefined","-fno-omit-frame-pointer"] if args.sanitize else []
-    subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror",*flags,"-I",str(ROOT),str(path/"check.cpp"),"-o",str(path/"check")],check=True,timeout=90)
-    cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
+    if args.profile:flags.extend(["-O2","-DAV_PROFILE"])
+    command=["g++","-std=c++20","-Wall","-Wextra","-Werror",*flags,"-I",str(ROOT),str(path/"check.cpp"),str(path/"Soulgems.cpp"),"-o",str(path/"check")]
+    if args.profile:
+        profile_command(command,90)
+        for size in args.sizes:
+            for sample in range(args.samples):
+                for candidate in ((0,1,2) if sample%2==0 else (2,1,0)):
+                    output=profile_command([str(path/"check"),str(candidate),str(size)],30)
+                    cases=[json.loads(line) for line in output.splitlines()]
+                    profile["samples"].append({"candidate":candidate,"size":size,"sample":sample,"cases":cases})
+                    args.output.write_text(json.dumps(profile,indent=2)+"\n")
+                print(f"Profile size={size} repeat={sample+1}/{args.samples}",flush=True)
+    else:
+        subprocess.run(command,check=True,timeout=90)
+        cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
 args.output.parent.mkdir(parents=True,exist_ok=True)
-args.output.write_text(json.dumps({"source_ref":args.source_ref,"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks")},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Soul gem logic has separate regression coverage. Worn-only/stalled cases withhold game polling while native UI messages continue; blocked milliseconds measure simulated input masks and block state, rather than global queue-drain time. Times are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes"],"cases":cases},indent=2)+"\n")
+if args.profile:
+    profile["complete"]=True
+    profile["candidates"]=["unchanged production","skip empty bulk calls in compiled fixture","skip validation reads for an empty snapshot in compiled fixture"]
+    profile["source_sha256"]={name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks","Soulgems")}
+    profile["boundary"]="Serial instrumented fixture CPU timings, not Skyrim performance. Native APIs and classification are stubs. Phase times are inclusive and overlap; self times exclude timed children. Candidates modify only the compiled fixture. All production inventory/input assertions run for every sample. Unrelated padding has no sortable categories. Baseline and candidates alternate order between repeats. Active native-call costs and real UI lock waits cannot be inferred."
+    summary=[]
+    for size in args.sizes:
+        for candidate in (0,1,2):
+            samples=[s for s in profile["samples"] if s["size"]==size and s["candidate"]==candidate]
+            for index,case in enumerate(samples[0]["cases"]):
+                values=[s["cases"][index]["fixture_cpu_ms"] for s in samples]
+                summary.append({"candidate":candidate,"size":size,"entry":case["entry"],"shape":case["shape"],"archives_populated":case["archives_populated"],"soulgems_enabled":case["soulgems_enabled"],"stalled":case["stalled"],"min_ms":min(values),"median_ms":statistics.median(values),"max_ms":max(values)})
+    profile["summary"]=summary
+    args.output.write_text(json.dumps(profile,indent=2)+"\n")
+    print(f"Profile complete: {len(profile['samples'])*120} inventory/input cases; report {args.output}")
+    raise SystemExit(0)
+args.output.write_text(json.dumps({"source_ref":args.source_ref,"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks","Soulgems")},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems"],"cases":cases},indent=2)+"\n")
 failures=sum(not case["prompt"] for case in cases)
 print(f"Pipeline checks: {len(cases)} inventory/input invariants pass; {failures} slow returns; report {args.output}")
 raise SystemExit(1 if failures else 0)

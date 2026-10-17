@@ -1,5 +1,7 @@
 """Check native inventory, dispatch, and furniture boundaries with production code."""
 import argparse
+import json
+import hashlib
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,7 +10,9 @@ import check_stolen as harness
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--source-ref")
 parser.add_argument("--sanitize",action="store_true")
+parser.add_argument("--probe-output",type=Path,help="Report physical inventory access inside Quick Transfer UI callbacks")
 args=parser.parse_args()
+if args.probe_output and args.probe_output.exists():parser.error("Choose a new report path")
 ROOT=harness.ROOT
 
 def source(name):
@@ -17,6 +21,9 @@ def source(name):
     return (ROOT/f"src/{name}.cpp").read_text()
 
 common="#include <utility>\n#include <iostream>\n"+harness.common
+common=common.replace("inline bool inspectionOpen=false;", "inline bool inUITask=false;inline int uiInventoryReads=0;inline bool inspectionOpen=false;")
+common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;", "if(inUITask){++uiInventoryReads;}std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;")
+common=common.replace("ui.pop_front();task();", "ui.pop_front();RE::inUITask=true;task();RE::inUITask=false;")
 common=common.replace("enum class BSEventNotifyControl { kContinue };", "enum class BSEventNotifyControl { kContinue,kStop };")
 common=common.replace("unsigned oldContainer,newContainer,baseObj;int itemCount;", "unsigned oldContainer,newContainer,baseObj;int itemCount;unsigned reference=0;unsigned short uniqueID=0;")
 common=common.replace("void Send(TESContainerChangedEvent e){for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);}", "void Send(TESContainerChangedEvent e){auto copy=sinks;for(auto* sink:copy)if(sink->ProcessEvent(&e,nullptr)==BSEventNotifyControl::kStop)break;}")
@@ -150,6 +157,21 @@ int main(){
     queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);queue->ProcessCommands();
 }
 '''
+if args.probe_output:
+    insertion = r'''
+    reset();seed();RE::uiInventoryReads=0;ProbeClock::tick={};bool inspected=false;
+    PlayerEquipment::Run([]{},[&]{inspected=true;});
+    for(int step=0;!inspected && step<160;++step){
+        RE::UIMessageQueue::GetSingleton()->ProcessCommands();
+        if(auto request=PlayerEquipment::pending)PlayerEquipment::Poll(request);
+        tasks->RunUI();tasks->Run();ProbeClock::tick+=std::chrono::milliseconds(16);
+    }
+    assert(inspected && !RE::UI::GetSingleton()->menu && count(*player)==1);
+    std::cout<<"{\"case\":\"inspection_context\",\"ui_inventory_reads\":"<<RE::uiInventoryReads<<"}\n";
+'''
+    needle="    for(int stock:{0,1,3,4})"
+    assert needle in program
+    program=program.replace(needle,insertion+needle)
 with tempfile.TemporaryDirectory(prefix="av-engine-boundaries-") as directory:
     root=Path(directory);(root/"common.hpp").write_text("#pragma once\n"+common);(root/"check.cpp").write_text(program)
     modules=[]
@@ -157,5 +179,13 @@ with tempfile.TemporaryDirectory(prefix="av-engine-boundaries-") as directory:
         path=root/f"{name}.cpp";path.write_text('#include "common.hpp"\n'+"\n".join(line for line in source(name).splitlines() if not line.startswith("#include")));modules.append(str(path))
     flags=["-fsanitize=address,undefined","-fno-omit-frame-pointer"] if args.sanitize else []
     subprocess.run(["g++","-std=c++20","-Wall","-Wextra","-Werror",*flags,"-I",str(ROOT),str(root/"check.cpp"),*modules,"-o",str(root/"check")],check=True,timeout=90)
-    subprocess.run([str(root/"check")],check=True,timeout=20)
+    output=subprocess.check_output([str(root/"check")],text=True,timeout=20)
+if args.probe_output:
+    cases=[json.loads(line) for line in output.splitlines()]
+    assert len(cases)==1
+    failures=sum(case["ui_inventory_reads"]>0 for case in cases)
+    args.probe_output.parent.mkdir(parents=True,exist_ok=True)
+    args.probe_output.write_text(json.dumps({"boundary":"Production Quick Transfer equipment inspector with modeled UI task context. Inventory access inside a UI callback is reported; native lock behaviour and the in-game freeze are not reproduced.","source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("InventoryStacks","PlayerEquipment")},"cases":cases,"hazards":failures},indent=2)+"\n")
+    print(f"Boundary probe: {failures} hazards; existing inventory/input invariants passed; report {args.probe_output}")
+    raise SystemExit(1 if failures else 0)
 print("PASS: base stock/deltas, cold initialization, event identities, stopped/reentrant sinks, material-loan furniture exits")
