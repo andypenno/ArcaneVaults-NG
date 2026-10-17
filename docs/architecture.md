@@ -60,7 +60,7 @@ Container activation also has a thread-local guard, but the current source does 
 
 Storage interaction has two UI implementations. `Stores` queues engine message boxes whose actions run through SKSE's task interface. Quick Transfer defers its completion callback until UI-managed equipment inspection has closed; its lifecycle is described in [storage.md](storage.md). `ContainerListMenu` registers as `GSCContainerListMenu`, pauses the game, uses cursor/menu input, and loads `uilib/uilib_1_listmenu` through Scaleform.
 
-Message boxes with Exit display the physical Open action first, preserve the order of storage-specific actions, then show contextual Back and Exit. The shared builder recognizes the existing translated Open labels and maps cancellation to the final Exit. Confirmation boxes without Exit preserve their supplied order and cancel action. Armor and Weapon provide Open actions that consolidate their child archives before opening the entire parent vault.
+Message boxes with Exit display the physical Open action first, show withdrawals before Keep and Store All actions, preserve other storage actions, then show contextual Back and Exit. The shared builder recognizes the existing translated Open labels and maps cancellation to the final Exit. Confirmation boxes without Exit preserve their supplied order and cancel action. Armor and Weapon provide Open actions that consolidate their child archives before opening the entire parent vault.
 
 Open Vaults and Open Archives share a registered, UI-managed SkyUILib list. The browser invokes the destination's registered action, carries contextual Back and Exit, and does not assign redirects. The former paginated vault menus are removed.
 

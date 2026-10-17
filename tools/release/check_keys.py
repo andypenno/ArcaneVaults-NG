@@ -336,6 +336,7 @@ namespace Soulgems {
 const char* Translate(const char* key) {
     if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
     if (std::string_view{key} == "Vault.Septims") return "Septims";
+    if (std::string_view{key} == "Vault.Lockpicks") return "Lockpicks";
     if (std::string_view{key} == "Vault.KeepLockpicks") return "Keep {0} Lockpicks";
     if (std::string_view{key} == "Vault.TakeLockpicks") return "Take Up To {0} Lockpicks";
     if (std::string_view{key} == "Vault.TakeUpToAmount") return "Take Up To";

@@ -143,12 +143,25 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 
     if (hasExit) {
         const auto rank = [](const MenuOption& option) {
-            if (option.text == Translate("Vault.Exit")) return 3;
-            if (option.text == Translate("Vault.Back")) return 2;
+            if (option.text == Translate("Vault.Exit")) return 6;
+            if (option.text == Translate("Vault.Back")) return 5;
+            const auto matches = [&option](const char* key) {
+                const std::string_view label{Translate(key)};
+                return !label.empty() && (option.text == label ||
+                    (option.text.starts_with(label) && option.text.size() > label.size() && option.text[label.size()] == ' '));
+            };
             for (const auto* key : {"Vault.Open", "Vault.OpenContainer", "Vault.KeysOpen", "Vault.AmmunitionOpen",
                                    "Vault.SoulgemsOpen", "Vault.ValuablesOpen", "Stolen.Open"})
                 if (option.text == Translate(key)) return 0;
-            return 1;
+            for (const auto* key : {"Vault.TakeUpToAmount", "Vault.TakeAll", "Vault.KeysTakeAll",
+                                   "Vault.AmmunitionTakeAll", "Vault.TakeAllSeptims", "Vault.TakeAllEmptySoulgems"})
+                if (matches(key)) return 1;
+            for (const auto* key : {"Vault.KeepAmount", "Vault.KeepOne", "Vault.KeepThree"})
+                if (matches(key)) return 2;
+            for (const auto* key : {"Vault.StoreAll", "Vault.KeysStoreAll", "Vault.AmmunitionStoreAll",
+                                   "Vault.SoulgemsStoreAll", "Vault.StoreAllSeptims", "Vault.StoreOne", "Vault.StoreRaw", "Vault.StoreGrandSouls"})
+                if (matches(key)) return 3;
+            return 4;
         };
         std::stable_sort(a_options.begin(), a_options.end(), [&](const auto& left, const auto& right) {
             return rank(left) < rank(right);
@@ -2005,12 +2018,12 @@ void Stores::ShowGearMenu(RE::TESObjectREFR* a_source) {
         if (auto source = handle.get()) CloseStoreObject(source.get());
     }});
     if (returnToVault_) options.push_back({Translate("Vault.Back"), returnToVault_});
-    options.push_back({std::vformat(Translate("Vault.KeepLockpicks"), std::make_format_args(amount)), [this, handle] {
+    options.push_back({std::format("{} {} {}", Translate("Vault.KeepAmount"), amount, Translate("Vault.Lockpicks")), [this, handle] {
         PlayerToStore(ItemCategory::Lockpick, Container::Gear, 0, Settings::GetSingleton()->GSC_LockpickKeepAmount);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
         if (auto source = handle.get()) GearMenu(source.get());
     }});
-    options.push_back({std::vformat(Translate("Vault.TakeLockpicks"), std::make_format_args(amount)), [this, handle] {
+    options.push_back({std::format("{} {} {}", Translate("Vault.TakeUpToAmount"), amount, Translate("Vault.Lockpicks")), [this, handle] {
         StoreToPlayer(ItemCategory::Lockpick, Container::Gear, 0, Settings::GetSingleton()->GSC_LockpickKeepAmount);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = handle.get()) GearMenu(source.get());

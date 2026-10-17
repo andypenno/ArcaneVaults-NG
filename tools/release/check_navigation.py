@@ -195,6 +195,15 @@ int main() {
             click(RE::box->cancelButtonIndex);assert(selected==4 && !stores->returnToVault_);
         }
     }
+
+    stores->returnToVault_=[]{};
+    for(const auto* keep:{"Vault.KeepAmount 25","Vault.KeepOne","Vault.KeepThree"}){
+        stores->ShowDynamicMessageBox("Quantities",{{"Vault.StoreAll",[]{}},{keep,[]{}},{"Vault.Exit",[]{}},
+            {"Vault.TakeUpToAmount 25",[]{}},{"Vault.Open",[]{}},{"Vault.TakeAll",[]{}}},2);
+        assert((RE::box->buttonText==std::vector<std::string>{"Vault.Open","Vault.TakeUpToAmount 25","Vault.TakeAll",keep,"Vault.StoreAll","Vault.Back","Vault.Exit"}));
+        assert(RE::box->cancelButtonIndex==6);
+    }
+    stores->ResetNavigation();
     stores->ShowDynamicMessageBox("No escape", {{"Vault.Exit",[]{}},{"Vault.Open",[]{}}},-1);
     assert(!RE::box->isCancellable && RE::box->cancelButtonIndex==-1 && RE::box->buttonText.front()=="Vault.Open");
     stores->returned.clear();stores->TestOpenArmor(&direct);
