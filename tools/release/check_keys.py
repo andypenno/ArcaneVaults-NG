@@ -1475,6 +1475,17 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     assert(player->inventory[&declaredJunk].first==0 && utility->junk.inventory[&declaredJunk].first==5);
     assert(player->inventory[&unclassified].first==4);
 
+    player->inventory.clear();utility->smithing.inventory.clear();utility->junk.inventory.clear();utility->missingSmithing=false;
+    RE::TESBoundObject houseLogs{ItemCategory::PreciousIngot};houseLogs.formID=0x0300300E;
+    utility->ConstructionMap.insert(houseLogs.formID);utility->smithing.inventory[&houseLogs]=entry(20);
+    assert(HasCategory(ClassifyItem(&houseLogs),ItemCategory::Construction));
+    utility->bench=BenchType::Smithing;settings->GSC_CraftingLoan=true;
+    CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+    assert(player->inventory[&houseLogs].first==20 && utility->smithing.inventory[&houseLogs].first==0);
+    player->inventory[&houseLogs].first-=7;
+    CraftingLoanState::GetSingleton()->ExitCrafting();
+    assert(player->inventory[&houseLogs].first==0 && utility->smithing.inventory[&houseLogs].first==13);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:

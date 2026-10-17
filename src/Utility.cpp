@@ -186,7 +186,7 @@ BenchType Utility::GetBenchType(RE::TESObjectREFR* a_furniture) {
     if (a_furniture->HasKeyword(isAnvil) || a_furniture->HasKeyword(isForge) || 
         a_furniture->HasKeyword(isTanning) || a_furniture->HasKeyword(isSmelter) || 
         a_furniture->HasKeyword(isBlacksmith) || a_furniture->HasKeyword(isGrindStone) || 
-        a_furniture->HasKeyword(isWorkbench)
+        a_furniture->HasKeyword(isWorkbench) || a_furniture->HasKeyword(craftCarpenter)
     )
         return BenchType::Smithing;
 

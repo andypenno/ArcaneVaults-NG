@@ -29,7 +29,7 @@ These are observations from the named source, not confirmed game failures or fix
 | `ClassifyItem` | Misc Treasure/Gemstone classification depends on overrides |
 | `AVTranslation::Install`, `Settings::get_value` | JSON/value conversion errors can throw without local handling |
 | `Utility::LoadAllForms` and consumers | Missing required forms only log; later code uses some pointers without guards. Campfire Creation Club lookup is also treated as required by default |
-| `CraftingLoanState`, `Soulgems` | Non-gem loans still return by category; gem loans preserve pre-loan counts but unrecognized form changes remain on the player. Carpenter bench detection is unchanged |
+| `CraftingLoanState`, `Soulgems` | Non-gem loans still return by category; gem loans preserve pre-loan counts but unrecognized form changes remain on the player. Carpenter benches use the loaded Hearthfire crafting keyword |
 | `ContainerMenuCloseCallback` | One pending callback; load/revert callbacks do not explicitly reset this menu state |
 | `RedirectedContainerState` | Begin/Cancel are not wired into current call sites; cannot assume its close behavior runs |
 | `main.cpp` | Configuration spell reconciliation explicitly covers loaded games, not a new-game message |

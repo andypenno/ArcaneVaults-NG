@@ -79,7 +79,7 @@ The furniture hook selects the bench through `Utility::GetBenchType`, which chec
 | Bench | Entry transfer | Exit transfer |
 | --- | --- | --- |
 | Alchemy, including grain mill keyword | Entire Alchemy inventory to player | Player items matching Alchemy to Alchemy |
-| Smithing, including forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts and banked gems present in the existing recipe caches | Smithing items/Catalysts to their parent stores; identifiable unused gem loans to Soulgem |
+| Smithing, including carpenter, forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts and banked gems present in the existing recipe caches | Smithing items/Catalysts to their parent stores; identifiable unused gem loans to Soulgem |
 | Cooking | Entire Food inventory plus Alchemy Reagents to player | Food and Reagents to their parent stores |
 | Enchanting | Filled gems when Crafting Loan is enabled | Unused gems to Soulgem |
 | Staff enchanting | Alchemy Catalysts to player | Catalysts to Alchemy |
@@ -91,3 +91,5 @@ Ignore-list activation and recovery are described in [storage.md](storage.md). P
 Displayed storage names and menu titles consistently use the Vault suffix for both parent and archive destinations. Vault/Archive groups remain separate for browsing and routing; Quick Transfer retains its action name.
 
 Crafting loans are controlled by Crafting Loan and contain materials and soul gems. Enchanted equipment is available only through manual vault access. The retired EnchantedItemsLoan INI key is ignored. Existing carried copies remain carried; normal archive recovery clears old origin markers without recreating items.
+
+Carpenter stations bearing the loaded Hearthfire crafting keyword participate in ordinary Smithing loans. Construction materials already sort into Smithing; with Crafting Loan enabled they are present while constructing and unused amounts return afterwards. Hidden resource display remains controlled by Skyrim.
