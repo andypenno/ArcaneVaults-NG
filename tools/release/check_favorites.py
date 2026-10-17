@@ -43,16 +43,17 @@ int main(){
     assert(player->rows[&sword].extras.front()->metadata=="renamed favourite" && player->rows[&sword].extras.front()->hotkey);
     assert(player->rows[&sword].extras.front()->enchantment->enchantment==&fire && bank.rows[&sword].extras.front()->metadata==(bareCopies?"":"ordinary"));
     }
-    bareCopies=false;
-    for(bool refused:{false,true}){
+    for(bool bare:{false,true})for(bool refused:{false,true})for(bool junkOnly:{false,true}){
+        bareCopies=bare;
         seed();stores->CaptureSortFavorites();assert(stores->sortFavorites_.empty());
         while(count(*player)){
             auto stacks=InventoryStacks::Read(player);assert(InventoryStacks::Move(stacks.front(),&sort)>0);
         }
         for(auto& extra:sort.rows[&sword].extras)extra->hotkey=false;
         RE::refuseReturn=refused;assert(stores->ReturnSortFavorites()==!refused);
-        stores->StoreToStore(ItemCategory::Weapon,Container::Sort,Container::Weapon);stores->AllToStore(Container::Sort,Container::Junk);
-        assert(count(bank)==1 && count(junk)==0 && count(sort)==(refused?1:0) && count(*player)==(refused?0:1));
+        if(!junkOnly)stores->StoreToStore(ItemCategory::Weapon,Container::Sort,Container::Weapon);
+        stores->AllToStore(Container::Sort,Container::Junk);
+        assert(count(bank)==(junkOnly?0:1) && count(junk)==(junkOnly?1:0) && count(sort)==(refused?1:0) && count(*player)==(refused?0:1));
         RE::refuseReturn=false;if(refused)assert(stores->ReturnSortFavorites());
         assert(count(*player)==1 && count(sort)==0);
         const auto& favorite=player->rows[&sword].extras.front();assert(favorite->metadata=="renamed favourite" && favorite->enchantment->enchantment==&fire && favorite->owner==&owner && favorite->hotkey);

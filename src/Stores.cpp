@@ -323,11 +323,17 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
         
         if (a_source == Container::Sort) {
             for (;;) {
-                const auto stacks = InventoryStacks::Read(source, [](auto*, auto& entry, auto* extra) {
-                    return !InventoryStacks::IsFavorited(entry, extra) &&
-                        !InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                bool favoriteCopies = false;
+                const auto stacks = InventoryStacks::Read(source, [&favoriteCopies](auto*, auto& entry, auto* extra) {
+                    const bool favorite = InventoryStacks::IsFavorited(entry, extra) ||
+                        InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                    favoriteCopies |= favorite;
+                    return !favorite;
                 }, item);
-                if (stacks.empty() || !InventoryStacks::Move(stacks.front(), destination)) break;
+                if (stacks.empty()) break;
+                auto stack = std::optional{stacks.front()};
+                if (!stack->extra && favoriteCopies) stack = InventoryStacks::Materialize(*stack);
+                if (!stack || !InventoryStacks::Move(*stack, destination)) break;
             }
         } else MoveItems(source, destination, item, data.first);
     }
@@ -344,11 +350,17 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
             if (!item || data.first <= 0 || sortFavorites_.contains(item->GetFormID()) ||
                 (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item))) continue;
             for (;;) {
-                const auto stacks = InventoryStacks::Read(source, [](auto*, auto& entry, auto* extra) {
-                    return !InventoryStacks::IsFavorited(entry, extra) &&
-                        !InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                bool favoriteCopies = false;
+                const auto stacks = InventoryStacks::Read(source, [&favoriteCopies](auto*, auto& entry, auto* extra) {
+                    const bool favorite = InventoryStacks::IsFavorited(entry, extra) ||
+                        InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                    favoriteCopies |= favorite;
+                    return !favorite;
                 }, item);
-                if (stacks.empty() || !InventoryStacks::Move(stacks.front(), destination)) break;
+                if (stacks.empty()) break;
+                auto stack = std::optional{stacks.front()};
+                if (!stack->extra && favoriteCopies) stack = InventoryStacks::Materialize(*stack);
+                if (!stack || !InventoryStacks::Move(*stack, destination)) break;
             }
         }
         return;
