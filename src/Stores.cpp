@@ -236,8 +236,10 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
 
         double equipped{};
         const bool formEquipped = isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0;
-        const auto read = [player, item] {
-            return InventoryStacks::Read(player, [](auto*, auto& entry, auto* extra) {
+        bool favoriteCopies = data.second->IsFavorited();
+        const auto read = [player, item, &favoriteCopies] {
+            return InventoryStacks::Read(player, [&favoriteCopies](auto*, auto& entry, auto* extra) {
+                favoriteCopies = favoriteCopies || entry.IsFavorited();
                 return !entry.IsQuestObject() && !InventoryStacks::IsFavorited(entry, extra);
             }, item);
         };
@@ -265,7 +267,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
             if (next == stacks.end()) break;
             auto stack = *next;
             stack.count = (std::min)(stack.count, count);
-            if (!stack.extra && (!protectedStacks.empty() || data.second->IsFavorited())) {
+            if (!stack.extra && (!protectedStacks.empty() || favoriteCopies)) {
                 const auto physical = InventoryStacks::Materialize(stack);
                 if (!physical) break;
                 stack = *physical;

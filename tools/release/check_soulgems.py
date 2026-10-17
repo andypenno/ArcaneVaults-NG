@@ -24,7 +24,7 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
-struct BGSKeyword;
+struct BGSKeyword {};
 using FormID = unsigned;
 enum class SOUL_LEVEL { kNone, kPetty, kLesser, kCommon, kGreater, kGrand };
 struct TESForm {
@@ -56,7 +56,7 @@ struct ExtraDataList {
     int count;
     std::optional<ExtraSoul> soul;
     std::string owner;
-    bool alive = true;bool hotkey=false;
+    bool alive = true;bool hotkey=false,sortFavorite=false;
     template<class T> bool HasType()const{return hotkey;}
     int GetCount() const { assert(alive); return count; }
     template<class T> T* GetByType() { assert(alive); return soul ? &*soul : nullptr; }
@@ -149,6 +149,8 @@ struct Settings {
 program += r'''
 #include "src/InventoryStacks.h"
 namespace InventoryStacks {
+RE::BGSKeyword* FavoriteKeyword(){static RE::BGSKeyword keyword;return &keyword;}
+bool HasOrigin(RE::ExtraDataList* extra,RE::BGSKeyword* keyword){return keyword && extra && extra->sortFavorite;}
 std::optional<Stack> Materialize(const Stack& stack){
     auto copy=std::make_unique<RE::ExtraDataList>();copy->count=std::min(stack.count,32767);
     auto& entry=stack.source->inventory[stack.item].second;entry->lists.push_back(copy.get());entry->extraLists=&entry->lists;
@@ -344,6 +346,12 @@ int main() {
     player->Put(&gem,3);Soulgems::Deposit(0);
     assert(player->inventory[&gem].first==1 && bank->inventory[&gem].first==3);
     assert(player->inventory[&gem].second->lists.front()->hotkey && player->inventory[&gem].second->lists.front()->owner=="favourite");
+
+    reset();auto* inbox=u->GetContainer(Container::Sort);inbox->Put(&gem,0,RE::SOUL_LEVEL::kGrand,"sort favourite",true);
+    inbox->inventory[&gem].first=1;inbox->inventory[&gem].second->lists.back()->count=1;inbox->inventory[&gem].second->lists.back()->sortFavorite=true;
+    inbox->Put(&gem,3);Soulgems::Recover();
+    assert(inbox->inventory[&gem].first==1 && bank->inventory[&gem].first==3);
+    assert(inbox->inventory[&gem].second->lists.front()->sortFavorite && inbox->inventory[&gem].second->lists.front()->owner=="sort favourite");
 
 }
 '''

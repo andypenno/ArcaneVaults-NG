@@ -17,10 +17,11 @@ def body(text,signature,ending='\n}\n'):
     return text[a:text.index(ending,a)+len(ending)]
 common=harness.common.replace("struct Settings {","struct Settings {bool GSC_ReturnIgnoredItems=true;").replace('struct Stores {','struct Stores {\n    std::unordered_set<RE::FormID> sortFavorites_;\n    void CaptureSortFavorites();bool ReturnSortFavorites();void StoreToStore(ItemCategory,Container,Container);')
 common=common.replace('    void AllToStore(Container from,', '    void UnusedAllToStore(Container from,',1).replace('    void UnusedAllToStore(', '    void AllToStore(Container,Container);\n    void UnusedAllToStore(',1)
-common=common.replace('inline bool inspectionOpen=false;','inline bool refuseReturn=false;inline bool inspectionOpen=false;')
+common=common.replace('inline bool inspectionOpen=false;','inline std::function<void()> afterRemoval;inline bool refuseReturn=false;inline bool inspectionOpen=false;')
 common=common.replace('assert(!inspectionOpen);if(refuse)return;', 'assert(!inspectionOpen);if(refuse || (refuseReturn && target->id==0x14))return;')
+common=common.replace('ScriptEventSourceHolder::GetSingleton()->Send({id,target->id,item->id,count});', 'if(afterRemoval){auto callback=std::exchange(afterRemoval,{});callback();}ScriptEventSourceHolder::GetSingleton()->Send({id,target->id,item->id,count});')
 stores=source('Stores')
-program='#include "common.hpp"\n'+body(stores,'    int MoveItems(','\n    }')
+program='#include "common.hpp"\n#include <utility>\n'+body(stores,'    int MoveItems(','\n    }')
 for name in ('PlayerToStore','StoreToStore','AllToStore','CaptureSortFavorites'):
     program+=body(stores,'void Stores::'+name+'(')
 program+=body(stores,'bool Stores::ReturnSortFavorites(')
@@ -57,10 +58,16 @@ int main(){
         const auto& favorite=player->rows[&sword].extras.front();assert(favorite->metadata=="renamed favourite" && favorite->enchantment->enchantment==&fire && favorite->owner==&owner && favorite->hotkey);
         assert(!InventoryStacks::HasOrigin(favorite.get(),&RE::TESDataHandler::GetSingleton()->favoriteKeyword));
     }
+    player->rows.clear();bank.rows.clear();player->Put(&sword,3);player->limit=1;
+    RE::afterRemoval=[&]{auto extra=std::make_shared<RE::ExtraDataList>();extra->count=1;extra->hotkey=true;extra->metadata="new favourite";player->rows[&sword].extras.push_back(extra);};
+    bool finished=false;PlayerEquipment::Run([&]{stores->PlayerToStore(ItemCategory::Weapon,Container::Weapon);},[&]{finished=true;});
+    for(int i=0;!finished && i<200;++i){RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();std::this_thread::sleep_for(std::chrono::milliseconds(2));}
+    assert(finished && count(*player)==1 && count(bank)==2 && player->rows[&sword].extras.front()->hotkey);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix='av-favorites-') as directory:
-    root=Path(directory);(root/'common.hpp').write_text('#pragma once\n'+common);(root/'check.cpp').write_text(program)
+    root=Path(directory);(root/'common.hpp').write_text('#pragma once\n#include <utility>\n'+common);(root/'check.cpp').write_text(program)
     modules=[]
     for name in ('InventoryStacks','PlayerEquipment'):
         text=source(name)

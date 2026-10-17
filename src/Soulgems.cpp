@@ -52,13 +52,13 @@ namespace {
                     return false;
                 explicitCount += count;
                 if (explicitCount > total) return false;
-                stacks.push_back({extra, count, level != RE::SOUL_LEVEL::kNone, extra->HasType<RE::ExtraHotkey>()});
+                stacks.push_back({extra, count, level != RE::SOUL_LEVEL::kNone, extra->HasType<RE::ExtraHotkey>() || InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword())});
             }
         }
         const auto level = gem->GetContainedSoul();
         if (static_cast<unsigned>(level) > static_cast<unsigned>(RE::SOUL_LEVEL::kGrand)) return false;
         if (explicitCount < total)
-            stacks.push_back({nullptr, static_cast<int>(total - explicitCount), level != RE::SOUL_LEVEL::kNone, false, entry.IsFavorited()});
+            stacks.push_back({nullptr, static_cast<int>(total - explicitCount), level != RE::SOUL_LEVEL::kNone, false, std::ranges::any_of(stacks, [](const auto& stack) { return stack.favorite; })});
         return true;
     }
 
