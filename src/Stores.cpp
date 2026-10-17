@@ -411,6 +411,7 @@ void Stores::SortItems() {
     const bool returnedFavorites = ReturnSortFavorites();
     ReturnIgnoredItems();
     Soulgems::Recover(sortFavorites_);
+    StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     // Sort all items in the sorting container
     StoreToStore(ItemCategory::Personal, Container::Sort, Container::Personal);
     StoreToStore(ItemCategory::Gear, Container::Sort, Container::Gear);
@@ -449,7 +450,10 @@ void Stores::OffloadItemsNow() {
     if (settings->GSC_OffloadPersonal)
         PlayerToStore(ItemCategory::Personal, Container::Personal, 0, 0, true);
 
-    if (settings->GSC_OffloadSoulgems) Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
+    if (settings->GSC_OffloadSoulgems) {
+        PlayerToStore(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
+        Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
+    }
 
     if (settings->GSC_OffloadGold)
         PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount, true);

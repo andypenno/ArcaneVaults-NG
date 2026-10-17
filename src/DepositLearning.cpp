@@ -18,6 +18,7 @@ namespace {
 
     ItemCategory DestinationCategory(Container kind) {
         switch (kind) {
+        case Container::Soulgem: return ItemCategory::Soulgem;
         case Container::Personal: return ItemCategory::Personal;
         case Container::Gear: return ItemCategory::Gear;
         case Container::Instruments: return ItemCategory::Instrument;

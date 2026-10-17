@@ -1450,6 +1450,14 @@ assert(options.at({"General", "EnchantedItemsLoan"}) == 0);
     assert(archery.inventory[&archiveBow].first==0 && weaponBank.inventory[&archiveBow].first==2);
     stores.ShowWeaponArcheryMenu(nullptr);assert(ammoChest.inventory[&archiveArrows].first==24990);
 
+    player->inventory.clear();utility->chest.inventory.clear();utility->inbox.inventory.clear();
+    RE::TESBoundObject soulOverride{ItemCategory::Soulgem};
+    player->inventory[&soulOverride]=entry(7);settings->GSC_OffloadSoulgems=true;
+    stores.OffloadItems();
+    assert(player->inventory[&soulOverride].first==0 && utility->GetContainer(Container::Soulgem)->inventory[&soulOverride].first==7);
+    utility->inbox.inventory[&soulOverride]=entry(3);stores.SortItems();
+    assert(utility->GetContainer(Container::Soulgem)->inventory[&soulOverride].first==10 && utility->junk.inventory[&soulOverride].first==0);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
