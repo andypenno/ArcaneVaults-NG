@@ -25,7 +25,6 @@ These are observations from the named source, not confirmed game failures or fix
 | Location | Observation and consequence to verify |
 | --- | --- |
 | `AVUI::RenderTransfer` | Staff label binds `GSC_OffloadTwoHand`; TwoHand label binds `GSC_OffloadStaffHand`. `OffloadItems` uses the members according to their actual names |
-| `Stores::ShowFoodMenu` | Spice action moves Reagent items to Reagent but opens RawFood; direct `ShowFoodSaltMenu` opens Reagent |
 | `ClassifyItem` | Misc Treasure/Gemstone classification depends on overrides |
 | `AVTranslation::Install`, `Settings::get_value` | JSON/value conversion errors can throw without local handling |
 | `Utility::LoadAllForms` and consumers | Missing required forms only log; later code uses some pointers without guards. Campfire Creation Club lookup is also treated as required by default |
@@ -67,3 +66,5 @@ Choose checks relevant to the change and record runtime, load order, starting in
 | Configuration/translation | Save/reload options, test hotkeys/spells, check missing/malformed data according to the intended contract, and confirm container names |
 
 Logging uses `SKSE::log` through the `logger` alias. The entry point does not explicitly configure a file sink/path, so inspect the active runtime's logging setup rather than inventing a plugin log filename.
+
+Dragon Heartscales (`Skyrim.esm|0x0D0756`) have a bundled Treasure override. Native quest-marked entries are skipped by player transfers. Without that mark, enabled Treasure transfers route them into the directly accessible Treasure vault. Local regressions cover both states and Sort routing; the reported in-game disappearance is not reproduced. Reagent access gathers and opens Reagent, then returns leftovers to Alchemy.

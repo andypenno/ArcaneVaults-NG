@@ -25,7 +25,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "ShowWeaponArcheryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "FoodSaltMenu", "ShowFoodSaltMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "ShowWeaponArcheryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
@@ -396,6 +396,8 @@ void OffloadItems(){OffloadItemsNow();}
     void ReturnValuables();
     void ShowValuablesMenu(RE::TESObjectREFR*);
     void ValuablesMenu(RE::TESObjectREFR*);
+    void FoodSaltMenu(RE::TESObjectREFR*);
+    void ShowFoodSaltMenu(RE::TESObjectREFR*);
     void ShowTreasureMenu(RE::TESObjectREFR*);
     void ShowAlchemyMenu(RE::TESObjectREFR*);
     void AlchemyMenu(RE::TESObjectREFR*);
@@ -1486,6 +1488,19 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     CraftingLoanState::GetSingleton()->ExitCrafting();
     assert(player->inventory[&houseLogs].first==0 && utility->smithing.inventory[&houseLogs].first==13);
 
+    player->inventory.clear();utility->treasure.inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
+    RE::TESBoundObject heartscales{ItemCategory::None};heartscales.formID=0xD0756;
+    settings->overrides[&heartscales]=ToMask(ItemCategory::Treasure);settings->GSC_OffloadTreasure=true;
+    player->inventory[&heartscales]=entry(1);player->inventory[&heartscales].second->quest=true;
+    stores.OffloadItems();assert(player->inventory[&heartscales].first==1 && utility->treasure.inventory[&heartscales].first==0);
+    player->inventory[&heartscales].second->quest=false;stores.OffloadItems();
+    assert(player->inventory[&heartscales].first==0 && utility->treasure.inventory[&heartscales].first==1);
+    stores.ShowTreasureMenu(&source);assert(stores.opened==Container::Treasure);
+    assert(utility->treasure.inventory[&heartscales].first==1 && utility->junk.inventory[&heartscales].first==0);
+    utility->inbox.inventory[&heartscales]=entry(2);stores.SortItems();
+    assert(utility->treasure.inventory[&heartscales].first==3 && utility->inbox.inventory[&heartscales].first==0);
+    stores.FoodSaltMenu(&source);assert(stores.opened==Container::Reagent);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -1527,3 +1542,5 @@ print("PASS: direct Archery ammunition gather/return, withdrawals, deposits and 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}
 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Junk")} >= {0xE3CB7,0xCE70B,0xE4897,0x4C3C8,0x4C3C6,0x319E4,0xCC84D,0xAEBF3,0xAEBF7}
+
+assert "Skyrim.esm|0x0D0756 = Treasure" in (ROOT/"ini/ArcaneVaultOverrides.ini").read_text()
