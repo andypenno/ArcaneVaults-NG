@@ -234,7 +234,7 @@ int main() {
     menus.TradeMenu(&source);
     assert(menus.options.size() == 4 && menus.cancel == 1);
     assert(menus.options[0].text == "Vault.OpenContainer" && menus.options[1].text == "Vault.Exit");
-    assert(menus.options[2].text == "Vault.TakeAll" && menus.options[3].text == "Vault.SellAll");
+    assert(menus.options[2].text == "Vault.WithdrawAll" && menus.options[3].text == "Vault.SellAll");
     auto action = menus.options[0].action; action(); assert(menus.opened == 1);
     action = menus.options[2].action; action(); assert(menus.taken == 1);
     action = menus.options[3].action; action();

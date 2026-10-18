@@ -2,6 +2,8 @@
 
 [Settings.h](../src/Settings.h) owns option defaults and paths. [Settings.cpp](../src/Settings.cpp) owns the keys, loading, and persistence. Prefix `GSC_` survives in member names and the destination menu's registration name; the installed plugin is named ArcaneVaults-NG.
 
+Identical menu actions share `Vault.StoreAll` and `Vault.WithdrawAll`. Quantity and item-specific actions retain their own text.
+
 ## Runtime files
 
 All paths below are relative to the game's working directory under `Data/SKSE/Plugins/ArcaneVault/`.

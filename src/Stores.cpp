@@ -153,13 +153,11 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
             for (const auto* key : {"Vault.Open", "Vault.OpenContainer", "Vault.KeysOpen", "Vault.AmmunitionOpen",
                                    "Vault.SoulgemsOpen", "Vault.ValuablesOpen", "Stolen.Open"})
                 if (option.text == Translate(key)) return 0;
-            for (const auto* key : {"Vault.TakeUpToAmount", "Vault.TakeAll", "Vault.KeysTakeAll",
-                                   "Vault.AmmunitionTakeAll", "Vault.TakeAllSeptims", "Vault.TakeAllEmptySoulgems"})
+            for (const auto* key : {"Vault.TakeUpToAmount", "Vault.WithdrawAll", "Vault.TakeAllSeptims", "Vault.TakeAllEmptySoulgems"})
                 if (matches(key)) return 1;
             for (const auto* key : {"Vault.KeepAmount", "Vault.KeepOne", "Vault.KeepThree"})
                 if (matches(key)) return 2;
-            for (const auto* key : {"Vault.StoreAll", "Vault.KeysStoreAll", "Vault.AmmunitionStoreAll",
-                                   "Vault.SoulgemsStoreAll", "Vault.StoreAllSeptims", "Vault.StoreOne", "Vault.StoreRaw", "Vault.StoreGrandSouls"})
+            for (const auto* key : {"Vault.StoreAll", "Vault.StoreAllSeptims", "Vault.StoreOne", "Vault.StoreRaw", "Vault.StoreGrandSouls"})
                 if (matches(key)) return 3;
             return 4;
         };
@@ -725,7 +723,7 @@ void Stores::ShowKeysMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.KeysStoreAll"), [this, sourceHandle] {
+    options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Keys, Container::Keys);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
@@ -737,7 +735,7 @@ void Stores::ShowKeysMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.KeysTakeAll"), [this, sourceHandle] {
+    options.push_back({Translate("Vault.WithdrawAll"), [this, sourceHandle] {
         AllToPlayer(Container::Keys);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) KeysMenu(source.get());
@@ -775,7 +773,7 @@ void Stores::ShowAmmunitionMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.AmmunitionStoreAll"), [this, sourceHandle] {
+    options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Ammunition, Container::Ammunition);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
         if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
@@ -787,7 +785,7 @@ void Stores::ShowAmmunitionMenu(RE::TESObjectREFR* a_source) {
         if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
     }});
 
-    options.push_back({Translate("Vault.AmmunitionTakeAll"), [this, sourceHandle] {
+    options.push_back({Translate("Vault.WithdrawAll"), [this, sourceHandle] {
         AllToPlayer(Container::Ammunition);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
         if (auto source = sourceHandle.get()) AmmunitionMenu(source.get());
@@ -891,7 +889,7 @@ void Stores::ShowSoulgemMenu(RE::TESObjectREFR* a_source) {
         Soulgems::Deposit(Settings::GetSingleton()->GSC_SoulgemKeepAmount);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
-    options.push_back({Translate("Vault.SoulgemsStoreAll"), [this, sourceHandle] {
+    options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         Soulgems::Deposit(0);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
@@ -2088,7 +2086,7 @@ void Stores::ShowTradeMenu(RE::TESObjectREFR* a_source) {
     options.push_back({Translate("Vault.Exit"), [this, handle] {
         if (auto source = handle.get()) CloseStoreObject(source.get());
     }});
-    options.push_back({Translate("Vault.TakeAll"), [this, handle] {
+    options.push_back({Translate("Vault.WithdrawAll"), [this, handle] {
         if (auto source = handle.get()) {
             AllToPlayer(Container::Trade);
             ShowTradeMenu(source.get());

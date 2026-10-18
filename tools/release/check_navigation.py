@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--probe-return", type=Path, help="Record production and direct-menu Quick Transfer returns with a simulated clock")
 args = parser.parse_args()
+translations = json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
+for key, label in {"Vault.StoreAll": "Store All", "Vault.WithdrawAll": "Withdraw All"}.items():
+    assert [name for name, text in translations.items() if text == label] == [key]
 program = r'''
 #include <cassert>
 #include <algorithm>
@@ -199,8 +202,8 @@ int main() {
     stores->returnToVault_=[]{};
     for(const auto* keep:{"Vault.KeepAmount 25","Vault.KeepOne","Vault.KeepThree"}){
         stores->ShowDynamicMessageBox("Quantities",{{"Vault.StoreAll",[]{}},{keep,[]{}},{"Vault.Exit",[]{}},
-            {"Vault.TakeUpToAmount 25",[]{}},{"Vault.Open",[]{}},{"Vault.TakeAll",[]{}}},2);
-        assert((RE::box->buttonText==std::vector<std::string>{"Vault.Open","Vault.TakeUpToAmount 25","Vault.TakeAll",keep,"Vault.StoreAll","Vault.Back","Vault.Exit"}));
+            {"Vault.TakeUpToAmount 25",[]{}},{"Vault.Open",[]{}},{"Vault.WithdrawAll",[]{}}},2);
+        assert((RE::box->buttonText==std::vector<std::string>{"Vault.Open","Vault.TakeUpToAmount 25","Vault.WithdrawAll",keep,"Vault.StoreAll","Vault.Back","Vault.Exit"}));
         assert(RE::box->cancelButtonIndex==6);
     }
     stores->ResetNavigation();
