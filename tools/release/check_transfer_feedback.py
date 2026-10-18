@@ -113,6 +113,11 @@ int main(){
     Begin([&](Complete done){++starts;assert(done());});
     assert(starts==1);
     assert(timers.empty() && !SKSEMenuFramework::render);
+    int headlessBatches=0;bool headlessDone=false;
+    Begin([&](Complete done){Run([&](const std::function<bool()>& active){assert(active());return ++headlessBatches==2;},[&,done]{headlessDone=done();});});
+    for(int frame=0;!headlessDone && frame<5;++frame){step();}
+    assert(headlessDone && headlessBatches==2 && timers.empty());
+    Run([](const std::function<bool()>&)->bool{assert(false);return true;},[]{assert(false);});
     SKSEMenuFramework::installed=true;Register();Register();assert(SKSEMenuFramework::registrations==1);
     RE::InputEvent event;Complete complete;
     Begin([&](Complete done){++starts;complete=std::move(done);});
@@ -169,6 +174,43 @@ int main(){
     SKSEMenuFramework::render();step();SKSEMenuFramework::render();
     bool caught=false;try{step();}catch(const std::runtime_error&){caught=true;}
     assert(caught && !SKSEMenuFramework::block(&event));
+
+    int batches=0,finishes=0;
+    auto startJob=[&](Complete done){
+        Run([&](const std::function<bool()>& active){assert(active());return ++batches==3;},
+            [&,done]{++finishes;assert(done());});
+    };
+    Begin(startJob);SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
+    assert(batches==0);
+    for(int i=0;i<5;++i){step();}
+    assert(batches==0);
+    for(int i=1;i<=3;++i){
+        SKSEMenuFramework::render();step();assert(batches==i);
+        if(i<3){step();step();assert(batches==i && SKSEMenuFramework::block(&event));}
+    }
+    assert(finishes==1 && !SKSEMenuFramework::block(&event));
+    step();assert(finishes==1);
+
+    auto owned=std::make_shared<int>(42);std::weak_ptr<int> released=owned;
+    Begin([&,owned](Complete){
+        Run([&,owned](const std::function<bool()>& active){
+            assert(active() && *owned==42);Reset();assert(!active() && *owned==42);return false;
+        },[]{assert(false);});
+    });
+    owned.reset();SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
+    SKSEMenuFramework::render();step();assert(released.expired() && !SKSEMenuFramework::block(&event));
+    step();
+
+    batches=0;Begin(startJob);SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
+    Reset();step();assert(batches==0 && finishes==1);
+    Begin([](Complete){Run([](const std::function<bool()>&)->bool{throw std::runtime_error("batch refused");},[]{assert(false);});});
+    SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();SKSEMenuFramework::render();
+    caught=false;try{step();}catch(const std::runtime_error&){caught=true;}
+    assert(caught && !SKSEMenuFramework::block(&event));
+
+    batches=0;Begin(startJob);SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
+    for(int i=0;finishes==1 && i<60;++i)step();
+    assert(batches==3 && finishes==2 && !SKSEMenuFramework::block(&event));
     Begin({});SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
     assert(!SKSEMenuFramework::block(&event));
 }
@@ -184,7 +226,7 @@ def main():
         subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", *flags,
                         "-I", str(ROOT), str(path / "check.cpp"), "-o", str(path / "check")], check=True, timeout=60)
         subprocess.run([str(path / "check")], check=True, timeout=10)
-    print("PASS: rendered-frame barrier, button blocking with releases preserved, completion, overlap, absent/stalled renderer, reset, stale callbacks, failures, compact panel bounds, single label and pulsing sigil")
+    print("PASS: frame-gated batches, headless/stalled progress, mid-batch reset and captured-state release, rendered-frame barrier, button blocking with releases preserved, completion, overlap, absent/stalled renderer, reset, stale callbacks, failures, compact panel bounds, single label and pulsing sigil")
 
 
 if __name__ == "__main__":

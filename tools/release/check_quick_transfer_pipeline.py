@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 
 import check_stolen as harness
+import transfer_render_probe as rendering
 
 ROOT=harness.ROOT
 parser=argparse.ArgumentParser(description=__doc__)
@@ -17,19 +18,24 @@ parser.add_argument("--output",type=Path,required=True)
 parser.add_argument("--sanitize",action="store_true")
 parser.add_argument("--source-ref")
 parser.add_argument("--feedback",action="store_true",help="Run the actual overlay barrier and completion with the full transfer pipeline")
+parser.add_argument("--render-probe",action="store_true",help="Measure rendering gaps with declared native-call costs; fail if distributed work blocks frames")
+parser.add_argument("--cost-models",nargs="+",choices=rendering.MODELS,default=rendering.MODELS)
 parser.add_argument("--profile",action="store_true",help="Profile fixture phases and two test-only candidates against unchanged production")
 parser.add_argument("--samples",type=int,default=5)
 parser.add_argument("--sizes",type=int,nargs="+",default=[0,1000])
 args=parser.parse_args()
+if args.render_probe:
+    if args.profile:parser.error("Render probes and CPU candidate profiles are separate experiments")
+    args.feedback=True
 if args.output.exists():parser.error("Choose a new output path")
 tracked_sources=("Stores","PlayerEquipment","InventoryStacks","Soulgems")+(("TransferFeedback",) if args.feedback else ())
 if args.profile and args.sanitize:parser.error("Profile runs exclude sanitizers")
-if args.profile and (args.samples<2 or args.samples>10 or any(size<0 or size>1000 for size in args.sizes)):
+if (args.profile or args.render_probe) and (args.samples<2 or args.samples>10 or any(size<0 or size>1000 for size in args.sizes)):
     parser.error("Use 2 to 10 samples and sizes between zero and 1000")
 def source(name):
     return subprocess.check_output(["git","show",f"{args.source_ref}:src/{name}.cpp"],cwd=ROOT,text=True) if args.source_ref else (ROOT/f"src/{name}.cpp").read_text()
 stores=source("Stores")
-common=harness.common
+common=harness.common.replace('#include "src/OffloadBatch.h"', '')
 if "TransferFeedback::Mark(" in stores and not args.feedback:
     common+="namespace TransferFeedback {enum class Stage {Recovery,Transfer,Soulgems};inline void Mark(Stage){}}\n"
 if args.feedback:
@@ -89,7 +95,7 @@ common=common.replace("TESBoundObject* currentAmmo=nullptr;", "bool IsSneaking()
 start=common.index("    void AllToStore(Container from,")
 end=common.index("\n    }",start)+6
 common=common[:start]+"    void AllToStore(Container,Container);\n"+common[end:]
-common=common.replace("void OffloadItemsNow(){PlayerToStore(ItemCategory::Jewelry,Container::Armor);}", "void OffloadItemsNow();")
+common=common.replace("void OffloadItemsNow(std::function<void()> complete={}){PlayerToStore(ItemCategory::Jewelry,Container::Armor);if(complete)complete();}", ("void OffloadItemsNow(std::function<void()> complete = {});" if "OffloadItemsNow(std::function<void()>" in stores else "void OffloadItemsNow();"))
 common=common.replace("void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> f){f(source);}", "using AnimationCallback=std::function<void(RE::TESObjectREFR*)>;void OpenStoreObject(RE::TESObjectREFR*,AnimationCallback);")
 common=common.replace("void VaultMenu(RE::TESObjectREFR*){closed=false;options.clear();returnToVault_={};}", "void VaultMenu(RE::TESObjectREFR*);void ShowVaultMenu(RE::TESObjectREFR*);")
 common=common.replace("options=std::move(value);cancel=c;", "options=std::move(value);cancel=c;RE::UI::GetSingleton()->messageBox=true;")
@@ -117,6 +123,7 @@ struct BGSOpenCloseForm {
 };
 struct MessageBoxMenu;
 }
+namespace TransferFeedback {void Run(std::function<bool(const std::function<bool()>&)>,std::function<void()>);}
 namespace Soulgems {void Recover(const std::unordered_set<RE::FormID>& = {});void Deposit(int,bool);}
 inline void DumpProfile(double ms){
     if(!RE::Profile::enabled)return;
@@ -137,7 +144,7 @@ def profiled(text,signature,label):
     first=text.index(signature);brace=text.index("{",first)
     return text[:brace+1]+f'RE::Profile::Scope phase{{"{label}"}};'+text[brace+1:]
 
-program='#include "common.hpp"\n'+("#define __stdcall\n"+framework if args.feedback else "")
+program='#include "common.hpp"\n#include "OffloadBatch.h"\n'+("#define __stdcall\n"+framework if args.feedback else "")
 item_source=(ROOT/"src/ItemClass.cpp").read_text()
 program+=item_source[item_source.index("CategoryMask operator|("):item_source.index("bool HasCategory(")]
 for name in ("InventoryStacks","PlayerEquipment"):
@@ -154,6 +161,8 @@ for name in ("InventoryStacks","PlayerEquipment"):
         assert needle in text
         text=text.replace(needle,"            if(RE::Profile::candidate!=2 || !snapshot.empty())\n"+needle)
     program+="\n".join(line for line in text.splitlines() if not line.startswith("#include"))+"\n"
+if not args.feedback:
+    program+='namespace TransferFeedback {void Run(std::function<bool(const std::function<bool()>&)> step,std::function<void()> complete){while(!step([]{return true;})){}if(complete)complete();}}\n'
 program+=body(stores,"    int MoveItems(","\n    }")
 program+=body(stores,"    std::unordered_set<RE::FormID> SelectedAmmunition(","\n    }")
 animation=stores[stores.index("    using OpenState ="):stores.index("\n}\n\nusing AVTranslation")]
@@ -272,6 +281,64 @@ if args.feedback:
     end=program.rindex("\n}\n")
     program=program[:end]+recovery+program[end:]
 
+
+if args.feedback and not args.render_probe and "bool Apply(" in source("PlayerEquipment"):
+    safety=r"""
+    TransferFeedback::Reset();player->rows.clear();settings->ignored.clear();
+    RE::SCRIPT_FUNCTION::equipped.clear();banks[Container::Armor]->rows.clear();
+    player->Put(&ring,0,1,nullptr,"worn");player->rows[&ring].extras.front()->worn=true;
+    for(int i=0;i<3;++i)player->Put(&ring,0,1,nullptr,"copy "+std::to_string(i));
+    auto snapshot=PlayerEquipment::Capture(player);
+    auto* protectedCopy=player->rows[&ring].extras.front().get();snapshot.at(&ring).equipped.insert(protectedCopy);
+    for(int i=0;i<2;++i){
+        assert(PlayerEquipment::Apply(snapshot,&ring,[&]{
+            auto copies=InventoryStacks::Read(player,{},&ring);
+            assert(InventoryStacks::Move(copies.back(),banks[Container::Armor].get())==1);return true;
+        }));
+        assert(PlayerEquipment::Current()==nullptr && player->rows[&ring].extras.front().get()==protectedCopy);
+    }
+    protectedCopy->worn=false;bool called=false;
+    assert(!PlayerEquipment::Apply(snapshot,&ring,[&]{called=true;return true;}) && !called && !snapshot.contains(&ring));
+    assert(!PlayerEquipment::Apply(snapshot,&ring,[&]{called=true;return false;}) && !called);
+    assert(!PlayerEquipment::Apply(snapshot,nullptr,[&]{called=true;return false;}) && !called);
+    try{PlayerEquipment::Apply(snapshot,&note,[]{throw std::runtime_error("interrupted");return false;});assert(false);}
+    catch(const std::runtime_error&){}assert(PlayerEquipment::Current()==nullptr);
+
+    // Cancellation after the first removal must discard every remaining batch.
+    for(int interruption=0;interruption<4;++interruption){
+        TransferFeedback::Reset();player->rows.clear();banks[Container::Armor]->rows.clear();RE::SCRIPT_FUNCTION::equipped.clear();
+        player->Put(&ring,0,1,nullptr,"worn");player->rows[&ring].extras.front()->uiWorn=true;
+        RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+        for(int i=0;i<100;++i)player->Put(&ring,0,1,nullptr,"copy "+std::to_string(i));
+        ui->messageBox=false;stores->options.clear();timers.clear();RE::SendHUDMessage::message.clear();
+        bool finished=false;stores->OffloadItems([&]{finished=true;});
+        auto pump=[&]{
+            ProbeClock::tick+=std::chrono::milliseconds(16);SKSEMenuFramework::render();
+            auto ready=std::move(timers);timers.clear();for(auto& action:ready)action();
+            queue->ProcessCommands();tasks->RunUI();tasks->Run();
+        };
+        for(int frame=0;banks[Container::Armor]->rows[&ring].total==0 && frame<100;++frame)pump();
+        const int moved=banks[Container::Armor]->rows[&ring].total;
+        assert(moved>0 && moved<100 && !finished);
+        if(interruption==1)player->rows[&ring].extras.front()->worn=true;
+        else if(interruption==2)player->refuse=true;
+        else if(interruption==3)player->rows[&ring].favorite=true;
+        else TransferFeedback::Reset();
+        for(int frame=0;frame<100;++frame)pump();
+        assert(banks[Container::Armor]->rows[&ring].total==moved && player->rows[&ring].total==101-moved);
+        assert(finished==(interruption!=0) && !PlayerEquipment::IsRunning());
+        assert(!SKSEMenuFramework::block(nullptr));
+        assert(interruption!=0 || RE::SendHUDMessage::message.empty());
+        player->refuse=false;
+    }
+"""
+    marker='    TransferFeedback::Reset();player->rows.clear();settings->ignored.clear();'
+    index=program.index(marker)
+    program=program[:index]+safety+program[index:]
+
+if args.render_probe:
+    common,program=rendering.instrument(common,program)
+
 if args.profile:
     needle="int main(){"
     assert needle in program
@@ -305,13 +372,13 @@ def profile_command(command,timeout):
             raise subprocess.CalledProcessError(child.returncode,command,output=output)
         return output
 
-if args.profile:
+if args.profile or args.render_probe:
     args.output.parent.mkdir(parents=True,exist_ok=True)
     def stop_profile(_signal,_frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM,stop_profile)
 with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
-    path=Path(directory);(path/"common.hpp").write_text("#pragma once\n"+common);(path/"check.cpp").write_text(program)
+    path=Path(directory);(path/"OffloadBatch.h").write_text((ROOT/"src/OffloadBatch.h").read_text().replace("using Clock = std::chrono::steady_clock;", "using Clock = ProbeClock;"));(path/"common.hpp").write_text("#pragma once\n"+common);(path/"check.cpp").write_text(program)
     soul=source("Soulgems");soul=soul[:soul.index("    void TakeEmpty(")]+"}\n"
     soul=soul.replace("    Counts carriedBefore;", "").replace("    std::unordered_set<RE::FormID> loanForms;", "").replace("    std::int64_t remainingLoan{};", "")
     start=soul.index("    Counts CountGems(");soul=soul[:start]+soul[soul.index("\n}\n",start):]
@@ -320,9 +387,24 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
     soul=soul.replace("            if (archive && archive != bank) {", "            if (archive && archive != bank) {\n                if(RE::Profile::candidate==1 && !InventoryStacks::HasItems(archive))continue;")
     (path/"Soulgems.cpp").write_text('#include "common.hpp"\n'+"\n".join(line for line in soul.splitlines() if not line.startswith("#include")))
     flags=["-fsanitize=address,undefined","-fno-omit-frame-pointer"] if args.sanitize else []
-    if args.profile:flags.extend(["-O2","-DAV_PROFILE"])
+    if args.profile or args.render_probe:
+        flags.append("-DAV_PROFILE")
+        if not args.sanitize:flags.append("-O2")
     command=["g++","-std=c++20","-Wall","-Wextra","-Werror",*flags,"-I",str(ROOT),str(path/"check.cpp"),str(path/"Soulgems.cpp"),"-o",str(path/"check")]
-    if args.profile:
+    if args.render_probe:
+        profile_command(command,90)
+        models=[rendering.MODELS.index(name) for name in args.cost_models]
+        for size in args.sizes:
+            for sample in range(args.samples):
+                for model in models if sample%2==0 else reversed(models):
+                    rows=[json.loads(line) for line in profile_command([str(path/"check"),str(model),str(size)],90).splitlines()]
+                    for row in rows:
+                        if "fixture_cpu_ms" in row:row["fixture_elapsed_ms"]=row.pop("fixture_cpu_ms")
+                    profile["samples"].append({"model":rendering.MODELS[model],"size":size,"sample":sample,
+                        "controls":[row for row in rows if "control" in row],"cases":[row for row in rows if "control" not in row]})
+                    args.output.write_text(json.dumps(profile,indent=2)+"\n")
+                print(f"Render probe size={size} repeat={sample+1}/{args.samples}",flush=True)
+    elif args.profile:
         profile_command(command,90)
         for size in args.sizes:
             for sample in range(args.samples):
@@ -336,6 +418,30 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
         subprocess.run(command,check=True,timeout=90)
         cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
 args.output.parent.mkdir(parents=True,exist_ok=True)
+if args.render_probe:
+    profile.update({"complete":True,"source_ref":args.source_ref,"source_commit":subprocess.check_output(["git","rev-parse",args.source_ref or "HEAD"],cwd=ROOT,text=True).strip(),
+        "source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources},"sanitizers":args.sanitize,
+        "fixture_sha256":{name:hashlib.sha256((ROOT/"tools/release"/name).read_bytes()).hexdigest() for name in ["check_quick_transfer_pipeline.py","transfer_render_probe.py","check_stolen.py","check_transfer_feedback.py"]},
+        "boundary":"Production pipeline and renderer with engine/classification/UI stubs. Render callbacks occur only at simulated frame boundaries, never inside native calls. Simulated native durations are chosen test inputs, not Skyrim measurements. Measured durations are fixture wall-clock time, including instrumentation and scheduling overhead. Native stub-internal reads/removals inside bulk transfer are not double charged. The scheduler controls exercise the fixture queue, not a measured Skyrim queue policy.",
+        "costs":{"zero":"No native cost","distributed":"Removal 1 ms; inventory/bulk 0.25 ms + 0.002 ms per base record","slow-read":"First inventory call during transfer work costs 250 ms","slow-remove":"First removal during transfer work costs 250 ms","slow-bulk":"First bulk call during transfer work costs 250 ms","slow-preflight":"First inventory call before transfer work costs 250 ms"},"frame_interval_simulated_ms":16,"render_gap_budget_simulated_ms":50,
+        "entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and same-base enchanted copies","distinct sortable notes","same-base soul-gem quantity","protected loadout with ignored records","protected loadout with one spare and unrelated records"],
+        "source_header_sha256":{name:hashlib.sha256((ROOT/"src"/name).read_bytes()).hexdigest() for name in ["ItemClass.h","Settings.h","InventoryStacks.h","PlayerEquipment.h","TransferFeedback.h","Soulgems.h","OffloadBatch.h"]}})
+    groups={}
+    for sample in profile["samples"]:
+        for case in sample["cases"]:
+            key=(sample["model"],sample["size"],case["entry"],case["shape"],case["archives_populated"])
+            groups.setdefault(key,[]).append(case)
+    profile["summary"]=[]
+    for key,rows in groups.items():
+        summary=dict(zip(["model","size","entry","shape","archives_populated"],key))
+        for metric in ["fixture_elapsed_ms","max_task_elapsed_ms","max_render_gap_simulated_ms","max_task_simulated_ms","frames_during_work","work_color_changes"]:
+            values=[row[metric] for row in rows];summary[metric]={"min":min(values),"median":statistics.median(values),"max":max(values)}
+        profile["summary"].append(summary)
+    failures=[row for row in profile["summary"] if row["model"]=="distributed" and row["max_render_gap_simulated_ms"]["max"]>50]
+    profile["responsiveness_regressions"]=failures
+    args.output.write_text(json.dumps(profile,indent=2)+"\n")
+    print(f"Render probe: {len(groups)} scenarios; {len(failures)} distributed-cost responsiveness failures; report {args.output}")
+    raise SystemExit(1 if failures else 0)
 if args.profile:
     profile["complete"]=True
     profile["candidates"]=["unchanged production","skip empty bulk calls in compiled fixture","skip validation reads for an empty snapshot in compiled fixture"]

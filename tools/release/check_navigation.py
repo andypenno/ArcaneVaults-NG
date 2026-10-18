@@ -247,7 +247,7 @@ namespace RE {''', 1)
     program = program.replace("    bool archiveCleaned = false;", r'''
     int transfers{};
     void OffloadItems(std::function<void()> complete={});
-    void OffloadItemsNow(){++transfers;}
+    void OffloadItemsNow(std::function<void()> complete={}){++transfers;if(complete)complete();}
     void VaultMenu(RE::TESObjectREFR*);
     void ShowVaultMenu(RE::TESObjectREFR*);
     void ShowVaultsMenu(RE::TESObjectREFR*){}

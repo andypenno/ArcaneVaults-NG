@@ -409,7 +409,7 @@ struct Stores {
     void EnchantedItemsMenu(RE::TESObjectREFR*);
     void PlayerToStore(ItemCategory,Container,int=0,int=0,bool=false,CategoryMask=0);
     void OffloadItems(std::function<void()> complete={});
-    void OffloadItemsNow(){PlayerToStore(ItemCategory::Jewelry,Container::Armor);}
+    void OffloadItemsNow(std::function<void()> complete={}){PlayerToStore(ItemCategory::Jewelry,Container::Armor);if(complete)complete();}
 
 void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*);void ShowStolenItemsMenu(RE::TESObjectREFR*);
     void Click(int i){auto action=options[i].action;options.clear();action();SKSE::GetTaskInterface()->Run();}
@@ -417,6 +417,7 @@ void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*
 #include "src/StolenItems.h"
 #include "src/EnchantedItems.h"
 #include "src/PlayerEquipment.h"
+#include "src/OffloadBatch.h"
 #include "src/TransferFeedback.h"
 namespace TransferFeedback {
 inline void Begin(std::function<void(Complete)> start){start([]{return true;});}

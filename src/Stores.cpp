@@ -13,6 +13,8 @@
 #include "EnchantedItems.h"
 #include "PlayerEquipment.h"
 #include "TransferFeedback.h"
+#include "OffloadBatch.h"
+#include <deque>
 
 #include <chrono>
 #include <thread>
@@ -28,6 +30,7 @@ namespace {
         int available = countItems();
         int moved{};
         while (count > 0 && available > 0) {
+            if (OffloadBatch::current && !OffloadBatch::current->active()) break;
             source->RemoveItem(item, (std::min)(count, available), RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
             const int after = countItems();
             if (after >= available) return moved;
@@ -35,6 +38,7 @@ namespace {
             moved += available - after;
             count -= (std::min)(count, available - after);
             available = after;
+            if (OffloadBatch::current && OffloadBatch::current->Moved(count > 0)) break;
         }
         return moved;
     }
@@ -45,7 +49,7 @@ namespace {
         if (auto* ammo = player->GetCurrentAmmo()) selected.insert(ammo->GetFormID());
         const auto* command = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
         const auto isEquipped = command ? command->conditionFunction : nullptr;
-        for (const auto& [item, data] : player->GetInventory()) {
+        for (const auto& [item, data] : player->GetInventory([](RE::TESBoundObject& item) { return !OffloadBatch::current || OffloadBatch::current->item == &item; })) {
             if (!item || !data.second || !HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;
             double equipped{};
             if (data.second->IsFavorited() || data.second->IsWorn() ||
@@ -217,7 +221,9 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto* currentAmmo = player->GetCurrentAmmo();
-    const auto inventory = player->GetInventoryCounts();
+    const auto inventory = player->GetInventoryCounts([](RE::TESBoundObject& item) {
+        return !OffloadBatch::current || OffloadBatch::current->item == &item;
+    });
     for (const auto& [item, total] : inventory) {
         if (!item || total <= a_keepCount || item->As<RE::TESSoulGem>()) continue;
         const auto categories = ClassifyItem(item);
@@ -260,6 +266,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         int count = InventoryStacks::Count(player, item) - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);
         while (count > 0) {
+            if (OffloadBatch::current && !OffloadBatch::current->active()) break;
             if (stacks.empty()) break;
             const auto next = std::ranges::find_if(stacks, [&](const InventoryStacks::Stack& stack) { return !protectedStacks.contains(stack.extra) &&
                 (!stack.extra || (!stack.extra->HasType<RE::ExtraWorn>() && !stack.extra->HasType<RE::ExtraWornLeft>())); });
@@ -275,6 +282,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
             if (!moved) break;
             DepositLearning::RecordAutomaticTransfer(player, chest, item, moved);
             count -= moved;
+            if (OffloadBatch::current && OffloadBatch::current->Moved(count > 0)) return;
             if (count > 0) stacks = read();
         }
     }
@@ -309,7 +317,9 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
     auto* destination = utility->GetContainer(a_destination);
     if (!source || !destination) return;
 
-    const auto inventory = source->GetInventory();
+    const auto inventory = source->GetInventory([](RE::TESBoundObject& item) {
+        return !OffloadBatch::current || OffloadBatch::current->item == &item;
+    });
     for (const auto& [item, data] : inventory) {
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
@@ -477,101 +487,189 @@ void Stores::OffloadItems(std::function<void()> complete) {
     if (PlayerEquipment::IsRunning()) return;
     TransferFeedback::Begin([this, complete = std::move(complete)](TransferFeedback::Complete end) mutable {
         if (PlayerEquipment::IsRunning()) { TransferFeedback::Reset(); return; }
-        PlayerEquipment::Run([this] { OffloadItemsNow(); }, [end = std::move(end), complete = std::move(complete)] {
-            if (end() && complete) complete();
-        });
+        auto started = std::make_shared<bool>(false);
+        PlayerEquipment::Run([this, started, end, complete] {
+            OffloadItemsNow([end, complete] { if (end() && complete) complete(); });
+            *started = true;
+        }, [started, end, complete] { if (!*started && end() && complete) complete(); });
     });
 }
 
-void Stores::OffloadItemsNow() {
-    ConsolidateBooks();
-    ConsolidatePotions();
-    AllToStore(Container::Instruments, Container::Gear);
+void Stores::OffloadItemsNow(std::function<void()> complete) {
+    using Actions = std::deque<std::function<void()>>;
+    auto actions = std::make_shared<Actions>();
+    const std::weak_ptr<Actions> queued = actions;
+    auto equipment = std::make_shared<PlayerEquipment::Snapshot>();
+    if (const auto* snapshot = PlayerEquipment::Current()) *equipment = *snapshot;
+    auto candidates = std::make_shared<std::vector<RE::TESBoundObject*>>();
+    const auto deposit = [this, actions, queued, candidates, equipment](ItemCategory category, Container chest, int count = 0,
+        int keep = 0, bool ignores = true, CategoryMask excluded = 0) {
+        actions->push_back([this, queued, candidates, equipment, category, chest, count, keep, ignores, excluded] {
+            auto actions = queued.lock();
+            if (!actions) return;
+            for (auto it = candidates->rbegin(); it != candidates->rend(); ++it) {
+                auto* item = *it;
+                const auto categories = ClassifyItem(item);
+                if (!HasCategory(categories, category) || HasAnyCategory(categories, excluded)) continue;
+                actions->push_front([this, equipment, item, category, chest, count, keep, ignores, excluded] {
+                    OffloadBatch::current->item = item;
+                    PlayerEquipment::Apply(*equipment, item, [&] {
+                        PlayerToStore(category, chest, count, keep, ignores, excluded);
+                        return OffloadBatch::current->changed;
+                    });
+                });
+            }
+        });
+    };
+    const auto ammunition = [this, actions, queued, candidates] {
+        actions->push_back([this, queued, candidates] {
+            auto actions = queued.lock();
+            if (!actions) return;
+            for (auto it = candidates->rbegin(); it != candidates->rend(); ++it) {
+                auto* item = *it;
+                if (!HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;
+                actions->push_front([this, item] { OffloadBatch::current->item = item; KeepAmmunition(true); });
+            }
+        });
+    };
+    const auto all = [this, actions](Container source, Container destination) {
+        actions->push_back([this, source, destination] { AllToStore(source, destination); });
+    };
+    const auto recover = [this, actions, queued](ItemCategory category, Container from, Container to) {
+        actions->push_back([this, queued, category, from, to] {
+            auto actions = queued.lock();
+            if (!actions) return;
+            auto* source = Utility::GetSingleton()->GetContainer(from);
+            if (!source) return;
+            for (const auto& [item, count] : source->GetInventoryCounts()) {
+                if (!item || count <= 0 || !HasCategory(ClassifyItem(item), category)) continue;
+                actions->push_front([this, item, category, from, to] {
+                    OffloadBatch::current->item = item;
+                    StoreToStore(category, from, to);
+                });
+            }
+        });
+    };
+    all(Container::SpellTomes, Container::Book);
+    all(Container::SkillBooks, Container::Book);
+    all(Container::Recipes, Container::Notes);
+    all(Container::TreasureMaps, Container::Notes);
+    recover(ItemCategory::Note, Container::Scroll, Container::Notes);
+    recover(ItemCategory::Book, Container::Scroll, Container::Book);
+    recover(ItemCategory::Note, Container::Book, Container::Notes);
+    for (auto archive : {Container::Potion, Container::Poison, Container::Restorative,
+        Container::HealthPotions, Container::MagickaPotions, Container::StaminaPotions})
+        all(archive, Container::Concoction);
+    all(Container::Instruments, Container::Gear);
+    actions->push_back([candidates] {
+        if (auto* player = RE::PlayerCharacter::GetSingleton())
+            for (const auto& [item, count] : player->GetInventoryCounts())
+                if (item && count > 0) candidates->push_back(item);
+    });
     auto* settings = Settings::GetSingleton();
 
     if (settings->GSC_OffloadJunk)
-        PlayerToStore(ItemCategory::Junk, Container::Junk, 0, 0, true);
+        deposit(ItemCategory::Junk, Container::Junk, 0, 0, true);
 
     if (settings->GSC_OffloadGear) {
-        PlayerToStore(ItemCategory::Lockpick, Container::Gear, 0, settings->GSC_LockpickKeepAmount, true);
-        PlayerToStore(ItemCategory::Gear, Container::Gear, 0, 0, true, ToMask(ItemCategory::Lockpick));
+        deposit(ItemCategory::Lockpick, Container::Gear, 0, settings->GSC_LockpickKeepAmount, true);
+        deposit(ItemCategory::Gear, Container::Gear, 0, 0, true, ToMask(ItemCategory::Lockpick));
     }
 
     if (settings->GSC_OffloadPersonal)
-        PlayerToStore(ItemCategory::Personal, Container::Personal, 0, 0, true);
+        deposit(ItemCategory::Personal, Container::Personal, 0, 0, true);
 
     if (settings->GSC_OffloadSoulgems) {
-        PlayerToStore(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
-        Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
+        deposit(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
+        actions->push_back([keep = settings->GSC_SoulgemKeepAmount] { Soulgems::Deposit(keep, true); });
     }
 
     if (settings->GSC_OffloadGold)
-        PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount, true);
+        deposit(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount, true);
 
     if (settings->GSC_OffloadAmmunition)
-        KeepAmmunition(true);
+        ammunition();
 
     if (settings->GSC_OffloadKeys)
-        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne ? 1 : 0, true);
+        deposit(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne ? 1 : 0, true);
 
     // Alchemy
-    if (settings->GSC_OffloadReagent) PlayerToStore(ItemCategory::Reagent, Container::Alchemy, 0, 0, true);
-    if (settings->GSC_OffloadCatalyst) PlayerToStore(ItemCategory::Catalyst, Container::Alchemy, 0, 0, true);
-    if (settings->GSC_OffloadIngredient) PlayerToStore(ItemCategory::Ingredient, Container::Alchemy, 0, 0, true);
+    if (settings->GSC_OffloadReagent) deposit(ItemCategory::Reagent, Container::Alchemy, 0, 0, true);
+    if (settings->GSC_OffloadCatalyst) deposit(ItemCategory::Catalyst, Container::Alchemy, 0, 0, true);
+    if (settings->GSC_OffloadIngredient) deposit(ItemCategory::Ingredient, Container::Alchemy, 0, 0, true);
 
     // Armor
-    if (settings->GSC_OffloadClothing) PlayerToStore(ItemCategory::Clothing, Container::Armor, 0, 0, true);
-    if (settings->GSC_OffloadHeavyArmor) PlayerToStore(ItemCategory::HeavyArmor, Container::Armor, 0, 0, true);
-    if (settings->GSC_OffloadLightArmor) PlayerToStore(ItemCategory::LightArmor, Container::Armor, 0, 0, true);
-    if (settings->GSC_OffloadJewelry) PlayerToStore(ItemCategory::Jewelry, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadClothing) deposit(ItemCategory::Clothing, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadHeavyArmor) deposit(ItemCategory::HeavyArmor, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadLightArmor) deposit(ItemCategory::LightArmor, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadJewelry) deposit(ItemCategory::Jewelry, Container::Armor, 0, 0, true);
 
-    if (settings->GSC_OffloadNotes) PlayerToStore(ItemCategory::Note, Container::Notes, 0, 0, true);
+    if (settings->GSC_OffloadNotes) deposit(ItemCategory::Note, Container::Notes, 0, 0, true);
 
     // Books
-    if (settings->GSC_OffloadBooks) PlayerToStore(ItemCategory::Book, Container::Book, 0, 0, true);
-    if (settings->GSC_OffloadSpelltomes) PlayerToStore(ItemCategory::SpellTome, Container::Book, 0, 0, true);
-    if (settings->GSC_OffloadScrolls) PlayerToStore(ItemCategory::Scroll, Container::Scroll, 0, 0, true);
+    if (settings->GSC_OffloadBooks) deposit(ItemCategory::Book, Container::Book, 0, 0, true);
+    if (settings->GSC_OffloadSpelltomes) deposit(ItemCategory::SpellTome, Container::Book, 0, 0, true);
+    if (settings->GSC_OffloadScrolls) deposit(ItemCategory::Scroll, Container::Scroll, 0, 0, true);
 
     // Smithing
-    if (settings->GSC_OffloadCrafting) PlayerToStore(ItemCategory::Crafting, Container::Smithing, 0, 0, true);
-    if (settings->GSC_OffloadConstruction) PlayerToStore(ItemCategory::Construction, Container::Smithing, 0, 0, true);
-    if (settings->GSC_OffloadGemstone) PlayerToStore(ItemCategory::Gemstone, Container::Smithing, 0, 0, true);
-    if (settings->GSC_OffloadSmelting) PlayerToStore(ItemCategory::Smelting, Container::Smithing, 0, 0, true);
-    if (settings->GSC_OffloadTanning) PlayerToStore(ItemCategory::Tanning, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadCrafting) deposit(ItemCategory::Crafting, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadConstruction) deposit(ItemCategory::Construction, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadGemstone) deposit(ItemCategory::Gemstone, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadSmelting) deposit(ItemCategory::Smelting, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadTanning) deposit(ItemCategory::Tanning, Container::Smithing, 0, 0, true);
 
     // Concoction
-    if (settings->GSC_OffloadPotion) PlayerToStore(ItemCategory::Potion, Container::Concoction, 0, 0, true);
-    if (settings->GSC_OffloadPoison) PlayerToStore(ItemCategory::Poison, Container::Concoction, 0, 0, true);
+    if (settings->GSC_OffloadPotion) deposit(ItemCategory::Potion, Container::Concoction, 0, 0, true);
+    if (settings->GSC_OffloadPoison) deposit(ItemCategory::Poison, Container::Concoction, 0, 0, true);
 
     // Food
-    if (settings->GSC_OffloadCookedFood) PlayerToStore(ItemCategory::CookedFood, Container::Food, 0, 0, true);
-    if (settings->GSC_OffloadRawFood) PlayerToStore(ItemCategory::RawFood, Container::Food, 0, 0, true);
+    if (settings->GSC_OffloadCookedFood) deposit(ItemCategory::CookedFood, Container::Food, 0, 0, true);
+    if (settings->GSC_OffloadRawFood) deposit(ItemCategory::RawFood, Container::Food, 0, 0, true);
 
     // Treasure
-    if (settings->GSC_OffloadTreasure) PlayerToStore(ItemCategory::Treasure, Container::Treasure, 0, 0, true);
+    if (settings->GSC_OffloadTreasure) deposit(ItemCategory::Treasure, Container::Treasure, 0, 0, true);
 
     // Weapons
-    if (settings->GSC_OffloadArchery) PlayerToStore(ItemCategory::Archery, Container::Weapon, 0, 0, true);
-    if (settings->GSC_OffloadOneHand) PlayerToStore(ItemCategory::OneHand, Container::Weapon, 0, 0, true);
-    if (settings->GSC_OffloadTwoHand) PlayerToStore(ItemCategory::TwoHand, Container::Weapon, 0, 0, true);
-    if (settings->GSC_OffloadStaffHand) PlayerToStore(ItemCategory::Staff, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadArchery) deposit(ItemCategory::Archery, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadOneHand) deposit(ItemCategory::OneHand, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadTwoHand) deposit(ItemCategory::TwoHand, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadStaffHand) deposit(ItemCategory::Staff, Container::Weapon, 0, 0, true);
 
     // Broad overrides have no subtype checkbox of their own.
     if (settings->GSC_OffloadReagent || settings->GSC_OffloadCatalyst || settings->GSC_OffloadIngredient)
-        PlayerToStore(ItemCategory::Alchemy, Container::Alchemy, 0, 0, true, ItemCategory::Reagent | ItemCategory::Catalyst | ItemCategory::Ingredient);
+        deposit(ItemCategory::Alchemy, Container::Alchemy, 0, 0, true, ItemCategory::Reagent | ItemCategory::Catalyst | ItemCategory::Ingredient);
     if (settings->GSC_OffloadClothing || settings->GSC_OffloadHeavyArmor || settings->GSC_OffloadLightArmor || settings->GSC_OffloadJewelry)
-        PlayerToStore(ItemCategory::Armor, Container::Armor, 0, 0, true, ItemCategory::Clothing | ItemCategory::HeavyArmor | ItemCategory::LightArmor | ItemCategory::Jewelry);
+        deposit(ItemCategory::Armor, Container::Armor, 0, 0, true, ItemCategory::Clothing | ItemCategory::HeavyArmor | ItemCategory::LightArmor | ItemCategory::Jewelry);
     if (settings->GSC_OffloadArchery || settings->GSC_OffloadOneHand || settings->GSC_OffloadTwoHand || settings->GSC_OffloadStaffHand)
-        PlayerToStore(ItemCategory::Weapon, Container::Weapon, 0, 0, true, ItemCategory::Archery | ItemCategory::OneHand | ItemCategory::TwoHand | ItemCategory::Staff);
+        deposit(ItemCategory::Weapon, Container::Weapon, 0, 0, true, ItemCategory::Archery | ItemCategory::OneHand | ItemCategory::TwoHand | ItemCategory::Staff);
     if (settings->GSC_OffloadCrafting || settings->GSC_OffloadConstruction || settings->GSC_OffloadGemstone || settings->GSC_OffloadSmelting || settings->GSC_OffloadTanning)
-        PlayerToStore(ItemCategory::Smithing, Container::Smithing, 0, 0, true, ItemCategory::Crafting | ItemCategory::Construction | ItemCategory::Gemstone | ItemCategory::Smelting | ItemCategory::Tanning | ItemCategory::PreciousIngot);
+        deposit(ItemCategory::Smithing, Container::Smithing, 0, 0, true, ItemCategory::Crafting | ItemCategory::Construction | ItemCategory::Gemstone | ItemCategory::Smelting | ItemCategory::Tanning | ItemCategory::PreciousIngot);
     if (settings->GSC_OffloadCookedFood || settings->GSC_OffloadRawFood)
-        PlayerToStore(ItemCategory::Food, Container::Food, 0, 0, true, ItemCategory::CookedFood | ItemCategory::RawFood);
+        deposit(ItemCategory::Food, Container::Food, 0, 0, true, ItemCategory::CookedFood | ItemCategory::RawFood);
     if (settings->GSC_OffloadPotion || settings->GSC_OffloadPoison)
-        PlayerToStore(ItemCategory::Concoction, Container::Concoction, 0, 0, true, ItemCategory::Potion | ItemCategory::Poison | ItemCategory::Restorative);
+        deposit(ItemCategory::Concoction, Container::Concoction, 0, 0, true, ItemCategory::Potion | ItemCategory::Poison | ItemCategory::Restorative);
 
-    // Final Message
-    RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+
+    TransferFeedback::Run([actions](const std::function<bool()>& active) {
+        const auto deadline = OffloadBatch::Clock::now() + std::chrono::milliseconds(4);
+        for (int count = 0; active() && !actions->empty() && count < 16; ++count) {
+            auto action = std::move(actions->front());
+            actions->pop_front();
+            OffloadBatch::Slice slice{nullptr, deadline, active};
+            struct Restore {
+                OffloadBatch::Slice* previous{OffloadBatch::current};
+                ~Restore() { OffloadBatch::current = previous; }
+            } restore;
+            OffloadBatch::current = &slice;
+            action();
+            if (slice.repeat && active()) actions->push_front(std::move(action));
+            if (OffloadBatch::Clock::now() >= deadline) break;
+        }
+        return actions->empty();
+    }, [complete = std::move(complete)] {
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+        if (complete) complete();
+    });
 }
 
 //===================================================
@@ -2346,7 +2444,7 @@ void Stores::KeepAmmunition(bool a_respectIgnores) {
     auto* chest = Utility::GetSingleton()->GetContainer(Container::Ammunition);
     if (!player || !chest || target < 0) return;
     const auto selected = SelectedAmmunition(player);
-    for (const auto& [item, data] : player->GetInventory()) {
+    for (const auto& [item, data] : player->GetInventory([](RE::TESBoundObject& item) { return !OffloadBatch::current || OffloadBatch::current->item == &item; })) {
         if (!item || !data.second || data.first <= 0 || data.second->IsQuestObject()) continue;
         if (a_respectIgnores && settings->IsIgnored(item)) continue;
         if (!HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;

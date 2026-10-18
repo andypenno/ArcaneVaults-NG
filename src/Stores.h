@@ -126,7 +126,7 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
-    void OffloadItemsNow();
+    void OffloadItemsNow(std::function<void()> complete = {});
     void ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup group);
     std::unordered_set<RE::FormID> sortFavorites_;
     void CaptureSortFavorites();

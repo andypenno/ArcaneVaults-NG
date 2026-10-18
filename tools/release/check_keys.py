@@ -367,7 +367,7 @@ struct Stores {
     void ResetSortFavorites() { sortFavorites_.clear(); }
     void ReturnIgnoredItems();
     void FinishIgnorePicker();
-    void OffloadItemsNow();
+    void OffloadItemsNow(std::function<void()> complete = {});
 void OffloadItems(){OffloadItemsNow();}
     void KeepAmmunition(bool = false);
     void TakeAmmunition();
@@ -472,6 +472,7 @@ program += "struct Settings {\n" + settings_fields + r'''
     }
 };
 '''
+program += '#include "src/OffloadBatch.h"\n'
 move_start = source.index("    int MoveItems(")
 program += source[move_start:source.index("\n    }", move_start) + 6]
 program += r'''
@@ -508,9 +509,11 @@ namespace PlayerEquipment {
 struct ItemEquipment { std::unordered_set<RE::ExtraDataList*> equipped; };
 using Snapshot=std::unordered_map<RE::TESBoundObject*,ItemEquipment>;
 const Snapshot* Current(){return nullptr;}
+bool Apply(Snapshot&,RE::TESBoundObject*,const std::function<bool()>& work){return work();}
 }
 
 '''
+program += '#include "src/OffloadBatch.h"\n#include <deque>\nnamespace TransferFeedback {void Run(std::function<bool(const std::function<bool()>&)> step,std::function<void()> complete){while(!step([]{return true;})){}if(complete)complete();}}\n'
 selected_start = source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 selected_method = source[selected_start:source.index("\n    }", selected_start) + 6]
 utility_source = (ROOT / "src/Utility.cpp").read_text()

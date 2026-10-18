@@ -15,6 +15,9 @@ namespace TransferFeedback {
         struct Request {
             std::function<void(Complete)> start;
             Clock::time_point began{Clock::now()};
+            unsigned frameTarget{2};
+            std::function<bool(const std::function<bool()>&)> step;
+            std::function<void()> complete;
             std::atomic<bool> cancelled{};
         };
         std::shared_ptr<Request> pending;
@@ -81,12 +84,32 @@ namespace TransferFeedback {
         void Poll(const std::shared_ptr<Request>& request) {
             if (request->cancelled || pending != request) return;
             // Two render callbacks allow the first overlay frame to reach the screen.
-            if (registered && renderedFrames.load() < 2 && Clock::now() - request->began < std::chrono::milliseconds(250)) {
+            if (registered && renderedFrames.load() < request->frameTarget && Clock::now() - request->began < std::chrono::milliseconds(250)) {
                 std::thread([request] {
                     std::this_thread::sleep_for(std::chrono::milliseconds(16));
                     if (!request->cancelled)
                         SKSE::GetTaskInterface()->AddTask([request] { Poll(request); });
                 }).detach();
+                return;
+            }
+            if (request->step) {
+                try {
+                    const std::function<bool()> active = [request] { return !request->cancelled && pending == request; };
+                    auto step = request->step;
+                    if (step(active)) {
+                        if (!active()) return;
+                        auto complete = std::move(request->complete);
+                        request->step = {};
+                        if (complete) complete(); else End();
+                    } else if (active()) {
+                        request->frameTarget = renderedFrames.load() + 1;
+                        request->began = Clock::now();
+                        std::thread([request] {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+                            if (!request->cancelled) SKSE::GetTaskInterface()->AddTask([request] { Poll(request); });
+                        }).detach();
+                    }
+                } catch (...) { if (pending == request) Reset(); throw; }
                 return;
             }
             auto start = std::move(request->start);
@@ -119,15 +142,31 @@ namespace TransferFeedback {
         Poll(request);
     }
 
+    void Run(std::function<bool(const std::function<bool()>&)> step, std::function<void()> complete) {
+        if (!pending || pending->cancelled) return;
+        pending->step = std::move(step);
+        pending->complete = std::move(complete);
+        pending->frameTarget = renderedFrames.load() + 1;
+        pending->began = Clock::now();
+        auto request = pending;
+        std::thread([request] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+            if (!request->cancelled) SKSE::GetTaskInterface()->AddTask([request] { Poll(request); });
+        }).detach();
+    }
+
     void End() {
         if (!pending) return;
         pending->cancelled = true;
+        pending->step = {};
+        pending->complete = {};
         pending.reset();
         busy = false;
     }
 
     void Reset() {
         if (pending) pending->cancelled = true;
+        if (pending) { pending->step = {}; pending->complete = {}; pending->start = {}; }
         pending.reset();
         busy = false;
     }

@@ -274,6 +274,36 @@ namespace PlayerEquipment {
 
     const Snapshot* Current() { return current; }
 
+    bool Apply(Snapshot& snapshot, RE::TESBoundObject* item, const std::function<bool()>& work) {
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !item) return false;
+        const bool equipment = item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>();
+        auto found = snapshot.find(item);
+        if (equipment) {
+            if (found == snapshot.end()) return false;
+            if (found->second.stacks != Identities(InventoryStacks::Read(player, {}, item))) {
+                snapshot.erase(found);
+                return false;
+            }
+        }
+        struct Restore { const Snapshot* previous{current}; ~Restore() { current = previous; } } restore;
+        current = &snapshot;
+        const bool changed = work();
+        if (equipment && changed) {
+            const auto fresh = Identities(InventoryStacks::Read(player, {}, item));
+            const auto& before = found->second;
+            for (const auto* protectedStack : before.equipped) {
+                const auto old = std::ranges::find_if(before.stacks, [protectedStack](const auto& stack) { return stack.extra == protectedStack; });
+                if (old == before.stacks.end() || std::ranges::find(fresh, *old) == fresh.end()) {
+                    snapshot.erase(found);
+                    return changed;
+                }
+            }
+            found->second.stacks = fresh;
+        }
+        return changed;
+    }
+
     void Run(std::function<void()> work, std::function<void()> complete) {
         if (pending) return;
         auto* player = RE::PlayerCharacter::GetSingleton();
