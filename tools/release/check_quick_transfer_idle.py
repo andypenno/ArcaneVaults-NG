@@ -166,6 +166,8 @@ def main():
     transformed = "\n".join(line for line in transformed.splitlines() if not line.startswith("#include"))
     clock = "\nstruct ProbeClock { inline static std::chrono::steady_clock::time_point tick{}; using time_point=std::chrono::steady_clock::time_point; static time_point now(){return tick;} };\n"
     cases=MAIN if not args.probe_scheduling else MAIN[:MAIN.rindex("\n}")] + SCHEDULING + "\n}\n"
+    if "Snapshot Capture(" in equipment:
+        cases=cases.replace("PlayerEquipment::Read(static_cast<RE::InventoryMenu*>(ui->menu),player)", "PlayerEquipment::Read(static_cast<RE::InventoryMenu*>(ui->menu),PlayerEquipment::Capture(player),player->GetHandle().native_handle())")
     program = harness.program[:harness.program.index("int main(){")] + "\n#include <iostream>\n" + clock + transformed + cases
     with tempfile.TemporaryDirectory(prefix="av-idle-regression-") as directory:
         root=Path(directory)

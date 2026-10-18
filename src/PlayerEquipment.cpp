@@ -8,7 +8,7 @@
 namespace PlayerEquipment {
     namespace {
         std::optional<std::unordered_set<RE::ExtraDataList*>> ReadRows(
-            const std::vector<RE::ItemList::Item*>& rows, RE::RefHandle owner, const std::vector<InventoryStacks::Stack>& stacks) {
+            const std::vector<RE::ItemList::Item*>& rows, RE::RefHandle owner, const std::vector<StackIdentity>& stacks) {
             std::unordered_set<RE::ExtraDataList*> seen, protectedStacks;
             std::int64_t represented{}, expected{};
             int bare{};
@@ -29,18 +29,17 @@ namespace PlayerEquipment {
                 std::int64_t explicitCount{};
                 if (entry->extraLists) for (auto* extra : *entry->extraLists) {
                     if (!extra) continue;
-                    RE::ExtraDataList* match{};
+                    const StackIdentity* match{};
                     for (const auto& stack : stacks) {
                         if (!stack.extra) continue;
                         auto* a = extra->GetByType<RE::ExtraUniqueID>();
-                        auto* b = stack.extra->GetByType<RE::ExtraUniqueID>();
-                        if (extra != stack.extra && (!a || !b || a->baseID != b->baseID || a->uniqueID != b->uniqueID)) continue;
+                        if (extra != stack.extra && (!a || !stack.unique || a->baseID != stack.unique->first || a->uniqueID != stack.unique->second)) continue;
                         if (match) return std::nullopt;
-                        match = stack.extra;
+                        match = &stack;
                     }
-                    if (!match || !seen.insert(match).second || extra->GetCount() != match->GetCount()) return std::nullopt;
-                    explicitCount += match->GetCount();
-                    if (worn) protectedStacks.insert(match);
+                    if (!match || !seen.insert(match->extra).second || extra->GetCount() != match->count) return std::nullopt;
+                    explicitCount += match->count;
+                    if (worn) protectedStacks.insert(match->extra);
                 }
                 const auto implicitCount = entry->countDelta - explicitCount;
                 if (implicitCount < 0 || implicitCount > bare) return std::nullopt;
@@ -66,6 +65,7 @@ namespace PlayerEquipment {
             Clock::time_point deadline{Clock::now() + inspectionBudget};
             RE::IMenu* owned{};
             Snapshot snapshot;
+            RE::RefHandle owner{};
             Clock::time_point retry{};
             bool worked{};
             bool refreshRequested{};
@@ -87,20 +87,29 @@ namespace PlayerEquipment {
             return result;
         }
 
-        Snapshot Read(RE::InventoryMenu* menu, RE::PlayerCharacter* player) {
-            if (!menu || !player || !menu->uiMovie || !menu->GetRuntimeData().itemList) return {};
+        Snapshot Capture(RE::PlayerCharacter* player) {
             std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> items;
-            for (const auto& stack : InventoryStacks::Read(player)) items[stack.item].push_back(stack);
+            for (const auto& stack : InventoryStacks::Read(player, [](auto* item, auto&, auto*) {
+                return item->template As<RE::TESObjectARMO>() || item->template As<RE::TESObjectWEAP>();
+            })) items[stack.item].push_back(stack);
+            Snapshot result;
+            for (const auto& [item, stacks] : items)
+                result.emplace(item, ItemEquipment{{}, Identities(stacks)});
+            return result;
+        }
+
+        Snapshot Read(RE::InventoryMenu* menu, const Snapshot& physical, RE::RefHandle owner) {
+            if (!menu || !menu->uiMovie || !menu->GetRuntimeData().itemList) return {};
             std::unordered_map<RE::TESBoundObject*, std::vector<RE::ItemList::Item*>> rowsByItem;
             for (auto* row : menu->GetRuntimeData().itemList->items)
-                if (row && row->data.objDesc && row->data.objDesc->object)
+                if (row && row->data.objDesc && physical.contains(row->data.objDesc->object))
                     rowsByItem[row->data.objDesc->object].push_back(row);
             Snapshot result;
-            for (const auto& [item, stacks] : items) {
+            for (const auto& [item, equipment] : physical) {
                 const auto found = rowsByItem.find(item);
                 if (found == rowsByItem.end()) continue;
-                auto rows = ReadRows(found->second, player->GetHandle().native_handle(), stacks);
-                if (rows) result.emplace(item, ItemEquipment{std::move(*rows), Identities(stacks)});
+                auto rows = ReadRows(found->second, owner, equipment.stacks);
+                if (rows) result.emplace(item, ItemEquipment{std::move(*rows), equipment.stacks});
             }
             return result;
         }
@@ -217,8 +226,7 @@ namespace PlayerEquipment {
                             return;
                         }
                         if (ready) try {
-                            auto* player = RE::PlayerCharacter::GetSingleton();
-                            snapshot = Read(inventory, player);
+                            snapshot = Read(inventory, request->snapshot, request->owner);
                         } catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
                         if (menu->uiMovie) menu->uiMovie->SetVisible(false);
                     }
@@ -290,7 +298,11 @@ namespace PlayerEquipment {
         request->work = std::move(work); request->complete = std::move(complete);
         pending = request;
         if (!equipment) { Work(request, {}); Finish(request); }
-        else Poll(request);
+        else {
+            request->snapshot = Capture(player);
+            request->owner = player->GetHandle().native_handle();
+            Poll(request);
+        }
     }
 
     void Reset() {

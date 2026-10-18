@@ -93,6 +93,9 @@ int main(){
         assert(weapons.initializations==0);
     }
     reset();seed();
+    RE::TESBoundObject paper{202};player->Put(&paper,1000);
+    const auto physicalEquipment=PlayerEquipment::Capture(player);
+    assert(!physicalEquipment.contains(&paper) && physicalEquipment.contains(&ring));
     const auto copiesBeforeEmptyWork=RE::TESObjectREFR::inventoryCopies;
     auto emptyRequest=std::make_shared<PlayerEquipment::Request>();bool emptyWorked=false;
     emptyRequest->work=[&]{emptyWorked=true;};PlayerEquipment::Work(emptyRequest,{});
@@ -157,6 +160,16 @@ int main(){
         for(int step=0;!done && step<80;++step){queue->ProcessCommands();if(auto request=PlayerEquipment::pending)PlayerEquipment::Poll(request);tasks->RunUI();tasks->Run();ProbeClock::tick+=std::chrono::milliseconds(16);}
         assert(done && !ui->menu && queue->shows==shows+1 && count(*player)==1 && count(armor)==0 && RE::input==input);
         RE::SCRIPT_FUNCTION::available=RE::SCRIPT_FUNCTION::succeeds=true;
+    }
+    for(bool bare:{false,true}) {
+        reset();player->Put(&ring,0,1,nullptr,"worn before UI");player->rows[&ring].extras.front()->uiWorn=true;
+        RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+        if(bare)player->Put(&ring,2);else player->Put(&ring,0,2,nullptr,"retired spare");
+        bool done=false;PlayerEquipment::Run([&]{Stores::GetSingleton()->PlayerToStore(ItemCategory::Jewelry,Container::Armor);},[&]{done=true;});
+        auto replacement=std::make_shared<RE::ExtraDataList>();replacement->count=2;replacement->metadata="replacement spare";
+        auto& extras=player->rows[&ring].extras;if(!bare)extras.pop_back();extras.push_back(replacement);
+        for(int step=0;!done && step<80;++step){queue->ProcessCommands();if(auto request=PlayerEquipment::pending)PlayerEquipment::Poll(request);tasks->RunUI();tasks->Run();ProbeClock::tick+=std::chrono::milliseconds(16);}
+        assert(done && count(*player)==3 && count(armor)==0 && player->rows[&ring].extras.back()->metadata=="replacement spare");
     }
     reset();player->Put(&ring,3);queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kShow,nullptr);queue->ProcessCommands();
     auto* borrowed=ui->menu;const auto borrowedInput=RE::input;bool done=false;

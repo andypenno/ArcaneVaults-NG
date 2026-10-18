@@ -191,12 +191,15 @@ def program(sources):
     for name in ("PlayerToStore", "StoreToPlayer"):
         methods += loans.body(stores, "void Stores::" + name + "(")
     equipment = sources["src/PlayerEquipment.cpp"]
+    main = MAIN
+    if "Snapshot Capture(" in equipment:
+        main=main.replace("PlayerEquipment::Read(&menu,player)", "PlayerEquipment::Read(&menu,PlayerEquipment::Capture(player),player->GetHandle().native_handle())")
     start = equipment.index("        void Later(")
     end = equipment.index("\n        void Close(", start)
     equipment = equipment[:start] + "        void Later(const std::shared_ptr<Request>&) {}\n" + equipment[end:]
     modules = "\n".join(line for name in ("src/InventoryStacks.cpp",) for line in sources[name].splitlines() if not line.startswith("#include"))
     equipment = "\n".join(line for line in equipment.splitlines() if not line.startswith("#include"))
-    return '#include "common.hpp"\n#include <climits>\n' + modules + equipment + methods + MAIN
+    return '#include "common.hpp"\n#include <climits>\n' + modules + equipment + methods + main
 
 
 def main():

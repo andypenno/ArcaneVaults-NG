@@ -96,7 +96,10 @@ def main():
             for name in ("StolenItems", "EnchantedItems", "PlayerEquipment"):
                 (variant / f"src/{name}.h").write_text(sources[FILES[4]] if name == "PlayerEquipment" else (ROOT / f"src/{name}.h").read_text())
             cpp = variant / "bench.cpp"
-            cpp.write_text(source_program(sources))
+            generated=source_program(sources)
+            if "Snapshot Capture(" in sources["src/PlayerEquipment.cpp"]:
+                generated=generated.replace("PlayerEquipment::Read(&menu,player)", "PlayerEquipment::Read(&menu,PlayerEquipment::Capture(player),player->GetHandle().native_handle())")
+            cpp.write_text(generated)
             subprocess.run(["g++", "-O2", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(variant), "-I", str(ROOT), str(cpp), "-o", str(variant / "quicksort-bench")], check=True, timeout=60)
         for batch in range(2):
             for label in (("before", "after") if batch == 0 else ("after", "before")):
