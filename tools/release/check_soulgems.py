@@ -139,6 +139,7 @@ struct Utility {
 '''
 program += r'''
 struct Settings {
+    bool GSC_AllCraftingMaterials = false;
     bool GSC_CraftingLoan = true;
     bool GSC_ReturnIgnoredItems = true;
     std::unordered_set<const RE::TESBoundObject*> ignored;
@@ -239,6 +240,16 @@ int main() {
     modStar.linkedSoulGem=&star;player->Put(&modStar,1);
     Soulgems::Deposit(0);assert(player->inventory[&modStar].first==1);
     reset();
+    reset();u->recipes.clear();
+    player->Put(&gem,2);bank->Put(&gem,5);bank->Put(&gem,4,RE::SOUL_LEVEL::kGrand,"all material owner",true);
+    Soulgems::BeginLoan(true,true);
+    assert((counts(player,&gem)==std::array{7,4}) && bank->inventory[&gem].first==0);
+    player->RemoveItem(&gem,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,player->inventory[&gem].second->lists.front(),nullptr);
+    Soulgems::EndLoan();
+    assert((counts(player,&gem)==std::array{2,0}));
+    assert((counts(bank,&gem)==std::array{5,3}));
+    assert(bank->inventory[&gem].second->lists.front()->owner=="all material owner");
+    reset();
     RE::TESSoulGem varla(0xFE000801,RE::SOUL_LEVEL::kNone);
     player->Put(&varla,2);player->Put(&varla,1,RE::SOUL_LEVEL::kCommon,"Stone owner",true);
     Soulgems::Deposit(25);
@@ -291,6 +302,18 @@ int main() {
     u->bench=BenchType::Smithing;u->recipes.insert(prefilled.GetFormID());
     session->EnterCrafting(&furniture);session->ExitCrafting();
     assert((counts(bank,&prefilled)==std::array{0,3}));
+    for(auto bench:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::Enchanting,BenchType::StaffEnchanting}) {
+        reset();u->recipes.clear();u->bench=bench;
+        Settings::GetSingleton()->GSC_AllCraftingMaterials=true;
+        player->Put(&gem,2);bank->Put(&gem,5);bank->Put(&gem,4,RE::SOUL_LEVEL::kGrand,"station loan owner",true);
+        session->EnterCrafting(&furniture);
+        assert((counts(player,&gem)==std::array{7,4}));
+        Settings::GetSingleton()->GSC_AllCraftingMaterials=false;
+        session->ExitCrafting();
+        assert((counts(player,&gem)==std::array{2,0}) && (counts(bank,&gem)==std::array{5,4}));
+        assert(bank->inventory[&gem].second->lists.front()->owner=="station loan owner");
+    }
+    u->bench=BenchType::Smithing;
     reset();
     player->Put(&gem,25000);Soulgems::Deposit(25);
     assert(player->inventory[&gem].first==25 && bank->inventory[&gem].first==24975);

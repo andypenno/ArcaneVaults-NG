@@ -29,6 +29,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `AssignKeyCode` | -1 | Assignment input code; disabled by default |
 | `QuickKeyCode` | -1 | Quick offload input code; disabled by default |
 | `CraftingLoan` | false | Lend and return crafting materials |
+| `AllCraftingMaterials` | false | With Crafting Loan enabled, lend Smithing, Food, Alchemy, eligible Junk and all eligible soul gems at every supported station |
 | `AssignOnlyOwn` | true | Restrict binding according to ownership/exterior non-respawn rules |
 | `AssignSpell` | true | Enable external assignment spell |
 | `SortSpell` | true | Enable external sorting/offload spell |

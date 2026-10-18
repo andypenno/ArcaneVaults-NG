@@ -33,13 +33,13 @@ common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<In
 common=common.replace("e->countDelta=row.total;", "e->countDelta=row.total-(row.leveled?0:row.baseStock);")
 common=common.replace("bool bulkRefuse=false,lastKeepOwnership=false;", "bool bulkRefuse=false,lastKeepOwnership=false;bool queueBulk=false;inline static std::deque<std::function<void()>> nativeTasks;")
 common=common.replace("if(bulkRefuse)return;", "if(bulkRefuse)return;if(queueBulk){queueBulk=false;nativeTasks.emplace_back([=,this]{RemoveAllItems(owner,target,stealing,keepOwnership,false);});return;}")
-common=common.replace("struct Settings {", "struct Settings {bool GSC_CraftingLoan=true;")
+common=common.replace("struct Settings {", "struct Settings {bool GSC_AllCraftingMaterials=false;bool GSC_CraftingLoan=true;")
 common=common.replace("struct Utility {", "struct Utility {BenchType bench=BenchType::Enchanting;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;}")
 common=common.replace("struct Stores {", "struct Stores {int materialReturns=0;void BeginJunkLoan(){}void EndJunkLoan(){++materialReturns;}void ResetJunkLoan(){}void AllToPlayer(Container){}void StoreToPlayer(ItemCategory,Container){}")
 common=common.replace("bool savedBlocked=false;", "int capacity=100;bool rejectQueueHide=false;bool savedBlocked=false;")
 common=common.replace("assert(name==InventoryMenu::MENU_NAME);commands.push_back(type);", "assert(name==InventoryMenu::MENU_NAME);if((type==UI_MESSAGE_TYPE::kHide && rejectQueueHide) || commands.size()>=static_cast<std::size_t>(capacity)){delete static_cast<InventoryUpdateData*>(data);return;}commands.push_back(type);")
 common += r'''
-namespace Soulgems {inline void BeginLoan(bool){}inline void EndLoan(){}inline void ResetLoan(){}}
+namespace Soulgems {inline void BeginLoan(bool, bool = false){}inline void EndLoan(){}inline void ResetLoan(){}}
 '''
 common=common.replace("namespace logger { inline void error(const char*) {} }", "namespace logger { inline void error(const char*) {} inline void info(const char*) {} }")
 common=common.replace("struct ScriptEventSourceHolder {", "struct MenuOpenCloseEvent {std::string menuName;bool opening;};struct CraftingMenu {inline static constexpr std::string_view MENU_NAME=\"CraftingMenu\";};struct ScriptEventSourceHolder {std::vector<BSTEventSink<TESFurnitureEvent>*> furniture;template<class Event>void AddEventSink(BSTEventSink<Event>* sink){if constexpr(std::is_same_v<Event,TESFurnitureEvent>)furniture.push_back(sink);else sinks.push_back(sink);}")

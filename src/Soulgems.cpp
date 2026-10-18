@@ -218,19 +218,19 @@ namespace Soulgems {
         remainingLoan = 0;
     }
 
-    void BeginLoan(bool a_smithing) {
+    void BeginLoan(bool a_smithing, bool a_allMaterials) {
         ResetLoan();
         Recover();
         auto* utility = Utility::GetSingleton();
         auto* player = RE::PlayerCharacter::GetSingleton();
         carriedBefore = CountGems(player);
         auto* source = utility->GetContainer(Container::Soulgem);
-        if (!a_smithing) {
+        if (!a_smithing && !a_allMaterials) {
             Split();
             source = utility->GetContainer(Container::FilledSoulgems);
         }
-        MoveAll(source, player, [utility, a_smithing](auto* gem) {
-            return !a_smithing || utility->isSmithing(gem->GetFormID());
+        MoveAll(source, player, [utility, a_smithing, a_allMaterials](auto* gem) {
+            return a_allMaterials || !a_smithing || utility->isSmithing(gem->GetFormID());
         });
         const auto after = CountGems(player);
         for (const auto& [id, counts] : after) {

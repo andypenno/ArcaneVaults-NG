@@ -283,8 +283,13 @@ public:
         loanBench_ = benchType;
         loanFurniture_ = a_furniture->GetHandle();
         materialsLoan_ = materials;
-        // Begin crafting loan
-        switch (benchType) {
+        allMaterialsLoan_ = settings->GSC_AllCraftingMaterials;
+        if (allMaterialsLoan_) {
+            Soulgems::BeginLoan(true, true);
+            stores->AllToPlayer(Container::Smithing);
+            stores->AllToPlayer(Container::Food);
+            stores->AllToPlayer(Container::Alchemy);
+        } else switch (benchType) {
         case BenchType::None:
             break;
         // Alchemy
@@ -323,6 +328,7 @@ public:
         loanBench_.reset();
         loanFurniture_ = {};
         materialsLoan_ = false;
+        allMaterialsLoan_ = false;
         Soulgems::ResetLoan();
         Stores::GetSingleton()->ResetJunkLoan();
     }
@@ -336,10 +342,15 @@ public:
         if (!std::exchange(materialsLoan_, false)) return;
         auto* stores = Stores::GetSingleton();
         stores->EndJunkLoan();
-        if (benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
+        if (allMaterialsLoan_ || benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
             Soulgems::EndLoan();
 
-        // Restore outstanding crafting loan
+        if (std::exchange(allMaterialsLoan_, false)) {
+            stores->PlayerToStore(ItemCategory::Smithing, Container::Smithing);
+            stores->PlayerToStore(ItemCategory::Food, Container::Food);
+            stores->PlayerToStore(ItemCategory::Alchemy, Container::Alchemy);
+            return;
+        }
         switch (benchType) {
         case BenchType::None:
             break;
@@ -392,6 +403,7 @@ private:
     RE::ObjectRefHandle loanFurniture_;
     std::atomic<std::uint64_t> session_{};
     bool materialsLoan_{};
+    bool allMaterialsLoan_{};
 };
 
 class FurnitureActivation {

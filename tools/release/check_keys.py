@@ -263,6 +263,8 @@ struct SendHUDMessage { inline static std::string last; static void ShowHUDMessa
 }
 struct Utility {
     RE::TESObjectREFR chest, archery, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
+    RE::TESObjectREFR* foodContainer = nullptr;
+    RE::TESObjectREFR* alchemyContainer = nullptr;
     RE::TESObjectREFR* scrollContainer = nullptr;
     std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
     void CacheSkillBooks(RE::TESDataHandler*);
@@ -280,6 +282,8 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container container) {
         switch (container) {
         case Container::None: return nullptr;
+        case Container::Food: return foodContainer ? foodContainer : &chest;
+        case Container::Alchemy: return alchemyContainer ? alchemyContainer : &chest;
         case Container::Concoction: return &concoction;
         case Container::Potion: return &potion;
         case Container::Poison: return &poison;
@@ -329,7 +333,8 @@ namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::
 namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }
 namespace Soulgems {
     std::unordered_set<RE::FormID> sortExcluded;
-    void Recover(const std::unordered_set<RE::FormID>& excluded = {}) { sortExcluded = excluded; } void Deposit(int, bool = false) {} void BeginLoan(bool) {} void EndLoan() {} void ResetLoan() {}
+    bool allLoan=false;int loanBegins=0,loanEnds=0;
+    void Recover(const std::unordered_set<RE::FormID>& excluded = {}) { sortExcluded = excluded; } void Deposit(int, bool = false) {} void BeginLoan(bool, bool all = false) {allLoan=all;++loanBegins;} void EndLoan() {++loanEnds;} void ResetLoan() {}
     void Split() {} void Consolidate() {}
     std::optional<int> lastTarget;
     int withdrawals = 0;
@@ -561,6 +566,8 @@ int main() {
     });
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
 assert(!options.contains({"General", "EnchantedItemsLoan"}));
+    assert(options.contains({"General", "AllCraftingMaterials"}));
+    assert(!settings->GSC_AllCraftingMaterials);
     assert(options.at({"General", "LockpickKeepAmount"}) == 25);
     assert(options.at({"Offload", "Gear"}) == 0);
     assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
@@ -1487,6 +1494,34 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     player->inventory[&houseLogs].first-=7;
     CraftingLoanState::GetSingleton()->ExitCrafting();
     assert(player->inventory[&houseLogs].first==0 && utility->smithing.inventory[&houseLogs].first==13);
+
+    RE::TESObjectREFR foodLoanBank,alchemyLoanBank;
+    utility->foodContainer=&foodLoanBank;utility->alchemyContainer=&alchemyLoanBank;
+    RE::TESBoundObject loanSmith{ItemCategory::None},loanFood{ItemCategory::None},loanAlchemy{ItemCategory::None},loanJunk{ItemCategory::None},loanArmor{ItemCategory::None};
+    loanSmith.formID=0xF101;loanFood.formID=0xF102;loanAlchemy.formID=0xF103;loanJunk.formID=0xF104;loanArmor.formID=0xF105;
+    settings->overrides[&loanSmith]=ToMask(ItemCategory::Smithing);settings->overrides[&loanFood]=ToMask(ItemCategory::Food);
+    settings->overrides[&loanAlchemy]=ToMask(ItemCategory::Alchemy);settings->overrides[&loanJunk]=ToMask(ItemCategory::Junk);
+    for(bool all:{false,true})for(auto bench:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::Enchanting,BenchType::StaffEnchanting}){
+        player->inventory.clear();utility->smithing.inventory.clear();foodLoanBank.inventory.clear();alchemyLoanBank.inventory.clear();utility->junk.inventory.clear();utility->armor.inventory.clear();
+        utility->smithing.inventory[&loanSmith]=entry(10);foodLoanBank.inventory[&loanFood]=entry(11);alchemyLoanBank.inventory[&loanAlchemy]=entry(12);
+        utility->junk.inventory[&loanJunk]=entry(13);utility->armor.inventory[&loanArmor]=entry(14);player->inventory[&loanArmor]=entry(1);
+        settings->GSC_CraftingLoan=true;settings->GSC_AllCraftingMaterials=all;utility->bench=bench;
+        const int begins=Soulgems::loanBegins,ends=Soulgems::loanEnds;
+        auto* session=CraftingLoanState::GetSingleton();session->EnterCrafting(&source);
+        const bool smith=all || bench==BenchType::Smithing,food=all || bench==BenchType::Cooking,alchemy=all || bench==BenchType::Alchemy;
+        assert(player->inventory[&loanSmith].first==(smith?10:0) && player->inventory[&loanFood].first==(food?11:0) && player->inventory[&loanAlchemy].first==(alchemy?12:0));
+        assert(player->inventory[&loanJunk].first==13 && utility->armor.inventory[&loanArmor].first==14 && player->inventory[&loanArmor].first==1);
+        if(all)assert(Soulgems::loanBegins==begins+1 && Soulgems::allLoan);
+        if(smith)player->inventory[&loanSmith].first-=2;
+        if(food)player->inventory[&loanFood].first-=2;
+        if(alchemy)player->inventory[&loanAlchemy].first-=2;
+        player->inventory[&loanJunk].first-=3;
+        settings->GSC_CraftingLoan=false;settings->GSC_AllCraftingMaterials=!all;session->ExitCrafting();
+        assert(utility->smithing.inventory[&loanSmith].first==(smith?8:10) && foodLoanBank.inventory[&loanFood].first==(food?9:11) && alchemyLoanBank.inventory[&loanAlchemy].first==(alchemy?10:12));
+        assert(player->inventory[&loanSmith].first==0 && player->inventory[&loanFood].first==0 && player->inventory[&loanAlchemy].first==0 && utility->junk.inventory[&loanJunk].first==10);
+        if(all)assert(Soulgems::loanEnds==ends+1);
+    }
+    settings->GSC_AllCraftingMaterials=false;utility->foodContainer=utility->alchemyContainer=nullptr;
 
     player->inventory.clear();utility->treasure.inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
     RE::TESBoundObject heartscales{ItemCategory::None};heartscales.formID=0xD0756;

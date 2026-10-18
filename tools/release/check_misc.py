@@ -76,6 +76,7 @@ bool toggleGear = false;
 bool toggleLearning = false;
 bool toggleStolenTags = false;
 bool toggleSelectedAmmo = false;
+bool toggleAllMaterials = false;
 bool waitKey = false;
 using ImGuiKey = int;
 constexpr int ImGuiKey_NamedKey_BEGIN = 0, ImGuiKey_NamedKey_END = 1;
@@ -107,6 +108,7 @@ std::string ID(const char* label) {
 bool CollapsingHeader(const char* label, int) { assert(ids.insert(ID(label)).second); return true; }
 bool Checkbox(const char* label, bool* value) {
     shownControls.emplace_back(label);
+    if (toggleAllMaterials && value == &Settings::GetSingleton()->GSC_AllCraftingMaterials) { *value = !*value; return true; }
     if (toggleSpells && (value == &Settings::GetSingleton()->GSC_AssignSpell || value == &Settings::GetSingleton()->GSC_SortSpell)) { *value = !*value; return true; }
     if (!ids.insert(ID(label)).second) { duplicate = true; return false; }
     if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
@@ -221,6 +223,13 @@ int main() {
     RenderOptions();
     assert(settings->GSC_AssignSpell==!assignSpell && settings->GSC_SortSpell==!sortSpell);
     assert(Utility::GetSingleton()->spellUpdates==2 && settings->saves==beforeSpells+1);
+    ids.clear();scope.clear();toggleAllMaterials=true;
+    const int savesBeforeAllMaterials=settings->saves;
+    const bool allMaterialsBefore=settings->GSC_AllCraftingMaterials;
+    RenderOptions();
+    assert(settings->GSC_AllCraftingMaterials!=allMaterialsBefore && settings->saves==savesBeforeAllMaterials+1);
+    toggleAllMaterials=false;
+
 }
 '''
 overrides = (ROOT / "ini/ArcaneVaultOverrides.ini").read_text()
