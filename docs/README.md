@@ -27,6 +27,7 @@ Paths below are relative to the repository root. Headers hold declarations and s
 | [src/Utility.cpp](../src/Utility.cpp), [src/Utility.h](../src/Utility.h) | Companion form registry, recipe caches, assignment eligibility, bench detection, configuration spells |
 | [src/ItemClass.cpp](../src/ItemClass.cpp), [src/ItemClass.h](../src/ItemClass.h) | Container/category enums, bit masks, category text, classification |
 | [src/Stores.cpp](../src/Stores.cpp), [src/Stores.h](../src/Stores.h) | Shared transfer operations, message boxes, animation polling, storage menu actions |
+| [src/TransferFeedback.cpp](../src/TransferFeedback.cpp), [src/TransferFeedback.h](../src/TransferFeedback.h) | Optional sorting overlay, render barrier and memory-only phase timings |
 | [src/PlayerEquipment.cpp](../src/PlayerEquipment.cpp), [src/InventoryStacks.cpp](../src/InventoryStacks.cpp) | UI-managed equipment inspection, physical-stack validation and metadata-preserving transfers |
 | [src/Events.cpp](../src/Events.cpp), [src/Events.h](../src/Events.h) | Engine hooks, container-close callbacks, crafting loans, hotkey events |
 | [src/RedirectManager.cpp](../src/RedirectManager.cpp), [src/RedirectManager.h](../src/RedirectManager.h) | Source-to-destination map and linked-container activation blocking |

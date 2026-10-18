@@ -12,6 +12,7 @@
 #include "StolenItems.h"
 #include "EnchantedItems.h"
 #include "PlayerEquipment.h"
+#include "TransferFeedback.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -41,6 +42,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		break;
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
+		TransferFeedback::Reset();
 		PlayerEquipment::Reset();
 		StolenItems::Reset();
 		DepositLearning::Reset();

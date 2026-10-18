@@ -19,6 +19,8 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 
 Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. `AmmunitionKeepAmount`, `GoldKeepAmount`, `SoulgemKeepAmount`, `AlchemyKeepAmount`, `ScrollKeepAmount`, and `LockpickKeepAmount` use `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100, 5000, 25, 1, 3, and 25 respectively. `SalePercentage` also requires fully consumed integer input, accepts 1..100, and falls back to 30 for invalid values. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
 
+The Quick Transfer page shows the last completed run's wall times for overlay waiting, equipment inspection, vault recovery, soul gems and item transfers. These measurements remain in memory and clear on load/new game. They add no runtime logging or debug notifications. The sorting cover uses the optional framework; Quick Transfer still runs without it.
+
 ## Options
 
 The `ForEachINIOption` helper shares one mapping between reads and writes.

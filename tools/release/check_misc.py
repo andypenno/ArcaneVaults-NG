@@ -20,6 +20,8 @@ program = r'''
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include "src/TransferFeedback.h"
+namespace TransferFeedback {inline Report report;void Register(){}Report LastReport(){return report;}}
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
@@ -87,7 +89,9 @@ namespace HelperFunctions {
 const char* GetKeyName(ImGuiKey) { return "Key"; }
 bool Button(const char*) { return false; }
 bool IsKeyPressed(int) { return false; }
-void Text(const char* label) { shownControls.emplace_back(label); }
+std::map<std::string,double> displayedTimings;
+template<class... Args>void Text(const char* label,Args...) { shownControls.emplace_back(label); }
+void Text(const char*,const char* label,double value){displayedTimings[label]=value;}
 void RenderOptions(); void RenderQuantities(); void RenderTransfer();
 void RenderOverrides() {}
 void RenderIgnoredItems() {}
@@ -229,6 +233,14 @@ int main() {
     RenderOptions();
     assert(settings->GSC_AllCraftingMaterials!=allMaterialsBefore && settings->saves==savesBeforeAllMaterials+1);
     toggleAllMaterials=false;
+
+    ids.clear();scope.clear();shownControls.clear();
+    TransferFeedback::report.complete=true;TransferFeedback::report.total=15;
+    TransferFeedback::report.milliseconds={1,2,3,4,5};RenderTransfer();
+    assert(displayedTimings["Options.TransferOverlay"]==1 && displayedTimings["Options.TransferInspection"]==2);
+    assert(displayedTimings["Options.TransferRecovery"]==3 && displayedTimings["Options.TransferSoulgems"]==4);
+    assert(displayedTimings["Options.TransferItems"]==5 && displayedTimings["Options.TransferTotal"]==15);
+    assert(std::ranges::find(shownControls,"Options.LastTransfer")!=shownControls.end());
 
 }
 '''

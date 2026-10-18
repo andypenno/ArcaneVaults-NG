@@ -1,5 +1,6 @@
 #include "PlayerEquipment.h"
 #include "Settings.h"
+#include "TransferFeedback.h"
 #include <cmath>
 #include <atomic>
 #include <chrono>
@@ -247,6 +248,7 @@ namespace PlayerEquipment {
                 }
                 if (request->owned && menu.get() != request->owned) { Finish(request); return; }
                 if (expired) {
+                    if (!request->worked) TransferFeedback::Reset();
                     request->worked = true;
                     request->snapshot.clear();
                     SKSE::GetTaskInterface()->AddUITask([request] {
@@ -304,6 +306,8 @@ namespace PlayerEquipment {
             Poll(request);
         }
     }
+
+    bool IsRunning() { return pending != nullptr; }
 
     void Reset() {
         if (!pending) return;

@@ -16,11 +16,13 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--output",type=Path,required=True)
 parser.add_argument("--sanitize",action="store_true")
 parser.add_argument("--source-ref")
+parser.add_argument("--feedback",action="store_true",help="Run the actual overlay barrier and completion with the full transfer pipeline")
 parser.add_argument("--profile",action="store_true",help="Profile fixture phases and two test-only candidates against unchanged production")
 parser.add_argument("--samples",type=int,default=5)
 parser.add_argument("--sizes",type=int,nargs="+",default=[0,1000])
 args=parser.parse_args()
 if args.output.exists():parser.error("Choose a new output path")
+tracked_sources=("Stores","PlayerEquipment","InventoryStacks","Soulgems")+(("TransferFeedback",) if args.feedback else ())
 if args.profile and args.sanitize:parser.error("Profile runs exclude sanitizers")
 if args.profile and (args.samples<2 or args.samples>10 or any(size<0 or size>1000 for size in args.sizes)):
     parser.error("Use 2 to 10 samples and sizes between zero and 1000")
@@ -28,6 +30,15 @@ def source(name):
     return subprocess.check_output(["git","show",f"{args.source_ref}:src/{name}.cpp"],cwd=ROOT,text=True) if args.source_ref else (ROOT/f"src/{name}.cpp").read_text()
 stores=source("Stores")
 common=harness.common
+if args.feedback:
+    import check_transfer_feedback as feedback
+    stub="namespace TransferFeedback {\ninline void Begin(std::function<void(Complete)> start){start([]{return true;});}\ninline void Mark(Stage){}\ninline void Reset(){}\n}"
+    assert stub in common
+    common=common.replace(stub, "")
+    common=common.replace("inline const char* Translate(const char* text){return text;}", "inline const char* Translate(const char* text){return std::string_view{text}==\"Vault.Sorting\"?\"Sorting items...\":text;}")
+    common+='namespace RE {struct InputEvent {bool up=false;bool IsUp()const{return up;}InputEvent* AsButtonEvent(){return this;}};}\n'
+    framework=feedback.FRAMEWORK[:feedback.FRAMEWORK.index("namespace AVTranslation")]
+
 common=common.replace("inline bool inspectionOpen=false;", "inline int inventoryReads=0,bulkCalls=0,emptyBulkCalls=0,removeCalls=0;inline bool inspectionOpen=false;")
 common=common.replace("struct TESObjectREFR {", r'''
 namespace Profile {
@@ -124,7 +135,7 @@ def profiled(text,signature,label):
     first=text.index(signature);brace=text.index("{",first)
     return text[:brace+1]+f'RE::Profile::Scope phase{{"{label}"}};'+text[brace+1:]
 
-program='#include "common.hpp"\n'
+program='#include "common.hpp"\n'+("#define __stdcall\n"+framework if args.feedback else "")
 item_source=(ROOT/"src/ItemClass.cpp").read_text()
 program+=item_source[item_source.index("CategoryMask operator|("):item_source.index("bool HasCategory(")]
 for name in ("InventoryStacks","PlayerEquipment"):
@@ -154,6 +165,9 @@ for name in ("PlayerToStore","StoreToStore","AllToStore","ConsolidateBooks","Con
         fragment=fragment.replace(needle,"    if(RE::Profile::candidate==1 && !InventoryStacks::HasItems(source))return;\n"+needle)
     program+=profiled(fragment,"void Stores::"+name+"(",name)
 program+=body((ROOT/"src/Utility.cpp").read_text(),"bool Utility::RunContainerAction(")
+if args.feedback:
+    feedback_source=source("TransferFeedback").replace("using Clock = std::chrono::steady_clock;", "using Clock = ProbeClock;").replace("std::thread(", "TestThread(").replace("std::this_thread::sleep_for(std::chrono::milliseconds(16));", "")
+    program+="\n".join(line for line in feedback_source.splitlines() if not line.startswith("#include"))
 program+=r'''
 int main(){
     auto* player=RE::PlayerCharacter::GetSingleton();auto* utility=Utility::GetSingleton();auto* stores=Stores::GetSingleton();
@@ -226,6 +240,36 @@ int main(){
     }
 }
 '''
+if args.feedback:
+    program=program.replace("    auto* player=", "    SKSEMenuFramework::installed=true;TransferFeedback::Register();\n    auto* player=",1)
+    program=program.replace("        settings->ignored.clear();", "        TransferFeedback::Reset();\n        settings->ignored.clear();")
+    program=program.replace("            elapsed+=16;", "            SKSEMenuFramework::render();\n            elapsed+=16;")
+    program=program.replace("        assert(!PlayerEquipment::pending", "        RE::InputEvent inputEvent;assert(TransferFeedback::LastReport().complete && !SKSEMenuFramework::block(&inputEvent));\n        assert(!PlayerEquipment::pending")
+    recovery=r'''
+    TransferFeedback::Reset();player->rows.clear();settings->ignored.clear();
+    for(auto& [kind,bank]:banks){(void)kind;bank->rows.clear();}
+    player->Put(&ring,0,1,nullptr,"worn recovery");player->rows[&ring].extras.front()->uiWorn=true;player->Put(&ring,2);
+    RE::SCRIPT_FUNCTION::equipped.insert(&ring);ProbeClock::tick={};ui->messageBox=false;timers.clear();
+    const auto recoveryInput=RE::input;const auto recoveryBlocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
+    queue->refuseHide=true;bool recoveryCompleted=false;stores->OffloadItems([&]{recoveryCompleted=true;});
+    for(int frame=0;frame<100;++frame){
+        SKSEMenuFramework::render();ProbeClock::tick+=std::chrono::milliseconds(16);queue->ProcessCommands();
+        auto ready=std::move(timers);timers.clear();for(auto& action:ready){action();}tasks->RunUI();tasks->Run();
+    }
+    RE::InputEvent recoveryButton;
+    assert(PlayerEquipment::pending && ui->menu && !recoveryCompleted && !SKSEMenuFramework::block(&recoveryButton));
+    assert(player->rows[&ring].total==3 && banks[Container::Armor]->rows[&ring].total==0 && !TransferFeedback::LastReport().complete);
+    stores->OffloadItems();assert(!SKSEMenuFramework::block(&recoveryButton) && !TransferFeedback::LastReport().complete);
+    queue->refuseHide=false;queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);
+    for(int frame=0;PlayerEquipment::pending && frame<80;++frame){
+        ProbeClock::tick+=std::chrono::milliseconds(16);queue->ProcessCommands();auto ready=std::move(timers);timers.clear();
+        for(auto& action:ready){action();}tasks->RunUI();tasks->Run();
+    }
+    assert(!PlayerEquipment::pending && !ui->menu && !recoveryCompleted && RE::input==recoveryInput && RE::PlayerControls::GetSingleton()->blockPlayerInput==recoveryBlocked);
+'''
+    end=program.rindex("\n}\n")
+    program=program[:end]+recovery+program[end:]
+
 if args.profile:
     needle="int main(){"
     assert needle in program
@@ -293,7 +337,7 @@ args.output.parent.mkdir(parents=True,exist_ok=True)
 if args.profile:
     profile["complete"]=True
     profile["candidates"]=["unchanged production","skip empty bulk calls in compiled fixture","skip validation reads for an empty snapshot in compiled fixture"]
-    profile["source_sha256"]={name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks","Soulgems")}
+    profile["source_sha256"]={name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources}
     profile["boundary"]="Serial instrumented fixture CPU timings, not Skyrim performance. Native APIs and classification are stubs. Phase times are inclusive and overlap; self times exclude timed children. Candidates modify only the compiled fixture. All production inventory/input assertions run for every sample. Unrelated padding has no sortable categories. Baseline and candidates alternate order between repeats. Active native-call costs and real UI lock waits cannot be inferred."
     summary=[]
     for size in args.sizes:
@@ -306,7 +350,7 @@ if args.profile:
     args.output.write_text(json.dumps(profile,indent=2)+"\n")
     print(f"Profile complete: {sum(len(sample['cases']) for sample in profile['samples'])} inventory/input cases; report {args.output}")
     raise SystemExit(0)
-args.output.write_text(json.dumps({"source_ref":args.source_ref,"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks","Soulgems")},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems","standard protected loadout","standard loadout and one spare"],"cases":cases},indent=2)+"\n")
+args.output.write_text(json.dumps({"source_ref":args.source_ref,"feedback_enabled":args.feedback,"extra_cases":["refused native Hide, manual exit and restored input"] if args.feedback else [],"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems","standard protected loadout","standard loadout and one spare"],"cases":cases},indent=2)+"\n")
 failures=sum(not case["prompt"] for case in cases)
 print(f"Pipeline checks: {len(cases)} inventory/input invariants pass; {failures} slow returns; report {args.output}")
 raise SystemExit(1 if failures else 0)

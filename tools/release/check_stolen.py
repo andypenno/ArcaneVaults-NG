@@ -417,6 +417,13 @@ void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*
 #include "src/StolenItems.h"
 #include "src/EnchantedItems.h"
 #include "src/PlayerEquipment.h"
+#include "src/TransferFeedback.h"
+namespace TransferFeedback {
+inline void Begin(std::function<void(Complete)> start){start([]{return true;});}
+inline void Mark(Stage){}
+inline void Reset(){}
+}
+
 '''
 program += "namespace PlayerEquipment { void PollForCheck(); }\n"
 common = program

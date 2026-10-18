@@ -2,12 +2,15 @@
 #include "Translation.h"
 #include "ItemClass.h"
 #include "Utility.h"
+#include "TransferFeedback.h"
 
 using AVTranslation::Translate;
 
 namespace AVUI {
 	void Register() {
 		if (!SKSEMenuFramework::IsInstalled()) return;
+
+		TransferFeedback::Register();
 
 		// Render Menu
 		SKSEMenuFramework::SetSection(Translate("Settings.ModName"));
@@ -236,6 +239,16 @@ namespace AVUI {
 
 		if (changeOption)
 			setting->SaveINI();
+        const auto timing = TransferFeedback::LastReport();
+        if (timing.complete) {
+            Text(Translate("Options.LastTransfer"));
+            const std::array<const char*, 5> labels{"Options.TransferOverlay", "Options.TransferInspection",
+                "Options.TransferRecovery", "Options.TransferSoulgems", "Options.TransferItems"};
+            for (std::size_t i = 0; i < labels.size(); ++i)
+                Text("%s: %.1f ms", Translate(labels[i]), timing.milliseconds[i]);
+            Text("%s: %.1f ms", Translate("Options.TransferTotal"), timing.total);
+        }
+
 	}
 
 	void __stdcall RenderIgnoredItems() {

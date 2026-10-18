@@ -19,5 +19,6 @@ namespace PlayerEquipment {
     using Snapshot = std::unordered_map<RE::TESBoundObject*, ItemEquipment>;
     const Snapshot* Current();
     void Run(std::function<void()> work, std::function<void()> complete = {});
+    bool IsRunning();
     void Reset();
 }
