@@ -1,6 +1,5 @@
 {
 	"Settings.ModName": "Arcane Vaults",
-
 	"Options": "Options",
 	"Quantities": "Quantities",
 	"Options.AllCraftingMaterials": "Loan all crafting materials at every station",
@@ -18,7 +17,6 @@
 	"Options.SoulgemKeepAmount": "Empty Soulgems Keep Amount",
 	"Options.AlchemyKeepAmount": "Alchemy Keep Amount",
 	"Options.ScrollKeepAmount": "Scroll Keep Amount",
-
 	"Override": "Overrides",
 	"Override.Lookup": "Override Lookup",
 	"Override.UserOverrides": "User Overrides",
@@ -29,17 +27,14 @@
 	"Override.ButtonLookup": "Search",
 	"Override.ButtonEdit": "Edit",
 	"Override.ButtonRemove": "Remove",
-	
 	"Vault.FavoritesReturned": "Favourited items returned to you",
 	"Vault.StoreAllMessage": "Your belongings have been transferred to the vaults",
 	"Vault.StoreMostMessage": "Most belongings have been transferred to the vaults",
 	"Vault.StoreGetMessage": "Your belongings have been retrieved",
-
 	"Vault.Exit": "Exit",
 	"Vault.More": "More",
 	"Vault.Back": "Back",
 	"Vault.Open": "Open Vault",
-
 	"Vault.AssignArcane": "Bind Arcane Vault",
 	"Vault.AssignSort": "Bind Sort Vault",
 	"Vault.AssignQuickTransfer": "Bind Quick Transfer",
@@ -47,15 +42,11 @@
 	"Vault.AssignVault": "Bind Vault",
 	"Vault.AssignArchive": "Bind Archive",
 	"Vault.AssignRemove": "Remove Binding",
-
 	"Vault.ArcaneOffload": "Quick Transfer",
 	"Vault.ArcaneSort": "Open Sort",
 	"Vault.ArcaneVaults": "Open Vaults",
 	"Vault.ArcaneArchives": "Open Archives",
-
 	"Vault.Vault": "Vault",
-	"Vault.Archive": "Archive",
-
 	"Vault.Sorting": "Sorting items...",
 	"Vault.StoreAll": "Store All",
 	"Vault.StoreOne": "Store One Copy",
@@ -65,8 +56,6 @@
 	"Vault.KeepThree": "Keep Three",
 	"Vault.GatherFood": "Gather Reagents",
 	"Vault.GatherSmithing": "Gather Catalysts",
-	"Vault.GatherEmptySouls": "Gather Empty Souls",
-
 	"Vault.Assign": "Binding",
 	"Vault.Arcane": "Arcane",
 	"Vault.Alchemy": "Alchemy",
@@ -108,8 +97,6 @@
 	"Vault.EnchantedItems": "Enchanted Items",
 	"Enchanted.TransferFailed": "Some items could not be transferred. They remain safely stored.",
 	"Vault.Lockpicks": "Lockpicks",
-  "Vault.KeepLockpicks": "Keep {0} Lockpicks",
-	"Vault.TakeLockpicks": "Withdraw Up To {0} Lockpicks",
 	"Options.LockpickKeepAmount": "Lockpick Keep Amount",
 	"Vault.Valuables": "Valuables",
 	"Vault.Septims": "Septims",
@@ -121,7 +108,6 @@
 	"Vault.AmmunitionOpen": "Open",
 	"Vault.Keys": "Keys",
 	"Vault.KeysOpen": "Open",
-	
 	"Vault.Crafting": "Crafting",
 	"Vault.Tanning": "Tanning",
 	"Vault.Smelting": "Smelting",
@@ -146,10 +132,6 @@
 	"Vault.Catalyst": "Catalyst",
 	"Vault.Ingredient": "Ingredient",
 	"Vault.SpellTome": "Spell Tome",
-	"Vault.SoulgemEmpty": "Empty",
-	"Vault.SoulgemFilled": "Filled",
-	"Vault.SoulgemGrand": "Grand",
-
 	"Ignore": "Ignore List",
 	"Options.ReturnIgnoredItems": "Return Ignored Items",
 	"Ignore.Help": "Sneak-use Arcane Vault, Sort\nor Quick Transfer.\nDeposit items, then close.\nItems return; Quick Transfer skips all copies.",
@@ -161,7 +143,6 @@
 	"Ignore.Cancel": "Cancel",
 	"Ignore.SaveFailed": "Ignore list could not be saved. Changes apply until the game closes.",
 	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list.",
-
 	"Vault.Notes": "Notes",
 	"Vault.SkillBooks": "Skill Books",
 	"Vault.Recipes": "Recipes",
