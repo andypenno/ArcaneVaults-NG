@@ -26,6 +26,8 @@ An already open item menu is left untouched and equipment receives conservative 
 
 Outside the scoped Quick Transfer snapshot, player deposits use native worn flags and the standard GetEquipped condition to protect whole equipped base records. Manual vault actions and crafting returns therefore still retain matching spares when equipped copies cannot be identified safely.
 
+Quick Transfer skips physical revalidation when there is no equipment snapshot. Empty archive bulk transfers use the public no-initialisation inventory query, including base-container stock and change deltas, before invoking native removal. Populated archives still recover normally.
+
 Player transfers re-read physical stacks after each removal. When explicit equipped copies remain protected, bare copies receive game-heap extra lists in signed-16-bit chunks so null-list removal cannot choose the worn copy. Failed allocation or transfer leaves remaining copies on the player; malformed counts and duplicate extra-list pointers leave that record untouched. The shared Materialize helper also supplies extra lists for archive origin markers.
 
 

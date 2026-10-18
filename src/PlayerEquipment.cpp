@@ -123,7 +123,8 @@ namespace PlayerEquipment {
             Snapshot validated;
             auto* player = RE::PlayerCharacter::GetSingleton();
             std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> fresh;
-            for (const auto& stack : InventoryStacks::Read(player)) fresh[stack.item].push_back(stack);
+            if (!snapshot.empty())
+                for (const auto& stack : InventoryStacks::Read(player)) fresh[stack.item].push_back(stack);
             for (const auto& [item, equipment] : snapshot) {
                 const auto found = fresh.find(item);
                 if (found != fresh.end() && equipment.stacks == Identities(found->second))

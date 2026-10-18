@@ -111,7 +111,7 @@ namespace Soulgems {
         if (!bank) return;
         for (auto kind : {Container::FilledSoulgems, Container::EmptySoulgems}) {
             auto* archive = utility->GetContainer(kind);
-            if (archive && archive != bank) {
+            if (archive && archive != bank && InventoryStacks::HasItems(archive)) {
                 if (auto* changes = archive->GetInventoryChanges())
                     changes->RemoveAllItems(archive, bank, false, false, false);
             }

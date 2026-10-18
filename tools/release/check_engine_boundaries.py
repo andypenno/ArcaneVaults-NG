@@ -29,7 +29,7 @@ common=common.replace("unsigned oldContainer,newContainer,baseObj;int itemCount;
 common=common.replace("void Send(TESContainerChangedEvent e){for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);}", "void Send(TESContainerChangedEvent e){auto copy=sinks;for(auto* sink:copy)if(sink->ProcessEvent(&e,nullptr)==BSEventNotifyControl::kStop)break;}")
 common=common.replace("bool missingChanges=false;", "mutable bool initialized=false;mutable int initializations=0;std::function<void()> onInit;bool missingChanges=false;")
 common=common.replace("bool duplicate=false,quest=false,favorite=false;", "bool duplicate=false,quest=false,favorite=false;int baseStock=0;bool leveled=false;")
-common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;", "if(!initialized){initialized=true;++initializations;if(onInit)onInit();}std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;")
+common=common.replace("std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;", "if(!noInit && !initialized){initialized=true;++initializations;if(onInit)onInit();}std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;")
 common=common.replace("e->countDelta=row.total;", "e->countDelta=row.total-(row.leveled?0:row.baseStock);")
 common=common.replace("bool bulkRefuse=false,lastKeepOwnership=false;", "bool bulkRefuse=false,lastKeepOwnership=false;bool queueBulk=false;inline static std::deque<std::function<void()>> nativeTasks;")
 common=common.replace("if(bulkRefuse)return;", "if(bulkRefuse)return;if(queueBulk){queueBulk=false;nativeTasks.emplace_back([=,this]{RemoveAllItems(owner,target,stealing,keepOwnership,false);});return;}")
@@ -87,6 +87,16 @@ int main(){
         assert(InventoryStacks::Read(&weapons).front().count==3 && weapons.initializations==1);
         assert(InventoryStacks::Move(InventoryStacks::Read(&weapons).front(),&armor)==3 && count(armor)==3);
     }
+    for(int stock:{0,4})for(int total:{0,3})for(bool leveled:{false,true}){
+        reset();weapons.Put(&ring,total);weapons.rows[&ring].baseStock=stock;weapons.rows[&ring].leveled=leveled;
+        assert(InventoryStacks::HasItems(&weapons)==(total>0));
+        assert(weapons.initializations==0);
+    }
+    reset();seed();
+    const auto copiesBeforeEmptyWork=RE::TESObjectREFR::inventoryCopies;
+    auto emptyRequest=std::make_shared<PlayerEquipment::Request>();bool emptyWorked=false;
+    emptyRequest->work=[&]{emptyWorked=true;};PlayerEquipment::Work(emptyRequest,{});
+    assert(emptyWorked && RE::TESObjectREFR::inventoryCopies==copiesBeforeEmptyWork);
     reset();weapons.onInit=[&]{weapons.Put(&ring,2);};assert(count(weapons)==2 && count(weapons)==2 && weapons.initializations==1);
 
     auto* stores=Stores::GetSingleton();

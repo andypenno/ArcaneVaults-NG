@@ -476,6 +476,12 @@ move_start = source.index("    int MoveItems(")
 program += source[move_start:source.index("\n    }", move_start) + 6]
 program += r'''
 namespace InventoryStacks {
+bool HasItems(RE::TESObjectREFR* source){
+    if(!source)return false;
+    for(const auto& [item,data]:source->GetInventory())if(item && data.first>0)return true;
+    return false;
+}
+
 struct Stack { RE::TESObjectREFR* source; RE::TESBoundObject* item; RE::ExtraDataList* extra; int count; };
 std::vector<Stack> Read(RE::TESObjectREFR* source,std::function<bool(RE::TESBoundObject*,RE::InventoryEntryData&,RE::ExtraDataList*)> select = {},RE::TESBoundObject* onlyItem = nullptr) {
     std::vector<Stack> result;

@@ -162,11 +162,12 @@ struct TESObjectREFR {
     unsigned GetFormID()const{return id;}Handle GetHandle()const{return {id};}
     void AddChange(unsigned flag){assert(flag==ChangeFlags::kInventory);++changed;}
     inline static std::size_t inventoryCopies=0;
-    auto GetInventory(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;})const{
+    auto GetInventory(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;},bool noInit=false)const{
+        (void)noInit;
         std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;
         for(const auto& [item,row]:rows){if(!item || !filter(*item))continue;++inventoryCopies;auto e=std::make_shared<InventoryEntryData>();e->object=item;e->countDelta=row.total;e->quest=row.quest;e->favorite=row.favorite;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
     }
-    std::map<TESBoundObject*,int> GetInventoryCounts(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;})const{std::map<TESBoundObject*,int> result;for(auto& [item,data]:GetInventory(filter))result[item]=data.first;return result;}
+    std::map<TESBoundObject*,int> GetInventoryCounts(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;},bool noInit=false)const{std::map<TESBoundObject*,int> result;for(auto& [item,data]:GetInventory(filter,noInit))result[item]=data.first;return result;}
     void Put(TESBoundObject* item,int plain,int count=0,TESForm* owner=nullptr,std::string metadata=""){
         auto& row=rows[item];row.total+=plain+count;if(count)row.extras.push_back(std::make_shared<ExtraDataList>(ExtraDataList{count,owner,metadata,{}}));
     }

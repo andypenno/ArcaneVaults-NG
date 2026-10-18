@@ -166,24 +166,28 @@ int main(){
         banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));utility->containers[kind]=banks[kind].get();
     }
     RE::TESObjectREFR chest{8000},assignment{8001};RE::TESBoundObject ring{200,false,true},note{201},book{202},potion{203},instrument{204},lockpick{205};
-    RE::TESSoulGem gem{206};
+    RE::TESSoulGem gem{206};RE::TESBoundObject favorite{207,true},quest{208},ignored{209};
+    favorite.categories=ToMask(ItemCategory::Weapon)|ToMask(ItemCategory::OneHand);quest.categories=ToMask(ItemCategory::Note);ignored.categories=ToMask(ItemCategory::Gear);
     ring.categories=ToMask(ItemCategory::Jewelry)|ToMask(ItemCategory::Armor);note.categories=ToMask(ItemCategory::Note);book.categories=ToMask(ItemCategory::Book);
     potion.categories=ToMask(ItemCategory::Potion);instrument.categories=ToMask(ItemCategory::Gear);lockpick.categories=ToMask(ItemCategory::Lockpick)|ToMask(ItemCategory::Gear);
     auto* settings=Settings::GetSingleton();settings->GSC_OffloadSoulgems=false;settings->GSC_OffloadJewelry=settings->GSC_OffloadNotes=settings->GSC_OffloadBooks=settings->GSC_OffloadGear=true;
     settings->GSC_LockpickKeepAmount=25;
     utility->containerMap[Container::QuickTransfer]={&assignment,[](RE::TESObjectREFR*){Stores::GetSingleton()->OffloadItems();}};
-    for(int entry=0;entry<3;++entry)for(int shape=0;shape<5;++shape)for(bool stalled:{false,true})for(bool gems:{false,true})for(bool archived:{false,true}){
-        player->rows.clear();for(auto& [kind,bank]:banks){(void)kind;bank->rows.clear();}
+    for(int entry=0;entry<3;++entry)for(int shape=0;shape<7;++shape)for(bool stalled:{false,true})for(bool gems:{false,true})for(bool archived:{false,true}){
+        settings->ignored.clear();player->rows.clear();for(auto& [kind,bank]:banks){(void)kind;bank->rows.clear();}
         RE::SCRIPT_FUNCTION::equipped.clear();timers.clear();ProbeClock::tick={};ui->messageBox=false;stores->options.clear();stores->ResetNavigation();
         chest.stalled=stalled;chest.state=stalled?3:2;
         settings->GSC_OffloadSoulgems=gems;settings->GSC_SoulgemKeepAmount=25;
-        if(shape==1 || shape==2){player->Put(&ring,0,1,nullptr,"worn");player->rows[&ring].extras.front()->uiWorn=true;RE::SCRIPT_FUNCTION::equipped.insert(&ring);}
+        if(shape==1 || shape==2 || shape>=5){player->Put(&ring,0,1,nullptr,"worn");player->rows[&ring].extras.front()->uiWorn=true;RE::SCRIPT_FUNCTION::equipped.insert(&ring);}
+        if(shape>=5){player->Put(&favorite,1);player->rows[&favorite].favorite=true;player->Put(&quest,2);player->rows[&quest].quest=true;player->Put(&ignored,4);settings->ignored.insert(&ignored);}
+        if(shape==6)player->Put(&ring,1);
         if(shape==2)player->Put(&ring,0,2,nullptr,"spare");
         if(shape==3){player->Put(&note,2);player->Put(&book,2);player->Put(&lockpick,40);}
         if(shape==4){player->Put(&gem,40);player->Put(&gem,0,10,nullptr,"filled gem");player->rows[&gem].extras.back()->soul=RE::ExtraSoul{RE::SOUL_LEVEL::kGrand};}
         if(archived){banks[Container::SkillBooks]->Put(&book,1);banks[Container::Recipes]->Put(&note,1);banks[Container::Scroll]->Put(&note,1);
             banks[Container::HealthPotions]->Put(&potion,1);banks[Container::Instruments]->Put(&instrument,1);}
         const auto input=RE::input;const auto blocked=RE::PlayerControls::GetSingleton()->blockPlayerInput;
+        const int showsBefore=queue->shows;
         RE::inventoryReads=RE::bulkCalls=RE::emptyBulkCalls=RE::removeCalls=0;
         RE::Profile::phases.clear();RE::TESObjectREFR::inventoryCopies=0;
         const auto fixtureStart=std::chrono::steady_clock::now();
@@ -204,9 +208,9 @@ int main(){
         }
         const auto fixtureMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-fixtureStart).count();
         assert(!PlayerEquipment::pending && !ui->menu && RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);
-        assert(banks[Container::Armor]->rows[&ring].total==(shape==2?2:0));
-        assert(player->rows[&ring].total==(shape==1 || shape==2?1:0));
-        if(shape==1 || shape==2)assert(player->rows[&ring].extras.front()->metadata=="worn");
+        assert(banks[Container::Armor]->rows[&ring].total==(shape==2?2:shape==6?1:0));
+        assert(player->rows[&ring].total==(shape==1 || shape==2 || shape>=5?1:0));
+        if(shape==1 || shape==2 || shape>=5)assert(player->rows[&ring].extras.front()->metadata=="worn");
         assert(banks[Container::SkillBooks]->rows[&book].total==0 && banks[Container::Book]->rows[&book].total==(shape==3?2:0)+archived);
         assert(banks[Container::Recipes]->rows[&note].total==0 && banks[Container::Scroll]->rows[&note].total==0 && banks[Container::Notes]->rows[&note].total==(shape==3?2:0)+2*archived);
         assert(banks[Container::HealthPotions]->rows[&potion].total==0 && banks[Container::Concoction]->rows[&potion].total==archived);
@@ -215,6 +219,8 @@ int main(){
         assert(player->rows[&gem].total==(shape==4?(gems?25:50):0));
         assert(banks[Container::Soulgem]->rows[&gem].total==(shape==4 && gems?25:0));
         if(shape==4 && gems){assert(banks[Container::Soulgem]->rows[&gem].extras.front()->soul->soul==RE::SOUL_LEVEL::kGrand);assert(player->rows[&gem].extras.empty());}
+        if(shape>=5)assert(player->rows[&favorite].total==1 && player->rows[&quest].total==2 && player->rows[&ignored].total==4);
+        if(shape==5)assert(queue->shows==showsBefore);
         assert((entry==0)==!stores->options.empty());
         std::cout<<"{\"entry\":"<<entry<<",\"shape\":"<<shape<<",\"stalled\":"<<(stalled?"true":"false")<<",\"archives_populated\":"<<(archived?"true":"false")<<",\"soulgems_enabled\":"<<(gems?"true":"false")<<",\"inventory_reads\":"<<RE::inventoryReads<<",\"bulk_calls\":"<<RE::bulkCalls<<",\"empty_bulk_calls\":"<<RE::emptyBulkCalls<<",\"remove_calls\":"<<RE::removeCalls<<",\"simulated_ms\":"<<elapsed<<",\"inspection_blocked_ms\":"<<blockedMs<<",\"prompt\":"<<(elapsed<1100?"true":"false");DumpProfile(fixtureMs);std::cout<<"}\n";
     }
@@ -298,9 +304,9 @@ if args.profile:
                 summary.append({"candidate":candidate,"size":size,"entry":case["entry"],"shape":case["shape"],"archives_populated":case["archives_populated"],"soulgems_enabled":case["soulgems_enabled"],"stalled":case["stalled"],"min_ms":min(values),"median_ms":statistics.median(values),"max_ms":max(values)})
     profile["summary"]=summary
     args.output.write_text(json.dumps(profile,indent=2)+"\n")
-    print(f"Profile complete: {len(profile['samples'])*120} inventory/input cases; report {args.output}")
+    print(f"Profile complete: {sum(len(sample['cases']) for sample in profile['samples'])} inventory/input cases; report {args.output}")
     raise SystemExit(0)
-args.output.write_text(json.dumps({"source_ref":args.source_ref,"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks","Soulgems")},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems"],"cases":cases},indent=2)+"\n")
+args.output.write_text(json.dumps({"source_ref":args.source_ref,"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in ("Stores","PlayerEquipment","InventoryStacks","Soulgems")},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems","standard protected loadout","standard loadout and one spare"],"cases":cases},indent=2)+"\n")
 failures=sum(not case["prompt"] for case in cases)
 print(f"Pipeline checks: {len(cases)} inventory/input invariants pass; {failures} slow returns; report {args.output}")
 raise SystemExit(1 if failures else 0)

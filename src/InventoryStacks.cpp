@@ -71,7 +71,7 @@ namespace InventoryStacks {
 
     bool HasItems(RE::TESObjectREFR* source) {
         if (!source) return false;
-        for (const auto& [item, count] : source->GetInventoryCounts())
+        for (const auto& [item, count] : source->GetInventoryCounts([](auto&) { return true; }, true))
             if (item && count > 0) return true;
         return false;
     }

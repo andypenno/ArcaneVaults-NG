@@ -363,6 +363,7 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
         }
         return;
     }
+    if (!InventoryStacks::HasItems(source)) return;
     auto* inventory = source->GetInventoryChanges();
     if (!inventory) return;
 

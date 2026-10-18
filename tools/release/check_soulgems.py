@@ -150,6 +150,12 @@ struct Settings {
 program += r'''
 #include "src/InventoryStacks.h"
 namespace InventoryStacks {
+bool HasItems(RE::TESObjectREFR* source){
+    if(!source)return false;
+    for(const auto& [item,data]:source->GetInventory())if(item && data.first>0)return true;
+    return false;
+}
+
 RE::BGSKeyword* FavoriteKeyword(){static RE::BGSKeyword keyword;return &keyword;}
 bool HasOrigin(RE::ExtraDataList* extra,RE::BGSKeyword* keyword){return keyword && extra && extra->sortFavorite;}
 std::optional<Stack> Materialize(const Stack& stack){
