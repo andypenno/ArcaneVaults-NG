@@ -484,12 +484,10 @@ void Stores::OffloadItems(std::function<void()> complete) {
 }
 
 void Stores::OffloadItemsNow() {
-    TransferFeedback::Mark(TransferFeedback::Stage::Recovery);
     ConsolidateBooks();
     ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
     auto* settings = Settings::GetSingleton();
-    TransferFeedback::Mark(TransferFeedback::Stage::Transfer);
 
     if (settings->GSC_OffloadJunk)
         PlayerToStore(ItemCategory::Junk, Container::Junk, 0, 0, true);
@@ -503,10 +501,8 @@ void Stores::OffloadItemsNow() {
         PlayerToStore(ItemCategory::Personal, Container::Personal, 0, 0, true);
 
     if (settings->GSC_OffloadSoulgems) {
-        TransferFeedback::Mark(TransferFeedback::Stage::Soulgems);
         PlayerToStore(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
         Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
-        TransferFeedback::Mark(TransferFeedback::Stage::Transfer);
     }
 
     if (settings->GSC_OffloadGold)

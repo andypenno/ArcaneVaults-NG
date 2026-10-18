@@ -30,9 +30,11 @@ def source(name):
     return subprocess.check_output(["git","show",f"{args.source_ref}:src/{name}.cpp"],cwd=ROOT,text=True) if args.source_ref else (ROOT/f"src/{name}.cpp").read_text()
 stores=source("Stores")
 common=harness.common
+if "TransferFeedback::Mark(" in stores and not args.feedback:
+    common+="namespace TransferFeedback {enum class Stage {Recovery,Transfer,Soulgems};inline void Mark(Stage){}}\n"
 if args.feedback:
     import check_transfer_feedback as feedback
-    stub="namespace TransferFeedback {\ninline void Begin(std::function<void(Complete)> start){start([]{return true;});}\ninline void Mark(Stage){}\ninline void Reset(){}\n}"
+    stub="namespace TransferFeedback {\ninline void Begin(std::function<void(Complete)> start){start([]{return true;});}\ninline void Reset(){}\n}"
     assert stub in common
     common=common.replace(stub, "")
     common=common.replace("inline const char* Translate(const char* text){return text;}", "inline const char* Translate(const char* text){return std::string_view{text}==\"Vault.Sorting\"?\"Sorting items...\":text;}")
@@ -244,7 +246,7 @@ if args.feedback:
     program=program.replace("    auto* player=", "    SKSEMenuFramework::installed=true;TransferFeedback::Register();\n    auto* player=",1)
     program=program.replace("        settings->ignored.clear();", "        TransferFeedback::Reset();\n        settings->ignored.clear();")
     program=program.replace("            elapsed+=16;", "            SKSEMenuFramework::render();\n            elapsed+=16;")
-    program=program.replace("        assert(!PlayerEquipment::pending", "        RE::InputEvent inputEvent;assert(TransferFeedback::LastReport().complete && !SKSEMenuFramework::block(&inputEvent));\n        assert(!PlayerEquipment::pending")
+    program=program.replace("        assert(!PlayerEquipment::pending", "        RE::InputEvent inputEvent;assert(!SKSEMenuFramework::block(&inputEvent));\n        assert(!PlayerEquipment::pending")
     recovery=r'''
     TransferFeedback::Reset();player->rows.clear();settings->ignored.clear();
     for(auto& [kind,bank]:banks){(void)kind;bank->rows.clear();}
@@ -258,8 +260,8 @@ if args.feedback:
     }
     RE::InputEvent recoveryButton;
     assert(PlayerEquipment::pending && ui->menu && !recoveryCompleted && !SKSEMenuFramework::block(&recoveryButton));
-    assert(player->rows[&ring].total==3 && banks[Container::Armor]->rows[&ring].total==0 && !TransferFeedback::LastReport().complete);
-    stores->OffloadItems();assert(!SKSEMenuFramework::block(&recoveryButton) && !TransferFeedback::LastReport().complete);
+    assert(player->rows[&ring].total==3 && banks[Container::Armor]->rows[&ring].total==0);
+    stores->OffloadItems();assert(!SKSEMenuFramework::block(&recoveryButton));
     queue->refuseHide=false;queue->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);
     for(int frame=0;PlayerEquipment::pending && frame<80;++frame){
         ProbeClock::tick+=std::chrono::milliseconds(16);queue->ProcessCommands();auto ready=std::move(timers);timers.clear();

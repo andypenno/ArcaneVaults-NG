@@ -6,6 +6,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 program = r'''
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <vector>
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -42,13 +46,39 @@ struct ImVec2 {float x,y;};
 struct IO {ImVec2 DisplaySize{1920,1080};} io;
 struct DrawList {} canvas;
 int backgrounds=0,texts=0;
+constexpr int ImDrawFlags_Closed=1;
+double renderTime=0;
+double GetTime(){return renderTime;}
+struct Polygon {std::vector<ImVec2> points;unsigned color;};
+std::vector<Polygon> fills,outlines;
+std::vector<unsigned> lineColors;
+ImVec2 textPosition;
+void CheckPoint(ImVec2 p){assert(std::isfinite(p.x)&&std::isfinite(p.y)&&p.x>=0&&p.y>=0&&p.x<=io.DisplaySize.x&&p.y<=io.DisplaySize.y);}
 IO* GetIO(){return &io;}
 DrawList* GetForegroundDrawList(){return &canvas;}
 ImVec2 CalcTextSize(const char*){return {140,24};}
 namespace ImDrawListManager {
-void AddRectFilled(DrawList*,ImVec2,ImVec2,unsigned,float,int){++backgrounds;}
+void AddRectFilled(DrawList*,ImVec2 a,ImVec2 b,unsigned color,float,int){
+    CheckPoint(a);CheckPoint(b);assert((color>>24)<100);++backgrounds;
+}
+void AddConvexPolyFilled(DrawList*,const ImVec2* points,int count,unsigned color){
+    for(int i=0;i<count;++i)CheckPoint(points[i]);
+    fills.push_back({{points,points+count},color});
+}
+void AddPolyline(DrawList*,const ImVec2* points,int count,unsigned color,int flags,float thickness){
+    for(int i=0;i<count;++i)CheckPoint(points[i]);
+    assert(flags==ImDrawFlags_Closed&&thickness>0);outlines.push_back({{points,points+count},color});
+}
+void AddCircle(DrawList*,ImVec2 center,float radius,unsigned,int segments,float thickness){
+    CheckPoint({center.x-radius,center.y-radius});CheckPoint({center.x+radius,center.y+radius});
+    assert(radius>0&&segments>=12&&thickness>0);
+}
+void AddLine(DrawList*,ImVec2 a,ImVec2 b,unsigned color,float thickness){
+    CheckPoint(a);CheckPoint(b);assert(thickness>0);lineColors.push_back(color);
+}
 void AddText(DrawList*,ImVec2 position,unsigned,const char* label){
-    assert(position.x>0 && position.y>0 && std::string(label)=="Sorting items...");++texts;
+    CheckPoint(position);CheckPoint({position.x+140,position.y+24});
+    assert(std::string(label)=="Sorting items...");textPosition=position;++texts;
 }
 }
 }
@@ -80,9 +110,8 @@ int main(){
         SKSE::GetTaskInterface()->Run();
     };
     int starts=0;Register();
-    Begin([&](Complete done){++starts;ProbeClock::tick+=5ms;Mark(Stage::Recovery);ProbeClock::tick+=3ms;assert(done());});
-    auto report=LastReport();assert(starts==1 && report.complete && report.total==8);
-    assert(report.milliseconds[static_cast<unsigned>(Stage::Inspection)]==5 && report.milliseconds[static_cast<unsigned>(Stage::Recovery)]==3);
+    Begin([&](Complete done){++starts;assert(done());});
+    assert(starts==1);
     assert(timers.empty() && !SKSEMenuFramework::render);
     SKSEMenuFramework::installed=true;Register();Register();assert(SKSEMenuFramework::registrations==1);
     RE::InputEvent event;Complete complete;
@@ -94,23 +123,39 @@ int main(){
     SKSEMenuFramework::render();step();assert(starts==1);
     SKSEMenuFramework::render();step();assert(starts==2 && SKSEMenuFramework::block(&event));
     assert(ImGuiMCP::backgrounds==2 && ImGuiMCP::texts==2);
-    ProbeClock::tick+=7ms;Mark(Stage::Transfer);ProbeClock::tick+=11ms;
     assert(complete() && !complete() && !SKSEMenuFramework::block(&event));
-    report=LastReport();double sum=0;for(auto value:report.milliseconds)sum+=value;
-    assert(report.complete && report.total==50 && sum==report.total && report.milliseconds[0]==32);
     const int priorDraws=ImGuiMCP::texts;SKSEMenuFramework::render();assert(ImGuiMCP::texts==priorDraws);
 
     for(bool invalidSize:{false,true}){
         Reset();ImGuiMCP::io.DisplaySize=invalidSize?ImGuiMCP::ImVec2{}:ImGuiMCP::ImVec2{1920,1080};
         const int before=starts;Begin([&](Complete done){++starts;complete=std::move(done);});
         for(int frame=0;starts==before && frame<20;++frame){if(invalidSize)SKSEMenuFramework::render();step();}
-        assert(starts==before+1 && LastReport().complete==false && complete());
-        report=LastReport();assert(report.milliseconds[0]>=250 && report.milliseconds[0]<273);
+        assert(starts==before+1 && complete());
+        assert(ProbeClock::tick.time_since_epoch()>=250ms);
         assert(!SKSEMenuFramework::block(&event));
+    }
+    for(const ImGuiMCP::ImVec2 viewport: {ImGuiMCP::ImVec2{640,480}, {1280,800}, {1920,1080}, {3440,1440}}){
+        using namespace ImGuiMCP;
+        io.DisplaySize=viewport;Reset();Begin([&](Complete done){complete=std::move(done);});
+        auto frame=[&](double time){
+            renderTime=time;fills.clear();outlines.clear();lineColors.clear();texts=0;backgrounds=0;
+            SKSEMenuFramework::render();assert(texts==1&&backgrounds==1&&fills.size()==2&&outlines.size()==5);
+            const auto& panel=fills.front().points;assert(panel.size()==8);
+            float left=viewport.x,right=0,top=viewport.y,bottom=0;
+            for(auto point:panel){left=std::min(left,point.x);right=std::max(right,point.x);top=std::min(top,point.y);bottom=std::max(bottom,point.y);}
+            assert(std::abs(left+right-viewport.x)<.01f&&std::abs(top+bottom-viewport.y)<.01f);
+            assert(right-left<viewport.x*.75f&&bottom-top<viewport.y*.5f);
+            assert(textPosition.x>=left&&textPosition.x+140<=right&&textPosition.y>=top&&textPosition.y+24<=bottom);
+            assert(std::abs(textPosition.x+70-viewport.x*.5f)<.01f);
+            return outlines[2].color;
+        };
+        const auto dim=frame(0),bright=frame(1.3),cycled=frame(2.6);
+        assert((bright>>24)>(dim>>24)+100&&dim==cycled);
+        step();assert(complete());
     }
     ImGuiMCP::io.DisplaySize={1920,1080};
     Reset();const int beforeCancel=starts;Begin([&](Complete){++starts;});Reset();step();
-    assert(starts==beforeCancel && !SKSEMenuFramework::block(&event) && !LastReport().complete);
+    assert(starts==beforeCancel && !SKSEMenuFramework::block(&event));
 
     Begin([&](Complete done){complete=std::move(done);});
     SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
@@ -123,9 +168,9 @@ int main(){
     Reset();Begin([](Complete){throw std::runtime_error("start refused");});
     SKSEMenuFramework::render();step();SKSEMenuFramework::render();
     bool caught=false;try{step();}catch(const std::runtime_error&){caught=true;}
-    assert(caught && !SKSEMenuFramework::block(&event) && !LastReport().complete);
+    assert(caught && !SKSEMenuFramework::block(&event));
     Begin({});SKSEMenuFramework::render();step();SKSEMenuFramework::render();step();
-    assert(LastReport().complete && !SKSEMenuFramework::block(&event));
+    assert(!SKSEMenuFramework::block(&event));
 }
 '''
 def main():
@@ -139,7 +184,7 @@ def main():
         subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", *flags,
                         "-I", str(ROOT), str(path / "check.cpp"), "-o", str(path / "check")], check=True, timeout=60)
         subprocess.run([str(path / "check")], check=True, timeout=10)
-    print("PASS: rendered-frame barrier, button blocking with releases preserved, completion, overlap, absent/stalled renderer, reset, stale callbacks, failures and memory-only timings")
+    print("PASS: rendered-frame barrier, button blocking with releases preserved, completion, overlap, absent/stalled renderer, reset, stale callbacks, failures, compact panel bounds, single label and pulsing sigil")
 
 
 if __name__ == "__main__":

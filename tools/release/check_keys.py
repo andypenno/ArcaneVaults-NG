@@ -504,9 +504,6 @@ int Move(const Stack& stack,RE::TESObjectREFR* target) {
 }
 }
 
-namespace TransferFeedback {
-    enum class Stage {Recovery,Transfer,Soulgems};void Mark(Stage){}
-}
 namespace PlayerEquipment {
 struct ItemEquipment { std::unordered_set<RE::ExtraDataList*> equipped; };
 using Snapshot=std::unordered_map<RE::TESBoundObject*,ItemEquipment>;

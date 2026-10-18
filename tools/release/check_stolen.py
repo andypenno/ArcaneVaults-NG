@@ -420,7 +420,6 @@ void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*
 #include "src/TransferFeedback.h"
 namespace TransferFeedback {
 inline void Begin(std::function<void(Complete)> start){start([]{return true;});}
-inline void Mark(Stage){}
 inline void Reset(){}
 }
 
