@@ -1,0 +1,50 @@
+# Tests
+
+Run from the repository root with Python 3 and a C++20 compiler available as `g++`/`c++`. Native fixtures need the pinned header dependencies already in the checkout. The ESP editor check needs the documented .NET 10 SDK on PATH or in its existing tool directory (override with AV_DOTNET). Windows release builds also need the documented Wine/MSVC container and Caprica. No CI configuration is included.
+
+```bash
+python3 tests/run.py --list
+python3 tests/run.py --suite unit static-data
+python3 tests/run.py --suite regression integration --sanitize
+python3 tests/run.py --suite performance
+python3 tests/run.py --suite packaging --zip build/ArcaneVaults-NG.zip
+python3 tests/run.py --suite all
+```
+
+`--test ID` narrows a selected suite. `--output results/NAME` chooses a new results directory; existing directories are rejected. The runner fails unknown suites, empty selection, crashes, timeouts and missing prerequisites. It records source hashes, commit, dirty state, child PID, commands, logs and individual exit status in `report.json`. SIGTERM to the reported runner PID terminates the active process group, including compiler children. A source change during a run invalidates its result. The local TODO is excluded from the source fingerprint.
+
+The manifest accounts for all 17 migrated release checks, the standalone ESP-editor and shader-compiler checks, and all three benchmarks. `release` runs mandatory source suites and performance gates. Packaging runs after the candidate exists. `all` also runs diagnostic experiments, which can be expensive and require the historical Git revisions used by those experiments. Sanitizers are enabled only on checks that support them. Portable execution does not verify Skyrim ABI or engine behaviour.
+
+## Files and results
+
+Test sources, JSON scenarios, baseline policies and compatibility identities belong in `tests/` and are versioned. Reports, logs and measurements belong in ignored `results/`. Compiler artifacts belong in ignored `.build/`. The `build/` directory holds only the single verified ZIP and historical candidate ZIPs.
+
+The release builder creates `build/history/<UTC-date>-<commit>[-dirty]/ArcaneVaults-NG.zip`, validates it, runs the packaging suite, then atomically copies those bytes to `build/ArcaneVaults-NG.zip`. Reports live in `results/releases/<same-id>/`. Promotion does not rename or alter the historical candidate. Failed verification preserves the previous verified ZIP. See [release-build.md](../docs/release-build.md).
+
+## Scenario data
+
+`fixtures/inventories/` contains version 1 physical-instance scenarios. Define symbolic base IDs, inventories, per-instance counts and metadata, actions and the expected complete inventory state. Unknown fields/references, duplicate instance IDs, invalid counts and expectations that violate quantity conservation fail before compilation.
+
+The release build also compiles the inventory test target with MSVC and runs the expanded JSON scenarios through Wine. The portable integration suite compiles the complete production `src/InventoryStacks.cpp`, with shared engine boundary types from `support/engine.hpp`. JSON is read in C++ using the existing vendored parser. It checks owner, enchantment, favourite/worn metadata and physical quantities after partial, refused and successful moves. The fake remains a model, not the game's engine.
+
+The larger Quick Transfer and loan fixtures still generate some production fragments. Their remaining extraction is documented in [COVERAGE.md](COVERAGE.md). Shared physical/UI models are separated from feature tests. Do not put transfer or classification decisions into the fake engine to make an assertion pass.
+
+`fixtures/sorting/` holds a named item catalog and representative mixed inventories. Each physical stack declares its starting inventory, protections, metadata and explicit expected quantities per destination. `copies` expands repeated stacks with distinct identities. The catalog supplies classification masks at the engine boundary; expected destinations come from fixture data, never from the sorter. Category coverage is reconciled against `ItemCategory` and the registered vault/archive population. These labels describe representative data, while archive filtering is tested separately by the archive regression checks.
+
+The `sorting-scenarios` integration check runs these inventories through the actual Quick Transfer controller and inspection, transfer and feedback code for the Arcane Vault menu, assigned container and hotkey handoff. It includes default settings, a protected loadout with zero moves and no inspection, same-base spares, crafting stockpiles, populated archives, 500/1,000 mixed stacks and a 1,000-stack enchanted equipment haul. Reports retain host fixture durations and work counts. Those observations are not calibrated timing gates or Skyrim measurements.
+
+## Static installer data
+
+The static-data suite validates duplicate JSON keys before dictionary construction, JSON syntax/types, required translations, placeholders, empty values and blank lines. It accounts for container translation keys and literal alternatives; keys without source references require an explicit retained-key reason. New dynamically assembled key families need an explicit contract before enabling them.
+
+INI validation rejects invalid plugin/local IDs, unknown categories, empty values and duplicate/conflicting normalised identities. It preserves each file's existing formatting conventions. Package validation repeats these checks on extracted data and checks exact source bytes. `fixtures/translations.json` records format arguments; updates require review. These tests cannot prove a form exists in an installed game.
+
+## Performance
+
+`baselines/approved.json` pins the released reference revision and the default matrix. Gate runs compile baseline and candidate with the same current harness/toolchain. Rendering/work models run serially; loan timing variants alternate order between repeated samples. Cold/entry and return phases remain separate. On Linux the gate pins its children to one available CPU to avoid migration between cores; the report records that CPU. Raw reports record the compiler, source hashes, scenarios and samples.
+
+The matrix covers zero, 100 and 1,000 additional items/quantities, distinct types, quantities and same-base physical stacks, all five stations, manual/loan modes, and Quick Transfer with populated/empty archives and protected loadouts. Existing diagnostic benchmarks retain their additional cases. No native timing claim is made from simulated call costs.
+
+The deterministic render policy retains the 50 simulated ms limit. Work regressions fail beyond the committed relative/absolute allowance. Host timing fails when a median increase exceeds both the materiality floor and twice the observed sample range. A material increase within the noise range is inconclusive and also blocks verification until measured again. Inconclusive loan comparisons repeat once with the policy's eight samples; both original and repeated reports are retained, and an unresolved result still blocks promotion. The 1 ms materiality floor and 25% tolerance are fixture policies, not Skyrim latency guarantees. Samples below that resolution cannot establish an in-game speedup. A missing baseline or failed/incomplete measurement fails the gate.
+
+Change policies explicitly with a reason and retained before/after reports. Ordinary test execution never updates expected baselines. Unit tests deliberately inject large timing/work regressions to verify failure. Actual game latency and acceptance remain in [game/README.md](game/README.md).

@@ -1,5 +1,6 @@
 """Check source round-trips, compiler corrections, and the assembled archive."""
 
+import argparse
 import copy
 import hashlib
 import json
@@ -60,12 +61,14 @@ respawning_storage = copy.deepcopy(working)
 base = next(node for node in walk(respawning_storage["records"]) if node["form_id"] == "0x01000DC4")
 next(field for field in base["fields"] if field["type"] == "DATA")["hex"] = "0200000000"
 fails(lambda: validate_esp(ROOT, generate_esp(respawning_storage)))
-archive = ROOT / "build/releases/ArcaneVaults-NG.zip"
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--zip", type=Path, required=True)
+archive = parser.parse_args().zip
 checks = validate_zip(ROOT, archive)
 with zipfile.ZipFile(archive) as zipped:
     files = {name: zipped.read(name) for name in zipped.namelist()}
     entries = zipped.infolist()
-assert len(files) == 10 and [entry.filename for entry in entries] == sorted(files)
+assert set(files) == set(json.loads((ROOT / "release/inputs.json").read_text())["copies"]) | set(json.loads((ROOT / "release/inputs.json").read_text())["generated"]) and [entry.filename for entry in entries] == sorted(files)
 assert all(entry.date_time == (1980, 1, 1, 0, 0, 0) and entry.external_attr == 0o100644 << 16 for entry in entries)
 assert files["ArcaneVaults-LinkedStorage.esp"] == generate_esp(json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text()))
 for name, source in json.loads((ROOT / "release/inputs.json").read_text())["copies"].items():
@@ -92,4 +95,4 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-release-check-") as tempora
     write_zip(two, dict(reversed(list(files.items()))))
     assert one.read_bytes() == two.read_bytes() == archive.read_bytes()
     assert validate_zip(ROOT, one) == checks
-print("PASS: baseline SHA/record round-trip, editable/compressed records, PEX correction and dispatch, exact 10-path ZIP, deterministic archive bytes, missing/extra rejection")
+print("PASS: baseline SHA/record round-trip, editable/compressed records, PEX correction and dispatch, exact manifest ZIP, deterministic archive bytes, missing/extra rejection")

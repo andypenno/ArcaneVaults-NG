@@ -1,0 +1,532 @@
+{
+  "version": 1,
+  "name": "large-mixed-1000",
+  "description": "Repeated mixed loot stacks, substantial material quantities, and pre-existing vault contents. Copies share bases but retain distinct physical identities.",
+  "settings": {
+    "GSC_OffloadReagent": true,
+    "GSC_OffloadCatalyst": true,
+    "GSC_OffloadIngredient": true,
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadBooks": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadPersonal": true,
+    "GSC_OffloadGear": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadScrolls": true,
+    "GSC_OffloadSpelltomes": true,
+    "GSC_OffloadCrafting": true,
+    "GSC_OffloadConstruction": true,
+    "GSC_OffloadGemstone": true,
+    "GSC_OffloadSmelting": true,
+    "GSC_OffloadTanning": true,
+    "GSC_OffloadPotion": true,
+    "GSC_OffloadPoison": true,
+    "GSC_OffloadCookedFood": true,
+    "GSC_OffloadRawFood": true,
+    "GSC_OffloadSoulgems": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadGold": true,
+    "GSC_OffloadAmmunition": true,
+    "GSC_OffloadKeys": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_LockpickKeepAmount": 0,
+    "GSC_SoulgemKeepAmount": 0,
+    "GSC_GoldKeepAmount": 0,
+    "GSC_AmmunitionKeepAmount": 0,
+    "GSC_KeysKeepOne": false
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "salt",
+        "base": "salt",
+        "count": 37,
+        "after": {
+          "Alchemy": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "heartstone",
+        "base": "heartstone",
+        "count": 37,
+        "after": {
+          "Alchemy": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "mountain-flower",
+        "base": "mountain-flower",
+        "count": 37,
+        "after": {
+          "Alchemy": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "alchemy-override",
+        "base": "alchemy-override",
+        "count": 37,
+        "after": {
+          "Alchemy": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "linen-robes",
+        "base": "linen-robes",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "armor-override",
+        "base": "armor-override",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "novel",
+        "base": "novel",
+        "count": 37,
+        "after": {
+          "Book": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "nails",
+        "base": "nails",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "sawn-log",
+        "base": "sawn-log",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "leather-strips",
+        "base": "leather-strips",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "venison-stew",
+        "base": "venison-stew",
+        "count": 37,
+        "after": {
+          "Food": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "raw-venison",
+        "base": "raw-venison",
+        "count": 37,
+        "after": {
+          "Food": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "food-override",
+        "base": "food-override",
+        "count": 37,
+        "after": {
+          "Food": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "ruby",
+        "base": "ruby",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "elixir",
+        "base": "elixir",
+        "count": 37,
+        "after": {
+          "Concoction": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "poison",
+        "base": "poison",
+        "count": 37,
+        "after": {
+          "Concoction": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "health-potion",
+        "base": "health-potion",
+        "count": 37,
+        "after": {
+          "Concoction": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "magicka-potion",
+        "base": "magicka-potion",
+        "count": 37,
+        "after": {
+          "Concoction": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "stamina-potion",
+        "base": "stamina-potion",
+        "count": 37,
+        "after": {
+          "Concoction": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "concoction-override",
+        "base": "concoction-override",
+        "count": 37,
+        "after": {
+          "Concoction": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "fireball-scroll",
+        "base": "fireball-scroll",
+        "count": 37,
+        "after": {
+          "Scroll": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "iron-ingot",
+        "base": "iron-ingot",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "smithing-override",
+        "base": "smithing-override",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "empty-petty-gem",
+        "base": "empty-petty-gem",
+        "count": 1,
+        "after": {
+          "Soulgem": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "filled-grand-gem",
+        "base": "filled-grand-gem",
+        "count": 1,
+        "after": {
+          "Soulgem": 1
+        },
+        "copies": 20,
+        "soul": 5
+      },
+      {
+        "id": "flames-tome",
+        "base": "flames-tome",
+        "count": 37,
+        "after": {
+          "Book": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "bear-pelt",
+        "base": "bear-pelt",
+        "count": 37,
+        "after": {
+          "Smithing": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "dragon-heartscales",
+        "base": "dragon-heartscales",
+        "count": 37,
+        "after": {
+          "Treasure": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "gold-ingot",
+        "base": "gold-ingot",
+        "count": 37,
+        "after": {
+          "Treasure": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "hunting-bow",
+        "base": "hunting-bow",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "steel-warhammer",
+        "base": "steel-warhammer",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "fire-staff",
+        "base": "fire-staff",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "weapon-override",
+        "base": "weapon-override",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 20
+      },
+      {
+        "id": "house-key",
+        "base": "house-key",
+        "count": 37,
+        "after": {
+          "Keys": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "steel-arrow",
+        "base": "steel-arrow",
+        "count": 37,
+        "after": {
+          "Ammunition": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "septim",
+        "base": "septim",
+        "count": 37,
+        "after": {
+          "Treasure": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "letter",
+        "base": "letter",
+        "count": 37,
+        "after": {
+          "Notes": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "smithing-book",
+        "base": "smithing-book",
+        "count": 37,
+        "after": {
+          "Book": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "recipe",
+        "base": "recipe",
+        "count": 37,
+        "after": {
+          "Notes": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "treasure-map",
+        "base": "treasure-map",
+        "count": 37,
+        "after": {
+          "Notes": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "keepsake",
+        "base": "keepsake",
+        "count": 37,
+        "after": {
+          "Personal": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "torch",
+        "base": "torch",
+        "count": 37,
+        "after": {
+          "Gear": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "lockpick",
+        "base": "lockpick",
+        "count": 37,
+        "after": {
+          "Gear": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "lute",
+        "base": "lute",
+        "count": 37,
+        "after": {
+          "Gear": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "ruined-book",
+        "base": "ruined-book",
+        "count": 37,
+        "after": {
+          "Junk": 37
+        },
+        "copies": 20
+      },
+      {
+        "id": "extra-healing-supplies",
+        "base": "health-potion",
+        "count": 25,
+        "copies": 20,
+        "after": {
+          "Concoction": 25
+        }
+      }
+    ],
+    "Smithing": [
+      {
+        "id": "existing-forge-stock",
+        "base": "iron-ingot",
+        "count": 600,
+        "after": {
+          "Smithing": 600
+        }
+      }
+    ],
+    "Armor": [
+      {
+        "id": "existing-enchanted-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "enchantment": "waterbreathing",
+        "name": "Lakewalker"
+      }
+    ],
+    "Treasure": [
+      {
+        "id": "existing-gold",
+        "base": "septim",
+        "count": 12000,
+        "after": {
+          "Treasure": 12000
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

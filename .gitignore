@@ -9,7 +9,9 @@
 build/
 tools/esp/bin/
 tools/esp/obj/
-tools/release/__pycache__/
+__pycache__/
+results/
+.build/
 vs*/
 view/
 

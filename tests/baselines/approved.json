@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "revision": "08c79bface68f46ffbee4f69a454fd98f323385f",
+  "sizes": [
+    0,
+    100,
+    1000
+  ],
+  "samples": 4,
+  "render_gap_ms": 50,
+  "timing": {
+    "relative_increase": 0.25,
+    "absolute_ms": 1,
+    "noise_multiplier": 2
+  },
+  "work": {
+    "relative_increase": 0.1,
+    "absolute_calls": 8
+  },
+  "rationale": "Preserve the released frame-gap contract. Host gate rejects only material repeatable regressions beyond two observed sample ranges. 1 ms is a materiality floor, not an in-game latency promise. Reference and candidate use the same harness, compiler and host. These reviewable tolerances do not auto-update.",
+  "retry_samples": 8
+}

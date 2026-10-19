@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "name": "same-base-enchanted-favourite",
+  "bases": [
+    "sword"
+  ],
+  "inventories": {
+    "player": [
+      {
+        "base": "sword",
+        "id": "favourite",
+        "count": 1,
+        "name": "My sword",
+        "favorite": true,
+        "enchantment": "fire",
+        "owner": "player",
+        "charge": 25.5,
+        "temper": 1.5
+      },
+      {
+        "base": "sword",
+        "id": "ordinary",
+        "count": 3,
+        "owner": "player"
+      },
+      {
+        "base": "sword",
+        "id": "frost",
+        "count": 2,
+        "enchantment": "frost",
+        "owner": "player"
+      }
+    ],
+    "vault": []
+  },
+  "actions": [
+    {
+      "from": "player",
+      "to": "vault",
+      "base": "sword",
+      "limit": 1
+    }
+  ],
+  "expected": {
+    "player": {
+      "favourite": 1
+    },
+    "vault": {
+      "ordinary": 3,
+      "frost": 2
+    }
+  }
+}

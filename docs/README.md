@@ -41,12 +41,12 @@ Paths below are relative to the repository root. Headers hold declarations and s
 | [include/HelperFunctions.h](../include/HelperFunctions.h) | Inline engine/ImGui keyboard, mouse, and gamepad code conversion |
 | [ini/ArcaneVaultOverrides.ini](../ini/ArcaneVaultOverrides.ini), [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) | Bundled classification data and English strings |
 | [.gitignore](../.gitignore) | Excludes build output, local xmake/editor state, archives, and compilation databases |
-| [tools/esp/Program.cs](../tools/esp/Program.cs), [tools/esp/check.py](../tools/esp/check.py) | Mutagen CLI and independent ESP edit/reopen check |
-| [tools/release](../tools/release), [release/inputs.json](../release/inputs.json) | Source import, ESP generation, PEX validation, and release assembly |
+| [tools/esp/Program.cs](../tools/esp/Program.cs), [tests/integration/esp_editor.py](../tests/integration/esp_editor.py) | Mutagen CLI and independent ESP edit/reopen check |
+| [tests](../tests), [tools/release](../tools/release), [release/inputs.json](../release/inputs.json) | Source import, ESP generation, PEX validation, and release assembly |
 | [release/ArcaneVaults-LinkedStorage.json](../release/ArcaneVaults-LinkedStorage.json), [release/upstream](../release/upstream) | Working ESP definition and imported upstream baseline |
 | [scripts/Source](../scripts/Source), [scripts/Imports](../scripts/Imports), [assets/skyui-lib](../assets/skyui-lib) | Papyrus source/interfaces and pinned distributed UI movies |
 
-The root [README.md](../README.md) only names the project. The C++ plugin has no test target or CI configuration. The ESP and release tools have runnable checks in their respective guides. Dependency repositories contain their own tooling; that is not the plugin's verification setup.
+The root [README.md](../README.md) only names the project. The committed `tests/` runner compiles production modules and retained regression fixtures. CI is not configured. The ESP and release tools have runnable checks in their respective guides. Dependency repositories contain their own tooling; that is not the plugin's verification setup.
 
 ## Evidence boundary
 

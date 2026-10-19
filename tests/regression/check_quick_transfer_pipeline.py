@@ -9,8 +9,8 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-import check_stolen as harness
-import transfer_render_probe as rendering
+from support import engine as harness
+from support import transfer_render_probe as rendering
 
 ROOT=harness.ROOT
 parser=argparse.ArgumentParser(description=__doc__)
@@ -23,7 +23,11 @@ parser.add_argument("--cost-models",nargs="+",choices=rendering.MODELS,default=r
 parser.add_argument("--profile",action="store_true",help="Profile fixture phases and two test-only candidates against unchanged production")
 parser.add_argument("--samples",type=int,default=5)
 parser.add_argument("--sizes",type=int,nargs="+",default=[0,1000])
+parser.add_argument("--scenarios",type=Path,help="Run representative JSON sorting inventories through every entry path")
 args=parser.parse_args()
+if args.scenarios:
+    if args.profile or args.render_probe:parser.error("JSON scenarios are separate from profiling probes")
+    args.feedback=True
 if args.render_probe:
     if args.profile:parser.error("Render probes and CPU candidate profiles are separate experiments")
     args.feedback=True
@@ -39,7 +43,7 @@ common=harness.common.replace('#include "src/OffloadBatch.h"', '')
 if "TransferFeedback::Mark(" in stores and not args.feedback:
     common+="namespace TransferFeedback {enum class Stage {Recovery,Transfer,Soulgems};inline void Mark(Stage){}}\n"
 if args.feedback:
-    import check_transfer_feedback as feedback
+    from support import feedback
     stub="namespace TransferFeedback {\ninline void Begin(std::function<void(Complete)> start){start([]{return true;});}\ninline void Reset(){}\n}"
     assert stub in common
     common=common.replace(stub, "")
@@ -336,6 +340,10 @@ if args.feedback and not args.render_probe and "bool Apply(" in source("PlayerEq
     index=program.index(marker)
     program=program[:index]+safety+program[index:]
 
+if args.scenarios:
+    from support import sorting
+    program=program[:program.index('int main(){')]+(ROOT/'tests/support/sorting.cpp').read_text().replace('SORTING_DEFINITIONS',sorting.definitions())
+
 if args.render_probe:
     common,program=rendering.instrument(common,program)
 
@@ -416,12 +424,26 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
                 print(f"Profile size={size} repeat={sample+1}/{args.samples}",flush=True)
     else:
         subprocess.run(command,check=True,timeout=90)
-        cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
+        if args.scenarios:
+            fixtures=sorted(args.scenarios.glob('*.json'))
+            fixtures=[p for p in fixtures if p.name!='catalog.json']
+            if not fixtures:raise ValueError('No representative sorting fixtures')
+            cases=[]
+            for fixture in fixtures:
+                expanded=path/'scenario.json';expanded.write_text(json.dumps(sorting.scenario(fixture)))
+                cases.extend(json.loads(line) for line in subprocess.check_output([str(path/'check'),str(expanded)],text=True,timeout=120).splitlines())
+                print(f'Validated representative inventory {fixture.stem}',flush=True)
+        else:
+            cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
 args.output.parent.mkdir(parents=True,exist_ok=True)
+if args.scenarios:
+    args.output.write_text(json.dumps({'complete':True,'passed':True,'cases':cases,'boundary':'Production Quick Transfer controller, inspection, physical transfers and feedback with supplied classification masks and engine/UI stubs. Host fixture durations are observations, not game latency or calibrated performance gates.'},indent=2)+'\n')
+    print(f'Representative sorting checks: {len(cases)} inventory/entry cases; {args.output}')
+    raise SystemExit(0)
 if args.render_probe:
     profile.update({"complete":True,"source_ref":args.source_ref,"source_commit":subprocess.check_output(["git","rev-parse",args.source_ref or "HEAD"],cwd=ROOT,text=True).strip(),
         "source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources},"sanitizers":args.sanitize,
-        "fixture_sha256":{name:hashlib.sha256((ROOT/"tools/release"/name).read_bytes()).hexdigest() for name in ["check_quick_transfer_pipeline.py","transfer_render_probe.py","check_stolen.py","check_transfer_feedback.py"]},
+        "fixture_sha256":{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["tests/regression/check_quick_transfer_pipeline.py", "tests/support/transfer_render_probe.py", "tests/support/engine.hpp", "tests/support/engine.py", "tests/support/feedback.py"]},
         "boundary":"Production pipeline and renderer with engine/classification/UI stubs. Render callbacks occur only at simulated frame boundaries, never inside native calls. Simulated native durations are chosen test inputs, not Skyrim measurements. Measured durations are fixture wall-clock time, including instrumentation and scheduling overhead. Native stub-internal reads/removals inside bulk transfer are not double charged. The scheduler controls exercise the fixture queue, not a measured Skyrim queue policy.",
         "costs":{"zero":"No native cost","distributed":"Removal 1 ms; inventory/bulk 0.25 ms + 0.002 ms per base record","slow-read":"First inventory call during transfer work costs 250 ms","slow-remove":"First removal during transfer work costs 250 ms","slow-bulk":"First bulk call during transfer work costs 250 ms","slow-preflight":"First inventory call before transfer work costs 250 ms"},"frame_interval_simulated_ms":16,"render_gap_budget_simulated_ms":50,
         "entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and same-base enchanted copies","distinct sortable notes","same-base soul-gem quantity","protected loadout with ignored records","protected loadout with one spare and unrelated records"],

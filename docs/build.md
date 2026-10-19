@@ -12,7 +12,7 @@ From the repository root, initialize pinned submodules, explicitly configure a r
 
 ```powershell
 git submodule update --init --recursive
-xmake f -p windows -a x64 -m releasedbg --skyrim_se=y --skyrim_ae=y --skyrim_vr=n
+xmake f -p windows -a x64 -m releasedbg -o .build --skyrim_se=y --skyrim_ae=y --skyrim_vr=n
 xmake build ArcaneVaults-NG
 ```
 

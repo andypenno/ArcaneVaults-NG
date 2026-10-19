@@ -1,0 +1,580 @@
+{
+  "salt": {
+    "name": "Salt pile",
+    "kind": "item",
+    "categories": [
+      "Alchemy",
+      "Reagent"
+    ],
+    "vaults": [
+      "Alchemy",
+      "Reagent"
+    ]
+  },
+  "heartstone": {
+    "name": "Heart stone",
+    "kind": "item",
+    "categories": [
+      "Alchemy",
+      "Catalyst"
+    ],
+    "vaults": [
+      "Alchemy"
+    ]
+  },
+  "mountain-flower": {
+    "name": "Blue mountain flower",
+    "kind": "item",
+    "categories": [
+      "Alchemy",
+      "Ingredient"
+    ],
+    "vaults": [
+      "Alchemy"
+    ]
+  },
+  "alchemy-override": {
+    "name": "Modded alchemical powder",
+    "kind": "item",
+    "categories": [
+      "Alchemy"
+    ],
+    "vaults": [
+      "Alchemy"
+    ]
+  },
+  "linen-robes": {
+    "name": "Linen robes",
+    "kind": "armor",
+    "categories": [
+      "Armor",
+      "Clothing"
+    ],
+    "vaults": [
+      "Armor",
+      "Clothing"
+    ]
+  },
+  "steel-cuirass": {
+    "name": "Steel plate armor",
+    "kind": "armor",
+    "categories": [
+      "Armor",
+      "HeavyArmor"
+    ],
+    "vaults": [
+      "Armor",
+      "HeavyArmor"
+    ]
+  },
+  "leather-boots": {
+    "name": "Leather boots",
+    "kind": "armor",
+    "categories": [
+      "Armor",
+      "LightArmor"
+    ],
+    "vaults": [
+      "Armor",
+      "LightArmor"
+    ]
+  },
+  "silver-ring": {
+    "name": "Silver ring",
+    "kind": "armor",
+    "categories": [
+      "Armor",
+      "Jewelry"
+    ],
+    "vaults": [
+      "Armor",
+      "Jewelry",
+      "EnchantedItems"
+    ]
+  },
+  "armor-override": {
+    "name": "Modded protective mantle",
+    "kind": "armor",
+    "categories": [
+      "Armor"
+    ],
+    "vaults": [
+      "Armor"
+    ]
+  },
+  "novel": {
+    "name": "The Real Barenziah, volume 1",
+    "kind": "item",
+    "categories": [
+      "Book"
+    ],
+    "vaults": [
+      "Book"
+    ]
+  },
+  "nails": {
+    "name": "Iron nails",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "Construction"
+    ],
+    "vaults": [
+      "Smithing",
+      "Construction"
+    ]
+  },
+  "sawn-log": {
+    "name": "Sawn log",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "Construction"
+    ],
+    "vaults": [
+      "Smithing",
+      "Construction"
+    ]
+  },
+  "leather-strips": {
+    "name": "Leather strips",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "Crafting"
+    ],
+    "vaults": [
+      "Smithing",
+      "Crafting"
+    ]
+  },
+  "venison-stew": {
+    "name": "Venison stew",
+    "kind": "item",
+    "categories": [
+      "Food",
+      "CookedFood"
+    ],
+    "vaults": [
+      "Food",
+      "CookedFood"
+    ]
+  },
+  "raw-venison": {
+    "name": "Raw venison",
+    "kind": "item",
+    "categories": [
+      "Food",
+      "RawFood"
+    ],
+    "vaults": [
+      "Food",
+      "RawFood"
+    ]
+  },
+  "food-override": {
+    "name": "Modded preserved ration",
+    "kind": "item",
+    "categories": [
+      "Food"
+    ],
+    "vaults": [
+      "Food"
+    ]
+  },
+  "ruby": {
+    "name": "Ruby",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "Gemstone"
+    ],
+    "vaults": [
+      "Smithing",
+      "Gemstone",
+      "Valuables"
+    ]
+  },
+  "elixir": {
+    "name": "Elixir of enhanced smithing",
+    "kind": "item",
+    "categories": [
+      "Concoction",
+      "Potion"
+    ],
+    "vaults": [
+      "Concoction",
+      "Potion"
+    ]
+  },
+  "poison": {
+    "name": "Frostbite venom",
+    "kind": "item",
+    "categories": [
+      "Concoction",
+      "Poison"
+    ],
+    "vaults": [
+      "Concoction",
+      "Poison"
+    ]
+  },
+  "health-potion": {
+    "name": "Potion of ultimate healing",
+    "kind": "item",
+    "categories": [
+      "Concoction",
+      "Potion",
+      "Restorative",
+      "HealthPotion"
+    ],
+    "vaults": [
+      "Concoction",
+      "Restorative",
+      "HealthPotions"
+    ]
+  },
+  "magicka-potion": {
+    "name": "Potion of plentiful magicka",
+    "kind": "item",
+    "categories": [
+      "Concoction",
+      "Potion",
+      "Restorative",
+      "MagickaPotion"
+    ],
+    "vaults": [
+      "Concoction",
+      "MagickaPotions"
+    ]
+  },
+  "stamina-potion": {
+    "name": "Potion of vigorous stamina",
+    "kind": "item",
+    "categories": [
+      "Concoction",
+      "Potion",
+      "Restorative",
+      "StaminaPotion"
+    ],
+    "vaults": [
+      "Concoction",
+      "StaminaPotions"
+    ]
+  },
+  "concoction-override": {
+    "name": "Modded bottled tonic",
+    "kind": "item",
+    "categories": [
+      "Concoction"
+    ],
+    "vaults": [
+      "Concoction"
+    ]
+  },
+  "fireball-scroll": {
+    "name": "Scroll of fireball",
+    "kind": "item",
+    "categories": [
+      "Scroll"
+    ],
+    "vaults": [
+      "Scroll"
+    ]
+  },
+  "iron-ingot": {
+    "name": "Iron ingot",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "Smelting"
+    ],
+    "vaults": [
+      "Smithing",
+      "Smelting"
+    ]
+  },
+  "smithing-override": {
+    "name": "Modded forge material",
+    "kind": "item",
+    "categories": [
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing"
+    ]
+  },
+  "empty-petty-gem": {
+    "name": "Empty petty soul gem",
+    "kind": "soulgem",
+    "categories": [
+      "Soulgem",
+      "EmptySoulgem"
+    ],
+    "vaults": [
+      "Soulgem",
+      "EmptySoulgems"
+    ]
+  },
+  "filled-grand-gem": {
+    "name": "Filled grand soul gem",
+    "kind": "soulgem",
+    "categories": [
+      "Soulgem",
+      "FilledSoulgem",
+      "GrandSoulgem"
+    ],
+    "vaults": [
+      "Soulgem",
+      "FilledSoulgems"
+    ]
+  },
+  "flames-tome": {
+    "name": "Spell tome of flames",
+    "kind": "item",
+    "categories": [
+      "Book",
+      "SpellTome"
+    ],
+    "vaults": [
+      "Book",
+      "SpellTomes"
+    ]
+  },
+  "bear-pelt": {
+    "name": "Bear pelt",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "Tanning"
+    ],
+    "vaults": [
+      "Smithing",
+      "Tanning"
+    ]
+  },
+  "dragon-heartscales": {
+    "name": "Dragon heartscales",
+    "kind": "item",
+    "categories": [
+      "Treasure"
+    ],
+    "vaults": [
+      "Treasure",
+      "Valuables"
+    ]
+  },
+  "gold-ingot": {
+    "name": "Gold ingot",
+    "kind": "item",
+    "categories": [
+      "Smithing",
+      "PreciousIngot",
+      "Treasure"
+    ],
+    "vaults": [
+      "Treasure",
+      "Valuables"
+    ]
+  },
+  "stahlrim-sword": {
+    "name": "Stalhrim sword",
+    "kind": "weapon",
+    "categories": [
+      "Weapon",
+      "OneHand"
+    ],
+    "vaults": [
+      "Weapon",
+      "OneHand",
+      "EnchantedItems",
+      "StolenItems"
+    ]
+  },
+  "hunting-bow": {
+    "name": "Hunting bow",
+    "kind": "weapon",
+    "categories": [
+      "Weapon",
+      "Archery"
+    ],
+    "vaults": [
+      "Weapon",
+      "Archery"
+    ]
+  },
+  "steel-warhammer": {
+    "name": "Steel warhammer",
+    "kind": "weapon",
+    "categories": [
+      "Weapon",
+      "TwoHand"
+    ],
+    "vaults": [
+      "Weapon",
+      "TwoHand"
+    ]
+  },
+  "fire-staff": {
+    "name": "Staff of flames",
+    "kind": "weapon",
+    "categories": [
+      "Weapon",
+      "Staff"
+    ],
+    "vaults": [
+      "Weapon",
+      "Staff"
+    ]
+  },
+  "weapon-override": {
+    "name": "Modded training weapon",
+    "kind": "weapon",
+    "categories": [
+      "Weapon"
+    ],
+    "vaults": [
+      "Weapon"
+    ]
+  },
+  "house-key": {
+    "name": "Breezehome key",
+    "kind": "item",
+    "categories": [
+      "Keys"
+    ],
+    "vaults": [
+      "Keys"
+    ]
+  },
+  "steel-arrow": {
+    "name": "Steel arrow",
+    "kind": "item",
+    "categories": [
+      "Ammunition"
+    ],
+    "vaults": [
+      "Ammunition",
+      "Archery"
+    ]
+  },
+  "septim": {
+    "name": "Gold septim",
+    "kind": "item",
+    "categories": [
+      "Gold"
+    ],
+    "vaults": [
+      "Treasure"
+    ]
+  },
+  "letter": {
+    "name": "Letter from a friend",
+    "kind": "item",
+    "categories": [
+      "Note"
+    ],
+    "vaults": [
+      "Notes"
+    ]
+  },
+  "smithing-book": {
+    "name": "The Armorer's Challenge",
+    "kind": "item",
+    "categories": [
+      "Book",
+      "SkillBook"
+    ],
+    "vaults": [
+      "Book",
+      "SkillBooks"
+    ]
+  },
+  "recipe": {
+    "name": "Recipe for restore health",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Recipe"
+    ],
+    "vaults": [
+      "Notes",
+      "Recipes"
+    ]
+  },
+  "treasure-map": {
+    "name": "Treasure map IV",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "TreasureMap"
+    ],
+    "vaults": [
+      "Notes",
+      "TreasureMaps"
+    ]
+  },
+  "keepsake": {
+    "name": "Family keepsake",
+    "kind": "item",
+    "categories": [
+      "Personal"
+    ],
+    "vaults": [
+      "Personal"
+    ]
+  },
+  "torch": {
+    "name": "Torch",
+    "kind": "item",
+    "categories": [
+      "Gear"
+    ],
+    "vaults": [
+      "Gear"
+    ]
+  },
+  "lockpick": {
+    "name": "Lockpick",
+    "kind": "item",
+    "categories": [
+      "Gear",
+      "Lockpick"
+    ],
+    "vaults": [
+      "Gear"
+    ]
+  },
+  "lute": {
+    "name": "Lute",
+    "kind": "item",
+    "categories": [
+      "Gear",
+      "Instrument"
+    ],
+    "vaults": [
+      "Gear",
+      "Instruments"
+    ]
+  },
+  "ruined-book": {
+    "name": "Ruined book",
+    "kind": "item",
+    "categories": [
+      "Junk"
+    ],
+    "vaults": [
+      "Junk"
+    ]
+  },
+  "silver-goblet": {
+    "name": "Silver goblet set aside for sale",
+    "kind": "item",
+    "categories": [
+      "Treasure"
+    ],
+    "vaults": [
+      "Trade"
+    ]
+  }
+}

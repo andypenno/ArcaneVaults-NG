@@ -1,0 +1,1198 @@
+{
+  "reference": "08c79bf",
+  "records": {
+    "0x01000DE0": {
+      "type": "KYWD",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_StolenOrigin"
+        }
+      ]
+    },
+    "0x01000DED": {
+      "type": "KYWD",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_EnchantedOrigin"
+        }
+      ]
+    },
+    "0x01000DF0": {
+      "type": "KYWD",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_SortFavorite"
+        }
+      ]
+    },
+    "0x01000D6E": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Arcane"
+        }
+      ]
+    },
+    "0x01000D6F": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Alchemy"
+        }
+      ]
+    },
+    "0x01000D70": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Armor"
+        }
+      ]
+    },
+    "0x01000D71": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Clothing"
+        }
+      ]
+    },
+    "0x01000D72": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_HeavyArmor"
+        }
+      ]
+    },
+    "0x01000D73": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_LightArmor"
+        }
+      ]
+    },
+    "0x01000D74": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Jewelry"
+        }
+      ]
+    },
+    "0x01000D75": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Book"
+        }
+      ]
+    },
+    "0x01000D77": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Scroll"
+        }
+      ]
+    },
+    "0x01000D79": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Food"
+        }
+      ]
+    },
+    "0x01000D7A": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_FoodCooked"
+        }
+      ]
+    },
+    "0x01000D7B": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_FoodRaw"
+        }
+      ]
+    },
+    "0x01000D7C": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Reagent"
+        }
+      ]
+    },
+    "0x01000D7D": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Personal"
+        }
+      ]
+    },
+    "0x01000D7E": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Gemstone"
+        }
+      ]
+    },
+    "0x01000D7F": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Concoction"
+        }
+      ]
+    },
+    "0x01000D80": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Potion"
+        }
+      ]
+    },
+    "0x01000D81": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Poison"
+        }
+      ]
+    },
+    "0x01000D82": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Restorative"
+        }
+      ]
+    },
+    "0x01000D84": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Smithing"
+        }
+      ]
+    },
+    "0x01000D85": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Crafting"
+        }
+      ]
+    },
+    "0x01000D86": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Construction"
+        }
+      ]
+    },
+    "0x01000D87": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Smelting"
+        }
+      ]
+    },
+    "0x01000D88": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Tanning"
+        }
+      ]
+    },
+    "0x01000D89": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Soulgem"
+        }
+      ]
+    },
+    "0x01000D8E": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Treasure"
+        }
+      ]
+    },
+    "0x01000D90": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Weapon"
+        }
+      ]
+    },
+    "0x01000DB4": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Archery"
+        }
+      ]
+    },
+    "0x01000DB5": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_OneHand"
+        }
+      ]
+    },
+    "0x01000DB6": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_TwoHand"
+        }
+      ]
+    },
+    "0x01000DB7": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Archive_Staff"
+        }
+      ]
+    },
+    "0x01000DB8": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Conduit"
+        }
+      ]
+    },
+    "0x01000DC4": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Keys"
+        }
+      ]
+    },
+    "0x01000DC6": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Ammunition"
+        }
+      ]
+    },
+    "0x01000DC8": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_Valuables"
+        }
+      ]
+    },
+    "0x01000DCA": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_FilledSoulgems"
+        }
+      ]
+    },
+    "0x01000DCC": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Vault_EmptySoulgems"
+        }
+      ]
+    },
+    "0x01000DCE": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "JunkContainer"
+        }
+      ]
+    },
+    "0x01000DD0": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "TradeContainer"
+        }
+      ]
+    },
+    "0x01000DD2": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_IgnorePicker"
+        }
+      ]
+    },
+    "0x01000DD4": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Notes"
+        }
+      ]
+    },
+    "0x01000DD6": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_SpellTomes"
+        }
+      ]
+    },
+    "0x01000DD8": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_SkillBooks"
+        }
+      ]
+    },
+    "0x01000DDA": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Recipes"
+        }
+      ]
+    },
+    "0x01000DDC": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_TreasureMaps"
+        }
+      ]
+    },
+    "0x01000DDE": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_StolenItems"
+        }
+      ]
+    },
+    "0x01000DE1": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Gear"
+        }
+      ]
+    },
+    "0x01000DE3": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Instruments"
+        }
+      ]
+    },
+    "0x01000DE5": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_HealthPotions"
+        }
+      ]
+    },
+    "0x01000DE7": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_MagickaPotions"
+        }
+      ]
+    },
+    "0x01000DE9": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_StaminaPotions"
+        }
+      ]
+    },
+    "0x01000DEB": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_EnchantedItems"
+        }
+      ]
+    },
+    "0x01000DEE": {
+      "type": "CONT",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_QuickTransfer"
+        }
+      ]
+    },
+    "0x01000D93": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Arcane"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D6E"
+        }
+      ]
+    },
+    "0x01000D94": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Alchemy"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D6F"
+        }
+      ]
+    },
+    "0x01000D95": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Armor"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D70"
+        }
+      ]
+    },
+    "0x01000D96": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Clothing"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D71"
+        }
+      ]
+    },
+    "0x01000D97": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_HeavyArmor"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D72"
+        }
+      ]
+    },
+    "0x01000D98": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_LightArmor"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D73"
+        }
+      ]
+    },
+    "0x01000D99": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Jewelry"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D74"
+        }
+      ]
+    },
+    "0x01000D9A": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Book"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D75"
+        }
+      ]
+    },
+    "0x01000D9B": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Scroll"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D77"
+        }
+      ]
+    },
+    "0x01000D9D": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Food"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D79"
+        }
+      ]
+    },
+    "0x01000D9E": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_CookedFood"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D7A"
+        }
+      ]
+    },
+    "0x01000D9F": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_RawFood"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D7B"
+        }
+      ]
+    },
+    "0x01000DA0": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Reagent"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D7C"
+        }
+      ]
+    },
+    "0x01000DA1": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Personal"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D7D"
+        }
+      ]
+    },
+    "0x01000DA2": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Gemstone"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D7E"
+        }
+      ]
+    },
+    "0x01000DA3": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Concoction"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D7F"
+        }
+      ]
+    },
+    "0x01000DA4": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Potion"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D80"
+        }
+      ]
+    },
+    "0x01000DA5": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Poison"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D81"
+        }
+      ]
+    },
+    "0x01000DA6": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Restorative"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D82"
+        }
+      ]
+    },
+    "0x01000DA7": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Smithing"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D84"
+        }
+      ]
+    },
+    "0x01000DA8": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Crafting"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D85"
+        }
+      ]
+    },
+    "0x01000DA9": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Construction"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D86"
+        }
+      ]
+    },
+    "0x01000DAA": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Smelting"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D87"
+        }
+      ]
+    },
+    "0x01000DAB": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Tanning"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D88"
+        }
+      ]
+    },
+    "0x01000DAC": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Soulgem"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D89"
+        }
+      ]
+    },
+    "0x01000DAD": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Treasure"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D8E"
+        }
+      ]
+    },
+    "0x01000DAF": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Weapon"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000D90"
+        }
+      ]
+    },
+    "0x01000DB0": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Archery"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DB4"
+        }
+      ]
+    },
+    "0x01000DB1": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_OneHand"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DB5"
+        }
+      ]
+    },
+    "0x01000DB2": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_TwoHand"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DB6"
+        }
+      ]
+    },
+    "0x01000DB3": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Staff"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DB7"
+        }
+      ]
+    },
+    "0x01000DB9": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Conduit"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DB8"
+        }
+      ]
+    },
+    "0x01000DC5": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Keys"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DC4"
+        }
+      ]
+    },
+    "0x01000DC7": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Ammunition"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DC6"
+        }
+      ]
+    },
+    "0x01000DC9": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Valuables"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DC8"
+        }
+      ]
+    },
+    "0x01000DCB": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_FilledSoulgems"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DCA"
+        }
+      ]
+    },
+    "0x01000DCD": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_EmptySoulgems"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DCC"
+        }
+      ]
+    },
+    "0x01000DCF": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "JunkReference"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DCE"
+        }
+      ]
+    },
+    "0x01000DD1": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "TradeReference"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DD0"
+        }
+      ]
+    },
+    "0x01000DD3": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_IgnorePicker"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DD2"
+        }
+      ]
+    },
+    "0x01000DD5": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Notes"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DD4"
+        }
+      ]
+    },
+    "0x01000DD7": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_SpellTomes"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DD6"
+        }
+      ]
+    },
+    "0x01000DD9": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_SkillBooks"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DD8"
+        }
+      ]
+    },
+    "0x01000DDB": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Recipes"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DDA"
+        }
+      ]
+    },
+    "0x01000DDD": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_TreasureMaps"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DDC"
+        }
+      ]
+    },
+    "0x01000DDF": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_StolenItems"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DDE"
+        }
+      ]
+    },
+    "0x01000DE2": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Gear"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DE1"
+        }
+      ]
+    },
+    "0x01000DE4": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_Instruments"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DE3"
+        }
+      ]
+    },
+    "0x01000DE6": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_HealthPotions"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DE5"
+        }
+      ]
+    },
+    "0x01000DE8": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_MagickaPotions"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DE7"
+        }
+      ]
+    },
+    "0x01000DEA": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_StaminaPotions"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DE9"
+        }
+      ]
+    },
+    "0x01000DEC": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_EnchantedItems"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DEB"
+        }
+      ]
+    },
+    "0x01000DEF": {
+      "type": "REFR",
+      "fields": [
+        {
+          "type": "EDID",
+          "text": "AV_Ref_QuickTransfer"
+        },
+        {
+          "type": "NAME",
+          "form_id": "0x01000DEE"
+        }
+      ]
+    }
+  }
+}

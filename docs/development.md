@@ -41,7 +41,7 @@ Before turning an observation into a patch, reproduce the relevant case and esta
 
 The documentation pass inspected first-party source, build scripts, lockfile, submodule pins, integration headers, and the extracted release. It checked documentation links, registry IDs against the actual ESP, and Git whitespace/scope. The [Wine release build](wine-build.md) and documented rebuild/install passed; Windows x64 format, SKSE exports, staging bytes, and lockfile preservation were checked. No Skyrim loading or game scenario ran. Future reports must distinguish compilation and static artifact checks from execution in the game.
 
-The [ESP](esp-editing.md) and [release](release-build.md) tools have runnable checks. The C++ plugin has no automated test target. CommonLib has an optional `commonlibsse-ng-tests` target behind `--tests=y`; those are dependency tests, not proof of Arcane Vaults behavior. For a logic change, leave the smallest runnable regression check that exercises the changed contract. Avoid adding a test framework just to mirror implementation.
+The [ESP](esp-editing.md) and [release](release-build.md) tools have runnable checks. The committed [test framework](../tests/README.md) provides unit, integration, regression, performance and package suites. CommonLib has an optional `commonlibsse-ng-tests` target behind `--tests=y`; those are dependency tests, not proof of Arcane Vaults behavior. For a logic change, leave the smallest runnable regression check that exercises the changed contract. Avoid adding a test framework just to mirror implementation.
 
 ## Windows and in-game checks
 

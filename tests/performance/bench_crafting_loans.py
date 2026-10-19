@@ -7,7 +7,7 @@ import statistics
 import subprocess
 import tempfile
 
-import check_stolen
+from support import engine as check_stolen
 
 ROOT = check_stolen.ROOT
 FILES = ("src/Stores.cpp", "src/Events.cpp", "src/InventoryStacks.cpp", "src/InventoryStacks.h", "src/Soulgems.cpp")
@@ -38,7 +38,7 @@ def common_source():
     text=text.replace("++inventoryCopies;", "++inventoryCopies;++Counters::copies;")
     text=text.replace("assert(!inspectionOpen);if(refuse)return;", "++Counters::moves;assert(!inspectionOpen);if(refuse)return;")
     text=text.replace("struct Utility {", "struct Utility { BenchType bench=BenchType::None;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;} bool isSmithing(RE::FormID)const{return true;}")
-    text=text.replace("struct Settings {", "struct Settings { bool GSC_CraftingLoan=true,GSC_ReturnIgnoredItems=true;")
+    text=text.replace("struct Settings {", "struct Settings { bool GSC_CraftingLoan=true,GSC_ReturnIgnoredItems=true,GSC_AllCraftingMaterials=false;")
     text=text.replace("return ToMask(item->armor?ItemCategory::Jewelry:ItemCategory::Weapon);", "return item->categories;")
     text=text.replace("struct Stores {", "struct Stores { std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();} void AllToPlayer(Container);void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = {});")
     text += "\n#include <utility>\n#include <iostream>\n#include \"src/Soulgems.h\"\nnamespace PlayerEquipment { inline const Snapshot* Current(){return nullptr;} }\n"
@@ -47,7 +47,7 @@ def common_source():
 
 MAIN = r'''
 int main(int argc,char** argv){
- assert(argc==6);const int bench=std::stoi(argv[1]),size=std::stoi(argv[2]),mode=std::stoi(argv[3]),sample=std::stoi(argv[4]),scenario=std::stoi(argv[5]);
+ assert(argc==7);const int bench=std::stoi(argv[1]),size=std::stoi(argv[2]),mode=std::stoi(argv[3]),sample=std::stoi(argv[4]),scenario=std::stoi(argv[5]);
  const int types=scenario==0?size:1,mainCount=scenario==0?3:size,otherCount=scenario==0?2:size;
  auto* player=RE::PlayerCharacter::GetSingleton();auto* utility=Utility::GetSingleton();auto* stores=Stores::GetSingleton();
  std::map<Container,std::unique_ptr<RE::TESObjectREFR>> banks;
@@ -56,6 +56,7 @@ int main(int argc,char** argv){
  }
  RE::TESObjectREFR furniture{8000};std::array<RE::EnchantmentItem,3> customEnchantments;RE::TESForm owner{7000,false};
  utility->bench=static_cast<BenchType>(bench);
+ Settings::GetSingleton()->GSC_AllCraftingMaterials=std::stoi(argv[6])!=0;
  std::vector<RE::TESBoundObject> items(types),junk(types);std::vector<RE::TESSoulGem> gems(types);
  std::map<RE::TESBoundObject*,Container> origins;
  std::map<RE::TESBoundObject*,int> expectedCounts;
@@ -95,7 +96,7 @@ int main(int argc,char** argv){
   RE::Counters::Reset();const auto start=std::chrono::steady_clock::now();action();SKSE::GetTaskInterface()->Run();
   const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
   std::cout<<"{\"bench\":"<<bench<<",\"size\":"<<size<<",\"mode\":"<<mode<<",\"sample\":"<<sample<<",\"scenario\":"<<scenario
-   <<",\"phase\":\""<<phase<<"\",\"ms\":"<<ms<<",\"inventory_calls\":"<<RE::Counters::calls
+   <<",\"all_materials\":"<<(Settings::GetSingleton()->GSC_AllCraftingMaterials?"true":"false")<<",\"phase\":\""<<phase<<"\",\"ms\":"<<ms<<",\"inventory_calls\":"<<RE::Counters::calls
    <<",\"entries_visited\":"<<RE::Counters::visits<<",\"entries_copied\":"<<RE::Counters::copies<<",\"moves\":"<<RE::Counters::moves
    <<",\"bulk_calls\":"<<RE::Counters::bulks<<"}\n"<<std::flush;
  };
@@ -148,6 +149,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output",type=Path,required=True)
     parser.add_argument("--sizes",type=int,nargs="+",default=[0,100,300,1000])
+    parser.add_argument("--all-materials",action="store_true")
     parser.add_argument("--baseline",help="Git revision to compare with working sources in the same batch")
     parser.add_argument("--scenarios",nargs="+",choices=["types","quantity","stacks"],default=["types","quantity","stacks"])
     parser.add_argument("--samples",type=int,default=2)
@@ -191,7 +193,7 @@ def main():
           order=list(binaries) if sample%2==0 else list(reversed(binaries))
           for variant in order:
            for mode in ((0,1) if sample%2==0 else (1,0)):
-            command=[str(binaries[variant]),str(bench),str(size),str(mode),str(sample),str(scenario_id)]
+            command=[str(binaries[variant]),str(bench),str(size),str(mode),str(sample),str(scenario_id),str(int(args.all_materials))]
             try:
              output=subprocess.check_output(command,text=True,timeout=args.timeout)
             except subprocess.TimeoutExpired as error:

@@ -6,10 +6,10 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-import check_stolen as harness
+from support import physical as harness
 
 ROOT = harness.ROOT
-OUTPUT = ROOT / "build/regressions/quick-transfer-idle.json"
+OUTPUT = ROOT / "results/regressions/quick-transfer-idle.json"
 MAIN = r'''
 int main() {
     auto* player=RE::PlayerCharacter::GetSingleton();auto* tasks=SKSE::GetTaskInterface();
@@ -168,7 +168,7 @@ def main():
     cases=MAIN if not args.probe_scheduling else MAIN[:MAIN.rindex("\n}")] + SCHEDULING + "\n}\n"
     if "Snapshot Capture(" in equipment:
         cases=cases.replace("PlayerEquipment::Read(static_cast<RE::InventoryMenu*>(ui->menu),player)", "PlayerEquipment::Read(static_cast<RE::InventoryMenu*>(ui->menu),PlayerEquipment::Capture(player),player->GetHandle().native_handle())")
-    program = harness.program[:harness.program.index("int main(){")] + "\n#include <iostream>\n" + clock + transformed + cases
+    program = harness.program + "\n#include <iostream>\n" + clock + transformed + cases
     with tempfile.TemporaryDirectory(prefix="av-idle-regression-") as directory:
         root=Path(directory)
         (root / "common.hpp").write_text("#pragma once\n" + harness.common)

@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "name": "populated-archives",
+  "description": "Legacy archive contents consolidate into their parent vaults while incoming loot sorts and sale stock remains untouched.",
+  "settings": {
+    "GSC_OffloadReagent": true,
+    "GSC_OffloadCatalyst": true,
+    "GSC_OffloadIngredient": true,
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadBooks": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadPersonal": true,
+    "GSC_OffloadGear": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadScrolls": true,
+    "GSC_OffloadSpelltomes": true,
+    "GSC_OffloadCrafting": true,
+    "GSC_OffloadConstruction": true,
+    "GSC_OffloadGemstone": true,
+    "GSC_OffloadSmelting": true,
+    "GSC_OffloadTanning": true,
+    "GSC_OffloadPotion": true,
+    "GSC_OffloadPoison": true,
+    "GSC_OffloadCookedFood": true,
+    "GSC_OffloadRawFood": true,
+    "GSC_OffloadSoulgems": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadGold": true,
+    "GSC_OffloadAmmunition": true,
+    "GSC_OffloadKeys": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_LockpickKeepAmount": 0,
+    "GSC_SoulgemKeepAmount": 0,
+    "GSC_GoldKeepAmount": 0,
+    "GSC_AmmunitionKeepAmount": 0,
+    "GSC_KeysKeepOne": false
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "novel",
+        "base": "novel",
+        "count": 4,
+        "after": {
+          "Book": 4
+        }
+      },
+      {
+        "id": "recipe",
+        "base": "recipe",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      }
+    ],
+    "SpellTomes": [
+      {
+        "id": "archived-SpellTomes",
+        "base": "flames-tome",
+        "count": 7,
+        "after": {
+          "Book": 7
+        }
+      }
+    ],
+    "SkillBooks": [
+      {
+        "id": "archived-SkillBooks",
+        "base": "smithing-book",
+        "count": 7,
+        "after": {
+          "Book": 7
+        }
+      }
+    ],
+    "Recipes": [
+      {
+        "id": "archived-Recipes",
+        "base": "recipe",
+        "count": 7,
+        "after": {
+          "Notes": 7
+        }
+      }
+    ],
+    "TreasureMaps": [
+      {
+        "id": "archived-TreasureMaps",
+        "base": "treasure-map",
+        "count": 7,
+        "after": {
+          "Notes": 7
+        }
+      }
+    ],
+    "Scroll": [
+      {
+        "id": "archived-Scroll",
+        "base": "letter",
+        "count": 7,
+        "after": {
+          "Notes": 7
+        }
+      }
+    ],
+    "Potion": [
+      {
+        "id": "archived-Potion",
+        "base": "elixir",
+        "count": 7,
+        "after": {
+          "Concoction": 7
+        }
+      }
+    ],
+    "Poison": [
+      {
+        "id": "archived-Poison",
+        "base": "poison",
+        "count": 7,
+        "after": {
+          "Concoction": 7
+        }
+      }
+    ],
+    "Restorative": [
+      {
+        "id": "archived-Restorative",
+        "base": "health-potion",
+        "count": 7,
+        "after": {
+          "Concoction": 7
+        }
+      }
+    ],
+    "HealthPotions": [
+      {
+        "id": "archived-HealthPotions",
+        "base": "health-potion",
+        "count": 7,
+        "after": {
+          "Concoction": 7
+        }
+      }
+    ],
+    "MagickaPotions": [
+      {
+        "id": "archived-MagickaPotions",
+        "base": "magicka-potion",
+        "count": 7,
+        "after": {
+          "Concoction": 7
+        }
+      }
+    ],
+    "StaminaPotions": [
+      {
+        "id": "archived-StaminaPotions",
+        "base": "stamina-potion",
+        "count": 7,
+        "after": {
+          "Concoction": 7
+        }
+      }
+    ],
+    "Instruments": [
+      {
+        "id": "archived-Instruments",
+        "base": "lute",
+        "count": 7,
+        "after": {
+          "Gear": 7
+        }
+      }
+    ],
+    "EmptySoulgems": [
+      {
+        "id": "archived-EmptySoulgems",
+        "base": "empty-petty-gem",
+        "count": 7,
+        "after": {
+          "Soulgem": 7
+        }
+      }
+    ],
+    "FilledSoulgems": [
+      {
+        "id": "archived-FilledSoulgems",
+        "base": "filled-grand-gem",
+        "count": 7,
+        "after": {
+          "Soulgem": 7
+        },
+        "soul": 5
+      }
+    ],
+    "Trade": [
+      {
+        "id": "sale-stock",
+        "base": "silver-goblet",
+        "count": 8,
+        "after": {
+          "Trade": 8
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

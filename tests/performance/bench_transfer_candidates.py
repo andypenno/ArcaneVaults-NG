@@ -13,7 +13,7 @@ ROOT = loans.ROOT
 FILES = ("src/Stores.cpp", "src/PlayerEquipment.cpp", "src/InventoryStacks.cpp",
          "src/InventoryStacks.h", "src/PlayerEquipment.h")
 SCENARIOS = ("reserve_below", "reserve_equal", "reserve_above", "deposit_types",
-             "deposit_stacks", "withdraw_category", "equipment_present", "equipment_absent")
+             "deposit_stacks", "withdraw_category", "equipment_present", "equipment_protected", "equipment_absent")
 
 MAIN = r'''
 int main(int argc,char** argv) {
@@ -147,7 +147,8 @@ int main(int argc,char** argv) {
         if(scenario=="withdraw_category") {
             for(int i=0;i<3;++i){matches[i].id=20000+i;matches[i].categories=ToMask(ItemCategory::Catalyst);alchemy.Put(&matches[i],0,5,&owner,"recipe");}
             player->Put(&matches[0],0,2,&owner,"carried");
-        } else if(scenario=="equipment_present") {ring(&gear,1,0,true);player->rows[&gear].favorite=true;settings->ignored.insert(&gear);}
+        } else if(scenario=="equipment_present") ring(&gear,1,0);
+        else if(scenario=="equipment_protected") {ring(&gear,1,0,true);player->rows[&gear].favorite=true;settings->ignored.insert(&gear);}
         else assert(scenario=="equipment_absent");
     }
     RE::Counters::Reset();const auto start=std::chrono::steady_clock::now();
@@ -172,6 +173,8 @@ int main(int argc,char** argv) {
     if(scenario.starts_with("equipment_")) {
         if(scenario=="equipment_present")assert(PlayerEquipment::pending && worked==0 && completed==0 && queue->commands.size()==1);
         else assert(!PlayerEquipment::pending && worked==1 && completed==1 && queue->commands.empty());
+        if(scenario!="equipment_absent")assert(count(player,&gear)==1 && count(&bank,&gear)==0);
+        if(scenario=="equipment_protected")assert(player->rows[&gear].favorite && player->rows[&gear].extras.front()->uiWorn && settings->ignored.contains(&gear));
         for(auto& item:items)assert(count(player,&item)==5);
         PlayerEquipment::Reset();queue->ProcessCommands();
         assert(!ui->menu && RE::input==input && RE::PlayerControls::GetSingleton()->blockPlayerInput==blocked);

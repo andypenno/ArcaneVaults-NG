@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import subprocess
 import tempfile
-import check_stolen as harness
+from support import engine as harness
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--source-ref')
