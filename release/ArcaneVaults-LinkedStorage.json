@@ -1777,7 +1777,7 @@
           "fields": [
             {
               "type": "EDID",
-              "text": "AV_TreasureMaps"
+              "text": "AV_Maps"
             },
             {
               "type": "OBND",
@@ -1785,7 +1785,7 @@
             },
             {
               "type": "FULL",
-              "text": "Treasure Maps Archive"
+              "text": "Maps Vault"
             },
             {
               "type": "MODL",
@@ -3122,7 +3122,7 @@
                           "fields": [
                             {
                               "type": "EDID",
-                              "text": "AV_Ref_TreasureMaps"
+                              "text": "AV_Ref_Maps"
                             },
                             {
                               "type": "NAME",

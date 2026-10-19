@@ -507,11 +507,11 @@
     "kind": "item",
     "categories": [
       "Note",
-      "TreasureMap"
+      "Map"
     ],
     "vaults": [
       "Notes",
-      "TreasureMaps"
+      "Maps"
     ]
   },
   "keepsake": {
@@ -575,6 +575,114 @@
     ],
     "vaults": [
       "Trade"
+    ]
+  },
+  "fishing-map-eastmarch": {
+    "name": "Fishing Map - Eastmarch",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-falkreath": {
+    "name": "Fishing Map - Falkreath",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-haafingar": {
+    "name": "Fishing Map - Haafingar",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-hjaalmarch": {
+    "name": "Fishing Map - Hjaalmarch",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-the-pale": {
+    "name": "Fishing Map - The Pale",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-the-reach": {
+    "name": "Fishing Map - The Reach",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-the-rift": {
+    "name": "Fishing Map - The Rift",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "fishing-map-whiterun": {
+    "name": "Fishing Map - Whiterun",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
+    ]
+  },
+  "deathbrand-map": {
+    "name": "Deathbrand Treasure Map",
+    "kind": "item",
+    "categories": [
+      "Note",
+      "Map"
+    ],
+    "vaults": [
+      "Notes",
+      "Maps"
     ]
   }
 }

@@ -10,6 +10,7 @@ from esp import generate_esp, walk
 from validate import validate_esp
 
 ROOT = Path(__file__).resolve().parents[2]
+fishing_maps = json.loads((ROOT / 'tests/fixtures/fishing-maps.json').read_text())
 source = (ROOT / "src/Stores.cpp").read_text()
 start = source.index("void Stores::PlayerToStore(")
 method = source[start:source.index("\n}\n", start) + 3]
@@ -262,7 +263,7 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
 struct Utility {
-    RE::TESObjectREFR chest, archery, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, treasureMaps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
+    RE::TESObjectREFR chest, archery, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, maps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
     RE::TESObjectREFR* foodContainer = nullptr;
     RE::TESObjectREFR* alchemyContainer = nullptr;
     RE::TESObjectREFR* scrollContainer = nullptr;
@@ -299,7 +300,7 @@ struct Utility {
         case Container::SpellTomes: return &spellTomes;
         case Container::SkillBooks: return &skillBooks;
         case Container::Recipes: return &recipes;
-        case Container::TreasureMaps: return &treasureMaps;
+        case Container::Maps: return &maps;
         case Container::Scroll: return scrollContainer ? scrollContainer : &chest;
         case Container::Sort: return &inbox;
         case Container::Ignore: return &inbox;
@@ -420,7 +421,7 @@ void OffloadItems(){OffloadItemsNow();}
         title = text; options = std::move(values);
     }
     void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
-        assert(container == Container::Reagent || container == Container::Archery || container == Container::Soulgem || container == Container::FilledSoulgems || container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::TreasureMaps || container == Container::Ammunition);
+        assert(container == Container::Reagent || container == Container::Archery || container == Container::Soulgem || container == Container::FilledSoulgems || container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::Maps || container == Container::Ammunition);
         opened = container;
         onClose = [source, action] { action(source); };
     }
@@ -1196,7 +1197,7 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     settings->overrides[&skillBook]=ToMask(ItemCategory::Book);
     assert(ClassifyItem(&skillBook)==ToMask(ItemCategory::Book));settings->overrides.erase(&skillBook);
     assert(!skillBook.book.TeachesSkill() && ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
-    settings->overrides[&mapBook]=ToMask(ItemCategory::TreasureMap);
+    settings->overrides[&mapBook]=ToMask(ItemCategory::Map);
     noteBook.book.note=false;noteBook.book.model="Clutter\\Books\\nOtE01.nif";
     plainBook.book.model="Clutter\\Books\\Book01.nif";
     spellBook.book.model="Meshes\\Notes\\spell.nif";skillBook.book.model="Clutter\\Books\\Note01.nif";
@@ -1211,9 +1212,9 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
     assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Note));
     assert(ClassifyItem(&recipeBook)==(ItemCategory::Note|ItemCategory::Recipe));
-    assert(ClassifyItem(&mapBook)==(ItemCategory::Note|ItemCategory::TreasureMap));
-    RE::TESBoundObject miscMap{ItemCategory::None,false,0xFE001800};settings->overrides[&miscMap]=ToMask(ItemCategory::TreasureMap);
-    assert(ClassifyItem(&miscMap)==(ItemCategory::Note|ItemCategory::TreasureMap));
+    assert(ClassifyItem(&mapBook)==(ItemCategory::Note|ItemCategory::Map));
+    RE::TESBoundObject miscMap{ItemCategory::None,false,0xFE001800};settings->overrides[&miscMap]=ToMask(ItemCategory::Map);
+    assert(ClassifyItem(&miscMap)==(ItemCategory::Note|ItemCategory::Map));
     spellBook.book.note=true;spellBook.book.recipe=true;spellBook.book.skill=true;
     assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
     skillBook.book.note=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
@@ -1232,11 +1233,11 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     click(3);assert(stores.opened==Container::SkillBooks && utility->skillBooks.inventory[&skillBook].first==7);
     stores.onClose();assert(utility->skillBooks.inventory[&skillBook].first==0 && chest.inventory[&skillBook].first==7 && stores.options.size()==6 && stores.options[2].text=="Vault.SpellTomes Vault.Vault");
     stores.NotesMenu(&source);assert(stores.options.size()==6);
-    assert(stores.options[2].text=="Vault.Recipes Vault.Vault" && stores.options[3].text=="Vault.TreasureMaps Vault.Vault" && stores.options[4].text=="Vault.Open" && stores.options[5].text=="Vault.Exit");
+    assert(stores.options[2].text=="Vault.Recipes Vault.Vault" && stores.options[3].text=="Vault.Maps Vault.Vault" && stores.options[4].text=="Vault.Open" && stores.options[5].text=="Vault.Exit");
     click(2);assert(stores.opened==Container::Recipes && utility->recipes.inventory[&recipeBook].first==7);
-    stores.onClose();assert(utility->recipes.inventory[&recipeBook].first==0 && stores.options.size()==6 && stores.options[3].text=="Vault.TreasureMaps Vault.Vault");
-    click(3);assert(stores.opened==Container::TreasureMaps && utility->treasureMaps.inventory[&mapBook].first==7);
-    stores.onClose();assert(utility->treasureMaps.inventory[&mapBook].first==0 && stores.options.size()==6 && stores.options[2].text=="Vault.Recipes Vault.Vault");
+    stores.onClose();assert(utility->recipes.inventory[&recipeBook].first==0 && stores.options.size()==6 && stores.options[3].text=="Vault.Maps Vault.Vault");
+    click(3);assert(stores.opened==Container::Maps && utility->maps.inventory[&mapBook].first==7);
+    stores.onClose();assert(utility->maps.inventory[&mapBook].first==0 && stores.options.size()==6 && stores.options[2].text=="Vault.Recipes Vault.Vault");
     click(4);assert(stores.opened==Container::Notes);stores.onClose();assert(stores.options.size()==6);
     stores.closed=false;click(5);assert(stores.closed);stores.NotesMenu(&source);
     player->inventory[&noteBook]=entry(2);click(1);assert(player->inventory[&noteBook].first==2 && player->inventory[&recipeBook].first==1 && player->inventory[&mapBook].first==1);
@@ -1255,6 +1256,31 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     skillBook.book.skill=true;utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.size()==1);
     skillBook.book.spell=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SpellTome));
     utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());skillBook.book.spell=false;
+    player->inventory.clear();utility->notes.inventory.clear();settings->ignored.clear();
+    constexpr std::array<unsigned,8> fishingIDs{FISHING_MAP_LOCAL_IDS};
+    std::array<RE::TESBoundObject,8> fishingMaps{};
+    for(unsigned i=0;i<fishingMaps.size();++i) {
+        auto& map=fishingMaps[i];map.category=ItemCategory::None;map.formID=0x04000000|fishingIDs[i];map.nativeBook=true;
+        settings->overrides[&map]=ToMask(ItemCategory::Map);
+        assert(ClassifyItem(&map)==(ItemCategory::Note|ItemCategory::Map));
+        put(&map,4,i==1,i==0);
+    }
+    settings->GSC_OffloadNotes=true;stores.OffloadItems();
+    for(unsigned i=0;i<fishingMaps.size();++i) {
+        auto* map=&fishingMaps[i];assert(player->inventory[map].first==(i<2?4:0));
+        assert(utility->notes.inventory[map].first==(i<2?0:4));utility->inbox.inventory[map]=entry(2);
+    }
+    stores.SortItems();
+    stores.OpenBookArchive(Container::Maps,Container::Notes,ItemCategory::Map,&source,true);
+    for(unsigned i=0;i<fishingMaps.size();++i)assert(utility->maps.inventory[&fishingMaps[i]].first==(i<2?2:6));
+    stores.onClose();assert(stores.options.size()==6);
+    stores.closed=false;stores.OpenBookArchive(Container::Maps,Container::Notes,ItemCategory::Map,&source);
+    stores.onClose();assert(stores.closed);
+    for(unsigned i=0;i<fishingMaps.size();++i)assert(utility->notes.inventory[&fishingMaps[i]].first==(i<2?2:6));
+    settings->overrides[&fishingMaps[0]]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&fishingMaps[0])==ToMask(ItemCategory::Book));
+    RE::TESBoundObject fishingJournal{ItemCategory::None,false,0x04710000};fishingJournal.nativeBook=true;
+    assert(ClassifyItem(&fishingJournal)==ToMask(ItemCategory::Book));
     utility->scrollContainer=nullptr;
 
     player->inventory.clear();ammoChest.inventory.clear();settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.clear();
@@ -1547,6 +1573,7 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
 
 }
 '''
+program = program.replace('FISHING_MAP_LOCAL_IDS', ','.join(row['local_id'] for row in fishing_maps['maps']))
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
     path = Path(temporary)
     (path / "check.cpp").write_text(program)
@@ -1575,12 +1602,12 @@ map_overrides = {}
 for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines():
     if "=" in line:
         identifier, categories = (part.strip() for part in line.split("=", 1))
-        if categories == "TreasureMap":
+        if categories == "Map":
             plugin, local = identifier.split("|", 1)
             map_overrides[(plugin, int(local, 16))] = categories
 assert set(map_overrides) == {("Skyrim.esm", local) for local in
     (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
-     0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)}
+     0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)} | {(fishing_maps['plugin'], int(row['local_id'], 16)) for row in fishing_maps['maps']}
 print("PASS: direct Archery ammunition gather/return, withdrawals, deposits and failed/large transfers; native potion effects, exclusions and archive gather/return; ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}

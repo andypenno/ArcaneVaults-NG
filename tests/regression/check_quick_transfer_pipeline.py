@@ -37,7 +37,10 @@ if args.profile and args.sanitize:parser.error("Profile runs exclude sanitizers"
 if (args.profile or args.render_probe) and (args.samples<2 or args.samples>10 or any(size<0 or size>1000 for size in args.sizes)):
     parser.error("Use 2 to 10 samples and sizes between zero and 1000")
 def source(name):
-    return subprocess.check_output(["git","show",f"{args.source_ref}:src/{name}.cpp"],cwd=ROOT,text=True) if args.source_ref else (ROOT/f"src/{name}.cpp").read_text()
+    if not args.source_ref:return (ROOT/f"src/{name}.cpp").read_text()
+    text=subprocess.check_output(["git","show",f"{args.source_ref}:src/{name}.cpp"],cwd=ROOT,text=True)
+    header=subprocess.check_output(["git","show",f"{args.source_ref}:src/ItemClass.h"],cwd=ROOT,text=True)
+    return harness.rename_enum_references(text,header)
 stores=source("Stores")
 common=harness.common.replace('#include "src/OffloadBatch.h"', '')
 if "TransferFeedback::Mark(" in stores and not args.feedback:
@@ -189,7 +192,7 @@ int main(){
     auto* tasks=SKSE::GetTaskInterface();auto* ui=RE::UI::GetSingleton();auto* queue=RE::UIMessageQueue::GetSingleton();
     std::map<Container,std::unique_ptr<RE::TESObjectREFR>> banks;
     for(auto kind:{Container::Armor,Container::Weapon,Container::Book,Container::Notes,Container::Scroll,Container::SpellTomes,Container::SkillBooks,
-        Container::Recipes,Container::TreasureMaps,Container::Concoction,Container::Potion,Container::Poison,Container::Restorative,
+        Container::Recipes,Container::Maps,Container::Concoction,Container::Potion,Container::Poison,Container::Restorative,
         Container::HealthPotions,Container::MagickaPotions,Container::StaminaPotions,Container::Gear,Container::Instruments,Container::Keys,Container::Soulgem,
         Container::EmptySoulgems,Container::FilledSoulgems,Container::Smithing,Container::Crafting,Container::Smelting,Container::Construction,Container::Tanning,Container::Gemstone,Container::Sort}){
         banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));utility->containers[kind]=banks[kind].get();

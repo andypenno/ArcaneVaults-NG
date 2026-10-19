@@ -429,7 +429,7 @@
       "fields": [
         {
           "type": "EDID",
-          "text": "AV_TreasureMaps"
+          "text": "AV_Maps"
         }
       ]
     },
@@ -1082,7 +1082,7 @@
       "fields": [
         {
           "type": "EDID",
-          "text": "AV_Ref_TreasureMaps"
+          "text": "AV_Ref_Maps"
         },
         {
           "type": "NAME",

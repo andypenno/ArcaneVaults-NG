@@ -48,7 +48,7 @@ enum class Container : std::uint8_t {
     SpellTomes,
     SkillBooks,
     Recipes,
-    TreasureMaps,
+    Maps,
     StolenItems,
     Gear,
     Instruments,
@@ -103,7 +103,7 @@ enum class ItemCategory : std::uint8_t {
     Note,
     SkillBook,
     Recipe,
-    TreasureMap,
+    Map,
     Personal,
     Gear,
     Lockpick,
@@ -167,7 +167,7 @@ enum class ContainerGroup {
     case Container::SpellTomes:   return "Vault.SpellTomes";
     case Container::SkillBooks:   return "Vault.SkillBooks";
     case Container::Recipes:      return "Vault.Recipes";
-    case Container::TreasureMaps: return "Vault.TreasureMaps";
+    case Container::Maps: return "Vault.Maps";
     case Container::StolenItems:  return "Vault.StolenItems";
     case Container::Gear:         return "Vault.Gear";
     case Container::Instruments:  return "Vault.Instruments";
@@ -195,7 +195,7 @@ inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 48> categ
     { "Note", ItemCategory::Note },
     { "SkillBook", ItemCategory::SkillBook },
     { "Recipe", ItemCategory::Recipe },
-    { "TreasureMap", ItemCategory::TreasureMap },
+    { "Map", ItemCategory::Map },
     { "Catalyst", ItemCategory::Catalyst },
     { "Clothing", ItemCategory::Clothing },
     { "CookedFood", ItemCategory::CookedFood },

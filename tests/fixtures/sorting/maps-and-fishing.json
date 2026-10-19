@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "name": "maps-and-fishing",
+  "description": "Vanilla, Dragonborn and all eight Fishing maps with same-base favourite copies, a quest-protected map, an unrelated recipe and an ordinary book.",
+  "settings": {
+    "GSC_OffloadReagent": true,
+    "GSC_OffloadCatalyst": true,
+    "GSC_OffloadIngredient": true,
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadBooks": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadPersonal": true,
+    "GSC_OffloadGear": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadScrolls": true,
+    "GSC_OffloadSpelltomes": true,
+    "GSC_OffloadCrafting": true,
+    "GSC_OffloadConstruction": true,
+    "GSC_OffloadGemstone": true,
+    "GSC_OffloadSmelting": true,
+    "GSC_OffloadTanning": true,
+    "GSC_OffloadPotion": true,
+    "GSC_OffloadPoison": true,
+    "GSC_OffloadCookedFood": true,
+    "GSC_OffloadRawFood": true,
+    "GSC_OffloadSoulgems": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadGold": true,
+    "GSC_OffloadAmmunition": true,
+    "GSC_OffloadKeys": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_LockpickKeepAmount": 0,
+    "GSC_SoulgemKeepAmount": 0,
+    "GSC_GoldKeepAmount": 0,
+    "GSC_AmmunitionKeepAmount": 0,
+    "GSC_KeysKeepOne": false
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "treasure-map",
+        "base": "treasure-map",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "deathbrand-map",
+        "base": "deathbrand-map",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-eastmarch",
+        "base": "fishing-map-eastmarch",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-falkreath",
+        "base": "fishing-map-falkreath",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-haafingar",
+        "base": "fishing-map-haafingar",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-hjaalmarch",
+        "base": "fishing-map-hjaalmarch",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-the-pale",
+        "base": "fishing-map-the-pale",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-the-reach",
+        "base": "fishing-map-the-reach",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "fishing-map-whiterun",
+        "base": "fishing-map-whiterun",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "favourite-fishing-map",
+        "base": "fishing-map-eastmarch",
+        "count": 1,
+        "favorite": true,
+        "after": {
+          "player": 1
+        }
+      },
+      {
+        "id": "quest-fishing-map",
+        "base": "fishing-map-the-rift",
+        "count": 1,
+        "quest": true,
+        "after": {
+          "player": 1
+        }
+      },
+      {
+        "id": "unrelated-recipe",
+        "base": "recipe",
+        "count": 1,
+        "after": {
+          "Notes": 1
+        }
+      },
+      {
+        "id": "unrelated-book",
+        "base": "novel",
+        "count": 1,
+        "after": {
+          "Book": 1
+        }
+      }
+    ],
+    "Notes": [
+      {
+        "id": "stored-fishing-map",
+        "base": "fishing-map-the-reach",
+        "count": 3,
+        "after": {
+          "Notes": 3
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

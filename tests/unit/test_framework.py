@@ -11,6 +11,14 @@ from support.scenarios import scenario
 
 
 class FrameworkTests(unittest.TestCase):
+    def test_baseline_enum_spelling_does_not_change_positions(self):
+        from support.engine import rename_enum_references
+        before = 'enum class Container {\nNone,\nOld,\n};\nenum class ItemCategory {\nOldItem,\nNone,\n};'
+        after = before.replace('OldItem', 'Item').replace('Old', 'New')
+        self.assertEqual(rename_enum_references('Container::Old; ItemCategory::OldItem;', before, after), 'Container::New; ItemCategory::Item;')
+        self.assertEqual(rename_enum_references('Container::New;', after, after), 'Container::New;')
+        with self.assertRaises(ValueError):rename_enum_references('', before, after.replace('New,\n', ''))
+        with self.assertRaises(ValueError):rename_enum_references('', '', after)
     def test_discovery_rejects_empty_unknown_duplicate(self):
         manifest = {'tests': [{'id': 'one', 'suites': ['unit']}]}
         self.assertEqual(len(select(manifest, ['unit'], [])), 1)

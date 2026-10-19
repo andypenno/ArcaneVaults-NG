@@ -90,9 +90,9 @@
         }
       }
     ],
-    "TreasureMaps": [
+    "Maps": [
       {
-        "id": "archived-TreasureMaps",
+        "id": "archived-Maps",
         "base": "treasure-map",
         "count": 7,
         "after": {

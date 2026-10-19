@@ -9,6 +9,9 @@ namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 
 int main() {
+    assert(ParseCategories("Map") == ToMask(ItemCategory::Map));
+    assert(FormatCategories(ToMask(ItemCategory::Map)) == "Map");
+    assert(ContainerTranslationKey(Container::Maps) == "Vault.Maps");
     std::set<std::string_view> names;
     std::set<ItemCategory> categories;
     for (const auto& [name, category] : categoryNames) {

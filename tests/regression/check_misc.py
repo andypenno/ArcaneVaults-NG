@@ -1,6 +1,7 @@
 """Exercise actual settings pages, Quick Transfer UI, and override loading."""
 
 from pathlib import Path
+import json
 import subprocess
 import tempfile
 
@@ -52,6 +53,7 @@ struct CSimpleIniA {
 namespace logger { template<class... Args> void info(const char*, Args...) {} }
 CategoryMask ParseCategories(std::string_view text) {
     if (text == "Treasure") return CategoryMask{1} << static_cast<unsigned>(ItemCategory::Treasure);
+    if (text == "Map") return CategoryMask{1} << static_cast<unsigned>(ItemCategory::Map);
     return CategoryMask{1} << static_cast<unsigned>(ItemCategory::Ingredient);
 }
 '''
@@ -239,6 +241,33 @@ int main() {
 '''
 overrides = (ROOT / "ini/ArcaneVaultOverrides.ini").read_text()
 assert "ccBGSSSE037-Curios.esl|0x000800 = Treasure" in overrides.splitlines()
+fishing = json.loads((ROOT / 'tests/fixtures/fishing-maps.json').read_text())
+keys = [line.split('=', 1)[0].strip() for line in overrides.splitlines() if line.startswith(fishing['plugin'] + '|') and line.split('=', 1)[1].strip() == 'Map']
+assert len(keys) == len(fishing['maps']) == 8
+fishing_check = r'''
+    std::array<RE::TESBoundObject,8> fishingMaps{};
+    const std::array<const char*,8> fishingKeys{FISHING_KEYS};
+    const std::array<unsigned,8> fishingIDs{FISHING_IDS};
+    data->forms.clear();CSimpleIniA::entries.clear();overrides.clear();
+    for(unsigned i=0;i<fishingMaps.size();++i) {
+        fishingMaps[i].id=0x09000000|fishingIDs[i];
+        data->forms[{"ccBGSSSE001-Fish.esm",fishingIDs[i]}]={&fishingMaps[i]};
+        CSimpleIniA::entries.push_back({{fishingKeys[i]},"Map"});
+    }
+    settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.size()==8);
+    for(auto& map:fishingMaps)assert(overrides.at(map.id)==ParseCategories("Map"));
+    CSimpleIniA::entries={{{fishingKeys[0]},"Ingredient"}};
+    settings->ProcessOverrideFile(L"user.ini",overrides);
+    assert(overrides.at(fishingMaps[0].id)==ParseCategories("Ingredient"));
+    data->forms.clear();overrides.clear();CSimpleIniA::entries.clear();
+    for(const auto* key:fishingKeys)CSimpleIniA::entries.push_back({{key},"Map"});
+    settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.empty());
+    data->forms[{"Skyrim.esm",0x123}]={&ingredient};CSimpleIniA::entries.push_back({{"Skyrim.esm|0x123"},"Ingredient"});
+    settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.size()==1 && overrides.contains(ingredient.id));
+'''
+fishing_check = fishing_check.replace('FISHING_KEYS', ','.join(json.dumps(key) for key in keys))
+fishing_check = fishing_check.replace('FISHING_IDS', ','.join(key.split('|')[1] for key in keys))
+program = program.replace('    const int beforeNotes=settings->saves;', fishing_check + '\n    const int beforeNotes=settings->saves;')
 with tempfile.TemporaryDirectory(prefix="arcanevault-misc-check-") as directory:
     path = Path(directory)
     (path / "check.cpp").write_text(program)

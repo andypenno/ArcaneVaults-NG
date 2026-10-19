@@ -122,7 +122,7 @@ Sneak-activate a container assigned to Arcane Vault, Sort or Quick Transfer to o
 
 The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
 
-Notes has its own Quick Transfer checkbox, persisted as `[Offload] Notes=false` by default. It deposits Note records, including Recipe and TreasureMap children. Books and Spell Tomes controls remain independent. Override categories now also accept Note, SkillBook, Recipe, and TreasureMap; leaf-parent expansion is described in [storage.md](storage.md).
+Notes has its own Quick Transfer checkbox, persisted as `[Offload] Notes=false` by default. It deposits Note records, including Recipe and Map children. Books and Spell Tomes controls remain independent. Override categories now also accept Note, SkillBook, Recipe, and Map; leaf-parent expansion is described in [storage.md](storage.md).
 
 Keep Selected Ammunition is an Options checkbox, persisted as `[General] KeepSelectedAmmunition`; a missing key defaults to false. Ammunition Keep Amount remains on Quantities. The toggle controls Quick Transfer and the ammunition vault Keep N and Take Up To N actions; [storage.md](storage.md) defines both modes and protections.
 

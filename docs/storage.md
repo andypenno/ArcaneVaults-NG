@@ -92,7 +92,7 @@ Bank access, Quick Transfer, Sort, and gem loans recover misplaced soul gems fro
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
 
-Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, alchemy, book, and note leaf categories. SpellTome and SkillBook imply Book; Recipe and TreasureMap imply Note; Lockpick and Instrument imply Gear. It does not infer every related leaf bit; Potion does not imply Restorative.
+Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, alchemy, book, and note leaf categories. SpellTome and SkillBook imply Book; Recipe and Map imply Note; Lockpick and Instrument imply Gear. It does not infer every related leaf bit; Potion does not imply Restorative.
 
 | Engine type | Built-in classification |
 | --- | --- |
@@ -188,7 +188,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | SpellTomes | `0xDD7` | Archive | `OpenBookArchive` from Book |
 | SkillBooks | `0xDD9` | Archive | `OpenBookArchive` from Book |
 | Recipes | `0xDDB` | Archive | `OpenBookArchive` from Notes |
-| TreasureMaps | `0xDDD` | Archive | `OpenBookArchive` from Notes |
+| Maps | `0xDDD` | Archive | `OpenBookArchive` from Notes |
 | StolenItems | `0xDDF` | Archive | `StolenItemsMenu` |
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
@@ -231,15 +231,15 @@ Loan counts use runtime form IDs only during the active session. Load/reset disc
 
 ## Books and Notes archives
 
-Books has direct Spell Tomes and Skill Books archive actions. Notes has direct Recipes and Treasure Maps archive actions. Each archive is also directly assignable. Opening gathers matching items from the parent. Closing returns all contents to that parent, including manually added items. Books archive visits return to Books; Notes archive visits return to Notes. A direct archive assignment closes the source. Parent menus retain contextual Back to the originating Arcane Vault page. Both parents offer Store All, Take Up To 1, Open, and Exit.
+Books has direct Spell Tomes and Skill Books archive actions. Notes has direct Recipes and Maps archive actions. Each archive is also directly assignable. Opening gathers matching items from the parent. Closing returns all contents to that parent, including manually added items. Books archive visits return to Books; Notes archive visits return to Notes. A direct archive assignment closes the source. Parent menus retain contextual Back to the originating Arcane Vault page. Both parents offer Store All, Take Up To 1, Open, and Exit.
 
 `ConsolidateBooks` returns child contents to parents and migrates Note/Book records from legacy Scroll storage, plus Note records from Books. It runs before Books/Notes/archive menus, Sort, and Quick Transfer. Native scrolls remain in Scroll. If a source disappears before the close callback runs, the next consolidation recovers the archive contents. Player protections and the ignore list still apply through their existing transfer paths.
 
 Skill-book identities are captured from loaded native book records during `kDataLoaded`, before saved read state is applied. Skyrim consumes skill-teaching data when a book is read, so classification also checks that cache. It survives save loads and new games, requires no save record, and includes mod-added native skill books. Explicit overrides still win; spell tomes retain priority.
 
-Spell/skill-teaching flags and cached skill-book identity take precedence over the recipe keyword and note detection. Ordinary notes match either the Note/Scroll type or a mesh path containing "note", ignoring case, as SKSE does for SkyUI. Special Edition no longer reliably uses the type field. This also migrates matching notes already stored in Books during consolidation. Recipes use `VendorItemRecipe`; no translated item names are matched. Treasure Maps use bundled plugin-local overrides. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns TreasureMap.
+Spell/skill-teaching flags and cached skill-book identity take precedence over the recipe keyword and note detection. Ordinary notes match either the Note/Scroll type or a mesh path containing "note", ignoring case, as SKSE does for SkyUI. Special Edition no longer reliably uses the type field. This also migrates matching notes already stored in Books during consolidation. Recipes use `VendorItemRecipe`; no translated item names are matched. Maps use bundled plugin-local overrides for vanilla, Dragonborn and Fishing records. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns Map. The displayed name is Maps Vault; the category is Map, the destination is Maps and the translation key is Vault.Maps. The retired category spelling is not accepted. Missing optional plugins are skipped by the normal override loader, and user overrides take precedence.
 
-The [published in-game record extraction](https://www.nexusmods.com/skyrimspecialedition/mods/32763?tab=docs) identifies the bundled map records:
+The [published in-game record extraction](https://www.nexusmods.com/skyrimspecialedition/mods/32763?tab=docs) identifies the vanilla and Dragonborn records. UESP's linked map entries identify the Fishing records, supplied by [ccBGSSSE001-Fish.esm](https://en.uesp.net/wiki/Skyrim:Fishing):
 
 | Map | Plugin | Local ID |
 | --- | --- | --- |
@@ -256,6 +256,14 @@ The [published in-game record extraction](https://www.nexusmods.com/skyrimspecia
 | Fort Neugrad | Skyrim.esm | `0x0F33D2` |
 | Velehk Sain | Skyrim.esm | `0x0DDEFB` |
 | Deathbrand | Dragonborn.esm | `0x02BAAE` |
+| [Fishing: Eastmarch](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Eastmarch) | ccBGSSSE001-Fish.esm | `0x070CCC` |
+| [Fishing: Falkreath](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Falkreath) | ccBGSSSE001-Fish.esm | `0x070CCD` |
+| [Fishing: Haafingar](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Haafingar) | ccBGSSSE001-Fish.esm | `0x070CCE` |
+| [Fishing: Hjaalmarch](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Hjaalmarch) | ccBGSSSE001-Fish.esm | `0x070CCF` |
+| [Fishing: The Pale](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Pale) | ccBGSSSE001-Fish.esm | `0x070CD0` |
+| [Fishing: The Reach](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Reach) | ccBGSSSE001-Fish.esm | `0x070CD1` |
+| [Fishing: The Rift](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Rift) | ccBGSSSE001-Fish.esm | `0x070CD2` |
+| [Fishing: Whiterun](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Whiterun) | ccBGSSSE001-Fish.esm | `0x070CD3` |
 
 ## Ammunition reserve modes
 

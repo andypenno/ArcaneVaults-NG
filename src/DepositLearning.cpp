@@ -60,7 +60,7 @@ namespace {
         case Container::SpellTomes: return ItemCategory::SpellTome;
         case Container::SkillBooks: return ItemCategory::SkillBook;
         case Container::Recipes: return ItemCategory::Recipe;
-        case Container::TreasureMaps: return ItemCategory::TreasureMap;
+        case Container::Maps: return ItemCategory::Map;
         default: return ItemCategory::None;
         }
     }
