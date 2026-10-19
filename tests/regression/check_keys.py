@@ -238,7 +238,7 @@ struct TESObjectREFR {
         std::erase_if(result, [&](const auto& row) { return !filter(*row.first); });
         return result;
     }
-    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }) const {
+    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }, bool = false) const {
         std::map<TESBoundObject*, int> counts;
         for (auto& [item, data] : inventory) if (filter(*item)) counts[item] = data.first;
         return counts;
