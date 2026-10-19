@@ -9,6 +9,9 @@ namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 
 int main() {
+    assert(ParseCategories("Ignore") == ToMask(ItemCategory::Ignore));
+    assert(FormatCategories(ToMask(ItemCategory::Ignore)) == "Ignore");
+    assert(ExpandCategories(ParseCategories("Ignore, Smithing")) == ToMask(ItemCategory::Ignore));
     assert(ParseCategories("Map") == ToMask(ItemCategory::Map));
     assert(FormatCategories(ToMask(ItemCategory::Map)) == "Map");
     assert(ContainerTranslationKey(Container::Maps) == "Vault.Maps");

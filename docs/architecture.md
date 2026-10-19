@@ -96,4 +96,4 @@ Displayed storage names and menu titles consistently use the Vault suffix for bo
 
 Crafting loans are controlled by Crafting Loan and contain materials and soul gems. Enchanted equipment is available only through manual vault access. The retired EnchantedItemsLoan INI key is ignored. Existing carried copies remain carried; normal archive recovery clears old origin markers without recreating items.
 
-Carpenter stations bearing the loaded Hearthfire crafting keyword participate in ordinary Smithing loans. Construction materials already sort into Smithing; with Crafting Loan enabled they are present while constructing and unused amounts return afterwards. Hidden resource display remains controlled by Skyrim.
+Carpenter stations bearing the loaded Hearthfire crafting keyword participate in ordinary Smithing loans. Construction materials sort into Smithing and unused loans return afterwards, except records classified Ignore. Sawn Logs default to Ignore and remain carried. Stored-log recovery runs after loading a save and before loan entry; it uses explicit verified moves rather than native bulk lending. Hidden resource display remains controlled by Skyrim.

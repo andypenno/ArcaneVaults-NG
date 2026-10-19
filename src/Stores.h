@@ -64,6 +64,7 @@ public:
     void FinishIgnorePicker();
     void ResetIgnorePicker() { ++ignoreSession_; }
     void ReturnIgnoredItems();
+    void RecoverSawnLogs();
     void ResetSortFavorites() { sortFavorites_.clear(); }
     void BeginJunkLoan();
     void EndJunkLoan();

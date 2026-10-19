@@ -136,7 +136,7 @@
         "base": "sawn-log",
         "count": 3,
         "after": {
-          "Smithing": 3
+          "player": 3
         }
       },
       {

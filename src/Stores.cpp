@@ -323,11 +323,11 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
     for (const auto& [item, data] : inventory) {
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
+        const auto categories = ClassifyItem(item);
         if (a_source == Container::Sort &&
-            (sortFavorites_.contains(item->GetFormID()) ||
+            (HasCategory(categories, ItemCategory::Ignore) || sortFavorites_.contains(item->GetFormID()) ||
              (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))) continue;
 
-        const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
         
         if (a_source == Container::Sort) {
@@ -356,7 +356,7 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
 
     if (a_source == Container::Sort) {
         for (const auto& [item, data] : source->GetInventory()) {
-            if (!item || data.first <= 0 || sortFavorites_.contains(item->GetFormID()) ||
+            if (!item || data.first <= 0 || HasCategory(ClassifyItem(item), ItemCategory::Ignore) || sortFavorites_.contains(item->GetFormID()) ||
                 (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item))) continue;
             for (;;) {
                 bool favoriteCopies = false;
@@ -2282,13 +2282,33 @@ bool Stores::ReturnSortFavorites() {
 }
 
 void Stores::ReturnIgnoredItems() {
-    if (!Settings::GetSingleton()->GSC_ReturnIgnoredItems) return;
+    const auto* settings = Settings::GetSingleton();
     auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!source || !player) return;
     for (const auto& [item, data] : source->GetInventory()) {
-        if (item && data.first > 0 && Settings::GetSingleton()->IsIgnored(item))
+        if (item && data.first > 0 && (HasCategory(ClassifyItem(item), ItemCategory::Ignore) ||
+            (settings->GSC_ReturnIgnoredItems && settings->IsIgnored(item))))
             MoveItems(source, player, item, data.first);
+    }
+}
+
+void Stores::RecoverSawnLogs() {
+    auto* data = RE::TESDataHandler::GetSingleton();
+    auto* logs = data ? data->LookupForm<RE::TESBoundObject>(0x300E, "HearthFires.esm") : nullptr;
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!logs || !player || !HasCategory(ClassifyItem(logs), ItemCategory::Ignore)) return;
+    auto* utility = Utility::GetSingleton();
+    for (auto kind : {Container::Smithing, Container::Construction, Container::Crafting,
+        Container::Smelting, Container::Tanning, Container::Gemstone, Container::Sort, Container::Junk}) {
+        auto* source = utility->GetContainer(kind);
+        if (!source || source == player) continue;
+        for (;;) {
+            const auto stacks = InventoryStacks::Read(source, [](auto*, auto& entry, auto*) {
+                return !entry.IsQuestObject();
+            }, logs);
+            if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) break;
+        }
     }
 }
 
@@ -2355,6 +2375,7 @@ void Stores::EndJunkLoan() {
         if (!item || !data.second || data.first <= 0) continue;
         const auto loan = junkLoan_.find(item->GetFormID());
         if (loan == junkLoan_.end()) continue;
+        if (HasCategory(ClassifyItem(item), ItemCategory::Ignore)) continue;
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
         double equipped{};
         if (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0) continue;

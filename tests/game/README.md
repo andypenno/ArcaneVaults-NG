@@ -10,4 +10,6 @@ Record the exact verified ZIP checksum, Skyrim runtime, SKSE version, load order
 6. Open representative vaults/archives, withdraw/keep/store items and confirm parent returns. Cover construction resources and the reported missing Dragon Heartscales scenario with explicit counts in player/Treasure/Valuables.
 7. Save/reload and start a new game. Check global/per-save assignments, changed load order and stale-request cancellation.
 
+For Sawn Logs, buy 100, build at a carpenter station, exit and reopen. Remaining logs must stay on the player and remain usable; their weight and menu visibility stay controlled by Skyrim. Repeat with All Crafting Materials and Return Ignored Items disabled. Check that older stored stock returns without duplication after loading the save or entering crafting. A user override replacing Ignore should restore the chosen storage policy. Confirm ordinary ignore-list materials still follow their existing crafting-return behaviour.
+
 Store observations and timings under ignored `results/game/<run-id>/`. Record failures as failures or unreproduced reports, not a simulated test success. A proper release needs acceptance evidence for engine behaviours affected by its changes.

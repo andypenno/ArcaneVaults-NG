@@ -78,6 +78,7 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
 }
 
 [[nodiscard]] CategoryMask ExpandCategories(CategoryMask categories) noexcept {
+    if (HasCategory(categories, ItemCategory::Ignore)) return ToMask(ItemCategory::Ignore);
     // Weapons
     const auto weaponTypes =
         ItemCategory::OneHand |
@@ -189,11 +190,15 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (!a_item) return ToMask(ItemCategory::None);
     CategoryMask categories = ToMask(ItemCategory::None);
 
+    const auto override = Settings::GetSingleton()->FindOverride(a_item);
+    if (override && HasCategory(*override, ItemCategory::Ignore))
+        return ToMask(ItemCategory::Ignore);
+
     if (a_item->As<RE::TESSoulGem>())
         return ToMask(ItemCategory::Soulgem);
 
     // Overrides
-    if (const auto override = Settings::GetSingleton()->FindOverride(a_item))
+    if (override)
         return ExpandCategories(*override);
 
     if (a_item->GetFormID() == 0xA)

@@ -128,12 +128,9 @@
     "name": "Sawn log",
     "kind": "item",
     "categories": [
-      "Smithing",
-      "Construction"
+      "Ignore"
     ],
     "vaults": [
-      "Smithing",
-      "Construction"
     ]
   },
   "leather-strips": {

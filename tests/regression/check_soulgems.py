@@ -139,6 +139,7 @@ struct Utility {
 '''
 program += r'''
 struct Settings {
+    std::unordered_set<const RE::TESBoundObject*> strongIgnored;
     bool GSC_AllCraftingMaterials = false;
     bool GSC_CraftingLoan = true;
     bool GSC_ReturnIgnoredItems = true;
@@ -170,12 +171,20 @@ int Move(const Stack& stack,RE::TESObjectREFR* target){
 }
 }
 '''
+program += r'''
+CategoryMask ToMask(ItemCategory category) noexcept { return CategoryMask{1}<<static_cast<unsigned>(category); }
+bool HasCategory(CategoryMask mask,ItemCategory category) noexcept { return (mask&ToMask(category))!=0; }
+CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept {
+    return ToMask(Settings::GetSingleton()->strongIgnored.contains(item)?ItemCategory::Ignore:ItemCategory::Soulgem);
+}
+'''
 program += implementation
 loan = (ROOT / "src/Events.cpp").read_text()
 loan = loan[loan.index("class CraftingLoanState {"):loan.index("class FurnitureActivation {")]
 program += r'''
 
 struct Stores {
+    void RecoverSawnLogs() {}
     static Stores* GetSingleton() { static Stores s;return &s; }
     void BeginJunkLoan() {}
     void EndJunkLoan() {}
@@ -381,6 +390,19 @@ int main() {
     inbox->Put(&gem,3);Soulgems::Recover();
     assert(inbox->inventory[&gem].first==1 && bank->inventory[&gem].first==3);
     assert(inbox->inventory[&gem].second->lists.front()->sortFavorite && inbox->inventory[&gem].second->lists.front()->owner=="sort favourite");
+
+    reset();auto* settings=Settings::GetSingleton();settings->strongIgnored.insert(&gem);
+    player->Put(&gem,12);Soulgems::Deposit(0);
+    assert(player->inventory[&gem].first==12 && bank->inventory.empty());
+    inbox->Put(&gem,3);settings->GSC_ReturnIgnoredItems=false;Soulgems::Recover();
+    assert(inbox->inventory[&gem].first==3 && bank->inventory.empty());
+    inbox->inventory.clear();bank->Put(&gem,5);Soulgems::BeginLoan(false,true);
+    assert(player->inventory[&gem].first==17);Soulgems::EndLoan();
+    assert(player->inventory[&gem].first==17 && bank->inventory[&gem].first==0);
+    Soulgems::EndLoan();assert(player->inventory[&gem].first==17);
+    player->inventory.clear();bank->Put(&gem,4);Soulgems::TakeEmpty();
+    assert(player->inventory[&gem].first==4 && bank->inventory[&gem].first==0);
+    settings->strongIgnored.clear();
 
 }
 '''

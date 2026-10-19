@@ -16,6 +16,7 @@ program = r'''
 #include <functional>
 #include <map>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -50,18 +51,18 @@ struct CSimpleIniA {
     void LoadFile(const wchar_t*) {}
     const TKeyVal* GetSection(const char*) { return &entries; }
 };
-namespace logger { template<class... Args> void info(const char*, Args...) {} }
-CategoryMask ParseCategories(std::string_view text) {
-    if (text == "Treasure") return CategoryMask{1} << static_cast<unsigned>(ItemCategory::Treasure);
-    if (text == "Map") return CategoryMask{1} << static_cast<unsigned>(ItemCategory::Map);
-    return CategoryMask{1} << static_cast<unsigned>(ItemCategory::Ingredient);
-}
+namespace logger { template<class... Args> void info(const char*, Args...) {} template<class... Args> void warn(const char*, Args...) {} }
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     int saves = 0;
     static Settings* GetSingleton() { static Settings settings; return &settings; }
     void SaveINI() { ++saves; }
     void ProcessOverrideFile(const wchar_t*, std::unordered_map<RE::FormID, CategoryMask>&);
+    std::unordered_map<RE::FormID,CategoryMask> overrides_,userOverrides_;
+    void SetUserOverride(RE::TESBoundObject*,CategoryMask);
+    bool RemoveUserOverride(RE::FormID);
+    std::optional<CategoryMask> FindOverride(const RE::TESBoundObject*) const;
+    std::optional<CategoryMask> FindOverride(RE::FormID) const;
 };
 struct Utility {
     static Utility* GetSingleton() { static Utility utility; return &utility; }
@@ -139,6 +140,13 @@ for signature in ["\tvoid Register()", "\tvoid __stdcall RenderOptions()",
     start = ui.index(signature)
     program += ui[start:ui.index("\n\t}", start) + 3].replace("__stdcall ", "")
 settings = (ROOT / "src/Settings.cpp").read_text()
+category_source=(ROOT/'src/ItemClass.cpp').read_text()
+program+=category_source[category_source.index('CategoryMask ToMask('):category_source.index('namespace {')]
+for signature in ('void Settings::SetUserOverride(', 'bool Settings::RemoveUserOverride(',
+                  'std::optional<CategoryMask> Settings::FindOverride(const RE::TESBoundObject*',
+                  'std::optional<CategoryMask> Settings::FindOverride(RE::FormID'):
+    start=settings.index(signature)
+    program+=settings[start:settings.index('\n}',start)+2]
 parse_start = settings.index("\tstd::optional<std::pair<std::string_view, RE::FormID>> ParseFormIdentifier(")
 program += settings[parse_start:settings.index("\n\t}", parse_start) + 3]
 start = settings.index("void Settings::ProcessOverrideFile(")
@@ -264,6 +272,18 @@ fishing_check = r'''
     settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.empty());
     data->forms[{"Skyrim.esm",0x123}]={&ingredient};CSimpleIniA::entries.push_back({{"Skyrim.esm|0x123"},"Ingredient"});
     settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.size()==1 && overrides.contains(ingredient.id));
+    RE::TESBoundObject logs{0x0800300E};data->forms[{"HearthFires.esm",0x300E}]={&logs};
+    CSimpleIniA::entries={{{"HearthFires.esm|0x00300E"},"Ignore"}};
+    settings->ProcessOverrideFile(L"bundled.ini",settings->overrides_);
+    assert(settings->FindOverride(&logs)==ParseCategories("Ignore"));
+    assert(FormatCategories(*settings->FindOverride(&logs))=="Ignore");
+    settings->SetUserOverride(&logs,ParseCategories("Construction"));
+    assert(settings->FindOverride(&logs)==ParseCategories("Construction"));
+    assert(settings->RemoveUserOverride(logs.id));
+    assert(settings->FindOverride(&logs)==ParseCategories("Ignore"));
+    CSimpleIniA::entries={{{"HearthFires.esm|0x00300E"},"Ignore"}};
+    settings->ProcessOverrideFile(L"user.ini",settings->userOverrides_);
+    assert(settings->FindOverride(&logs)==ParseCategories("Ignore"));
 '''
 fishing_check = fishing_check.replace('FISHING_KEYS', ','.join(json.dumps(key) for key in keys))
 fishing_check = fishing_check.replace('FISHING_IDS', ','.join(key.split('|')[1] for key in keys))

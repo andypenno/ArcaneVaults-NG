@@ -64,7 +64,7 @@
         "base": "sawn-log",
         "count": 120,
         "after": {
-          "Smithing": 120
+          "player": 120
         }
       },
       {

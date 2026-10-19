@@ -280,6 +280,7 @@ public:
         const bool materials = settings->GSC_CraftingLoan;
 
         if (benchType == BenchType::None || !materials) return;
+        stores->RecoverSawnLogs();
         loanBench_ = benchType;
         loanFurniture_ = a_furniture->GetHandle();
         materialsLoan_ = materials;

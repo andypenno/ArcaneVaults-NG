@@ -126,7 +126,7 @@ namespace Soulgems {
             Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort})
             MoveAll(utility->GetContainer(kind), bank, [kind, &a_sortExcluded](auto* gem) {
                 auto* settings = Settings::GetSingleton();
-                return kind != Container::Sort || (!a_sortExcluded.contains(gem->GetFormID()) &&
+                return kind != Container::Sort || (!HasCategory(ClassifyItem(gem), ItemCategory::Ignore) && !a_sortExcluded.contains(gem->GetFormID()) &&
                     (!settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem)));
             });
     }
@@ -162,6 +162,7 @@ namespace Soulgems {
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
             if (!gem || !data.second || Protected(gem, *data.second)) continue;
+            if (HasCategory(ClassifyItem(gem), ItemCategory::Ignore)) continue;
             if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(gem)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
             int keep = a_keepEmpty;
@@ -254,6 +255,7 @@ namespace Soulgems {
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
             if (!gem || !loanForms.contains(gem->GetFormID()) || !data.second || Protected(gem, *data.second)) continue;
+            if (HasCategory(ClassifyItem(gem), ItemCategory::Ignore)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
             auto keep = carriedBefore[gem->GetFormID()];
             std::array<bool, 2> retainedExtras{};

@@ -147,7 +147,7 @@
         "base": "sawn-log",
         "count": 37,
         "after": {
-          "Smithing": 37
+          "player": 37
         },
         "copies": 20
       },

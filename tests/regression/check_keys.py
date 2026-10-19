@@ -1,6 +1,7 @@
 """Exercise actual transfer and Quick Transfer code with inventory stubs."""
 
 from pathlib import Path
+import configparser
 import copy
 import json
 import subprocess
@@ -11,6 +12,12 @@ from validate import validate_esp
 
 ROOT = Path(__file__).resolve().parents[2]
 fishing_maps = json.loads((ROOT / 'tests/fixtures/fishing-maps.json').read_text())
+log_fixture = json.loads((ROOT / 'tests/fixtures/crafting/hearthfire-logs.json').read_text())
+bundled_overrides = configparser.ConfigParser(interpolation=None)
+bundled_overrides.read(ROOT / 'ini/ArcaneVaultOverrides.ini')
+log_override = next((value for key, value in bundled_overrides['Overrides'].items()
+                     if key.split('|')[0].casefold() == log_fixture['plugin'].casefold()
+                     and int(key.split('|')[1], 16) == int(log_fixture['local_id'], 16)), None)
 source = (ROOT / "src/Stores.cpp").read_text()
 start = source.index("void Stores::PlayerToStore(")
 method = source[start:source.index("\n}\n", start) + 3]
@@ -30,6 +37,8 @@ for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMen
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
+extra_methods += source[start:source.index("\n}\n", start) + 3]
+start = source.index("void Stores::RecoverSawnLogs(")
 extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::OpenStorageMenu(")
 opening = source[start:source.index("\n}\n", start) + 3]
@@ -55,6 +64,7 @@ settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
 program = r'''
 #include <algorithm>
+#include <iostream>
 #include <atomic>
 #include <utility>
 #include <array>
@@ -91,6 +101,11 @@ struct TESObjectBOOK {
     bool HasKeywordByEditorID(std::string_view key) const { return recipe && key=="VendorItemRecipe"; }
 };
 struct TESDataHandler {
+    static TESDataHandler* GetSingleton(){static TESDataHandler data;return &data;}
+    inline static TESBoundObject* sawnLogs=nullptr;
+    template<class T>T* LookupForm(unsigned id,std::string_view plugin){
+        assert(id==0x300E && plugin=="HearthFires.esm");return reinterpret_cast<T*>(sawnLogs);
+    }
     std::vector<TESObjectBOOK*> books;
     template<class T> const auto& GetFormArray() const { return books; }
 };
@@ -367,6 +382,7 @@ struct Stores {
     bool ReturnSortFavorites();
     void ResetSortFavorites() { sortFavorites_.clear(); }
     void ReturnIgnoredItems();
+    void RecoverSawnLogs();
     void FinishIgnorePicker();
     void OffloadItemsNow(std::function<void()> complete = {});
 void OffloadItems(){OffloadItemsNow();}
@@ -1571,8 +1587,126 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     assert(utility->treasure.inventory[&heartscales].first==3 && utility->inbox.inventory[&heartscales].first==0);
     stores.FoodSaltMenu(&source);assert(stores.opened==Container::Reagent);
 
+    // Hidden construction resources must remain carried across automatic transfers.
+    RE::TESBoundObject retainedLogs{ItemCategory::PreciousIngot},ordinaryIngot{ItemCategory::PreciousIngot};
+    retainedLogs.formID=0x08000000|SAWN_LOG_LOCAL_ID;ordinaryIngot.formID=0x5ACE4;
+    utility->ConstructionMap.insert(retainedLogs.formID);utility->SmithingMap.insert(ordinaryIngot.formID);
+    int retentionFailures=0,retentionChecks=0;
+    for(bool ignored:{false,true}){
+        const auto resetRetention=[&]{
+            CraftingLoanState::GetSingleton()->Reset();
+            for(auto* ref:{static_cast<RE::TESObjectREFR*>(player),&utility->smithing,&utility->inbox,
+                &utility->junk,&utility->chest,&utility->gear,&utility->instruments})ref->inventory.clear();
+            *settings=Settings{};stores.ResetSortFavorites();
+            utility->bench=BenchType::Smithing;
+            settings->GSC_CraftingLoan=true;settings->GSC_ReturnIgnoredItems=true;
+            settings->GSC_OffloadConstruction=true;settings->GSC_OffloadCrafting=true;
+            SAWN_LOG_BUNDLED_OVERRIDE
+            if(ignored)settings->ignored.insert(&retainedLogs);
+        };
+        const auto checkRetention=[&](const char* phase,int expected){
+            ++retentionChecks;
+            const int carried=player->inventory[&retainedLogs].first;
+            const int banked=utility->smithing.inventory[&retainedLogs].first;
+            const int sort=utility->inbox.inventory[&retainedLogs].first,junk=utility->junk.inventory[&retainedLogs].first;
+            assert(carried+banked+sort+junk==expected);
+            const bool passed=carried==expected && banked==0 && sort==0 && junk==0;
+            if(!passed)++retentionFailures;
+            std::cout<<(passed?"PASS":"FAIL")<<" sawn-log retention "<<phase<<" ignore_list="<<ignored
+                <<" expected_carried="<<expected<<" actual_carried="<<carried<<" smithing="<<banked
+                <<" sort="<<sort<<" junk="<<junk<<'\n';
+        };
+        resetRetention();player->inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+        player->inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);stores.OffloadItems();
+        checkRetention("quick-transfer",SAWN_LOG_CARRIED);
+        assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+
+        resetRetention();utility->inbox.inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+        utility->inbox.inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);stores.SortItems();
+        checkRetention("sort-chest",SAWN_LOG_CARRIED);
+        assert(utility->inbox.inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+
+        resetRetention();settings->GSC_ReturnIgnoredItems=false;
+        settings->ignored.insert(&ordinaryIngot);
+        utility->inbox.inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+        utility->inbox.inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);stores.SortItems();
+        checkRetention("sort-ignore-toggle-off",SAWN_LOG_CARRIED);
+        assert(utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+
+        resetRetention();settings->ignored.insert(&ordinaryIngot);
+        player->inventory[&ordinaryIngot]=entry(5);utility->smithing.inventory[&ordinaryIngot]=entry(10);
+        CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+        assert(player->inventory[&ordinaryIngot].first==15);
+        CraftingLoanState::GetSingleton()->ExitCrafting();
+        assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==15);
+
+        resetRetention();RE::TESDataHandler::sawnLogs=&retainedLogs;
+        utility->smithing.removeLimit=1;utility->smithing.inventory[&retainedLogs]=entry(100);
+        utility->inbox.inventory[&retainedLogs]=entry(7);utility->junk.inventory[&retainedLogs]=entry(3);
+        stores.RecoverSawnLogs();checkRetention("stored-log-recovery",110);
+        stores.RecoverSawnLogs();checkRetention("recovery-repeat",110);
+        utility->smithing.rejectMove=true;utility->smithing.inventory[&retainedLogs]=entry(9);
+        stores.RecoverSawnLogs();assert(player->inventory[&retainedLogs].first==110 && utility->smithing.inventory[&retainedLogs].first==9);
+        utility->smithing.rejectMove=false;stores.RecoverSawnLogs();checkRetention("recovery-retry",119);
+        utility->smithing.removeLimit=INT_MAX;
+        settings->overrides[&retainedLogs]=ToMask(ItemCategory::Construction);
+        utility->smithing.inventory[&retainedLogs]=entry(4);stores.RecoverSawnLogs();
+        assert(utility->smithing.inventory[&retainedLogs].first==4 && player->inventory[&retainedLogs].first==119);
+        stores.PlayerToStore(ItemCategory::Smithing,Container::Smithing);
+        assert(player->inventory[&retainedLogs].first==0 && utility->smithing.inventory[&retainedLogs].first==123);
+
+        resetRetention();utility->junk.inventory[&retainedLogs]=entry(6);
+        CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+        CraftingLoanState::GetSingleton()->ExitCrafting();checkRetention("junk-loan-return",6);
+
+        resetRetention();RE::TESDataHandler::sawnLogs=nullptr;
+        utility->smithing.inventory[&retainedLogs]=entry(4);stores.RecoverSawnLogs();
+        assert(player->inventory[&retainedLogs].first==0 && utility->smithing.inventory[&retainedLogs].first==4);
+        RE::TESDataHandler::sawnLogs=&retainedLogs;
+        utility->smithing.inventory[&retainedLogs].second->quest=true;stores.RecoverSawnLogs();
+        assert(utility->smithing.inventory[&retainedLogs].first==4);
+
+        resetRetention();utility->inbox.rejectMove=true;
+        utility->inbox.inventory[&retainedLogs]=entry(10);stores.SortItems();
+        assert(utility->inbox.inventory[&retainedLogs].first==10 && utility->junk.inventory[&retainedLogs].first==0);
+        utility->inbox.rejectMove=false;stores.ReturnIgnoredItems();checkRetention("sort-return-retry",10);
+
+        for(bool all:{false,true})for(int consumed:SAWN_LOG_CONSUMPTION){
+            resetRetention();settings->GSC_AllCraftingMaterials=all;utility->bench=BenchType::Smithing;
+            player->inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+            utility->smithing.inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);
+            int remaining=SAWN_LOG_CARRIED;
+            for(int visit=0;visit<SAWN_LOG_VISITS;++visit){
+                CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+                assert(player->inventory[&retainedLogs].first==remaining);
+                assert(player->inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+                player->inventory[&retainedLogs].first-=consumed;remaining-=consumed;
+                CraftingLoanState::GetSingleton()->ExitCrafting();
+                std::cout<<"loan all_materials="<<all<<" consumed="<<consumed<<" visit="<<visit+1<<'\n';
+                checkRetention("loan-exit",remaining);
+                assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+            }
+        }
+    }
+    std::cout<<"Sawn-log retention failures="<<retentionFailures<<" checks="<<retentionChecks<<std::endl;
+    return retentionFailures?1:0;
 }
 '''
+retention = log_fixture['retention']
+program = program.replace('SAWN_LOG_LOCAL_ID', log_fixture['local_id'])
+program = program.replace('SAWN_LOG_CARRIED', str(retention['carried']))
+program = program.replace('SAWN_LOG_INGOTS', str(retention['ordinary_ingots']))
+program = program.replace('SAWN_LOG_CONSUMPTION', '{' + ','.join(map(str, retention['consumption_per_visit'])) + '}')
+program = program.replace('SAWN_LOG_VISITS', str(retention['visits']))
+override_code = ''
+if log_override is not None:
+    names = [name.strip() for name in log_override.split(',')]
+    override_code = 'CategoryMask bundledLogMask=0;'
+    for name in names:
+        override_code += ('{const auto found=std::ranges::find_if(categoryNames,[](const auto& row){return row.first=='
+                          + json.dumps(name) + ';});assert(found!=categoryNames.end());bundledLogMask|=found->second;}')
+    override_code += 'settings->overrides[&retainedLogs]=bundledLogMask;'
+program = program.replace('SAWN_LOG_BUNDLED_OVERRIDE', override_code)
 program = program.replace('FISHING_MAP_LOCAL_IDS', ','.join(row['local_id'] for row in fishing_maps['maps']))
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
     path = Path(temporary)

@@ -115,6 +115,14 @@
       "release": true
     },
     {
+      "id": "construction-loans",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_construction_loans.py", "--output", "{results}/construction-loans.json"],
+      "timeout_seconds": 120,
+      "sanitize": true,
+      "release": true
+    },
+    {
       "id": "crafting_benches",
       "suites": [
         "regression"
@@ -346,6 +354,14 @@
       "timeout_seconds": 1200,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "construction-bulk-filter-probe",
+      "suites": ["experiments"],
+      "command": ["{python}", "tests/regression/check_construction_loans.py", "--bulk-skips-nonplayable", "--output", "{results}/construction-bulk-filter.json"],
+      "timeout_seconds": 120,
+      "sanitize": true,
+      "release": false
     },
     {
       "id": "bench_quicksort",

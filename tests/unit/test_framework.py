@@ -17,8 +17,11 @@ class FrameworkTests(unittest.TestCase):
         after = before.replace('OldItem', 'Item').replace('Old', 'New')
         self.assertEqual(rename_enum_references('Container::Old; ItemCategory::OldItem;', before, after), 'Container::New; ItemCategory::Item;')
         self.assertEqual(rename_enum_references('Container::New;', after, after), 'Container::New;')
+        self.assertEqual(rename_enum_references('Container::Old;', before, after.replace('New,\n', 'New,\nExtra,\n')), 'Container::New;')
         with self.assertRaises(ValueError):rename_enum_references('', before, after.replace('New,\n', ''))
         with self.assertRaises(ValueError):rename_enum_references('', '', after)
+        with self.assertRaises(ValueError):
+            rename_enum_references('', after, after.replace('New,\n', 'Extra,\nNew,\n'))
     def test_discovery_rejects_empty_unknown_duplicate(self):
         manifest = {'tests': [{'id': 'one', 'suites': ['unit']}]}
         self.assertEqual(len(select(manifest, ['unit'], [])), 1)
@@ -34,10 +37,19 @@ class FrameworkTests(unittest.TestCase):
         from support.data import load_json
         manifest = load_json((ROOT / 'tests/manifest.json').read_text())
         selected = select(manifest, ['regression'], [])
-        self.assertEqual(len(selected), 16)
-        self.assertEqual({row['command'][1] for row in selected},
-                         {str(p.relative_to(ROOT)) for p in (ROOT / 'tests/regression').glob('check_*.py')})
+        self.assertGreaterEqual(len(selected), 16)
+        self.assertCountEqual([row['command'][1] for row in selected],
+                              {str(p.relative_to(ROOT)) for p in (ROOT / 'tests/regression').glob('check_*.py')})
         self.assertEqual(len(list((ROOT / 'tests/performance').glob('bench_*.py'))), 3)
+
+    def test_construction_hypothesis_is_not_a_release_requirement(self):
+        from support.data import load_json
+        manifest = load_json((ROOT / 'tests/manifest.json').read_text())
+        release = {row['id'] for row in select(manifest, ['release'], [])}
+        probe, = select(manifest, ['experiments'], ['construction-bulk-filter-probe'])
+        self.assertIn('construction-loans', release)
+        self.assertNotIn(probe['id'], release)
+        self.assertIn('--bulk-skips-nonplayable', probe['command'])
 
     def test_runner_failure_timeout_and_success(self):
         import json
