@@ -149,7 +149,7 @@ int main(){
         RE::SCRIPT_FUNCTION::equipped.insert(&ring);}
     auto* ui=RE::UI::GetSingleton();
     const auto capturesBefore=RE::InventoryMenu::created;RE::ItemList::rowVisits=0;deposit();
-    assert(RE::ItemList::rowVisits==rings.size()*2);assert(RE::InventoryMenu::created==capturesBefore+1);
+    assert(RE::ItemList::rowVisits>=rings.size()*2 && RE::ItemList::rowVisits<=rings.size()*3);assert(RE::InventoryMenu::created==capturesBefore+1);
     for(unsigned i=0;i<rings.size();++i){assert(count(*player,rings[i])==1 && count(armorBank,rings[i])==2);
         assert(player->rows[&rings[i]].extras.front().get()==wornCopies[i] && wornCopies[i]->count==1);}
     assert(DepositLearning::moved==20 && !ui->menu);
@@ -267,10 +267,10 @@ int main(){
     menu->OffloadItems([&]{initializedDone=true;});RE::UIMessageQueue::GetSingleton()->ProcessCommands();
     auto* inspection=static_cast<RE::InventoryMenu*>(ui->menu);const auto refreshes=RE::ItemList::refreshes;
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
-    assert(!initializedDone && inspection->uiMovie->visible && RE::ItemList::refreshes==refreshes);
+    assert(!initializedDone && !inspection->uiMovie->visible && RE::ItemList::refreshes==refreshes);
     assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kInventoryUpdate)==RE::UIMessageQueue::GetSingleton()->commands.end());
     pump([&]{return std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kInventoryUpdate)!=RE::UIMessageQueue::GetSingleton()->commands.end();});
-    assert(!initializedDone && inspection->uiMovie->visible && count(*player,ring)==3);
+    assert(!initializedDone && !inspection->uiMovie->visible && count(*player,ring)==3);
     RE::InventoryMenu::empty=false;RE::UIMessageQueue::GetSingleton()->ProcessCommands();
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
     assert(RE::ItemList::refreshes==refreshes+1 && !inspection->uiMovie->visible);

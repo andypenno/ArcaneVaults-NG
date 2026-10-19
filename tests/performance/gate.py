@@ -67,7 +67,21 @@ def verify(render_before, render_after, loans, policy):
         if left.keys() != right.keys():
             raise ValueError('Native-call scenario populations differ')
         for case in right:
-            results.append({'case': list(case), 'metric': key, **compare_work(left[case], right[case], policy['work'])})
+            result = compare_work(left[case], right[case], policy['work'])
+            per_base = policy.get('render_archive_native_calls_per_base', 0)
+            if per_base:
+                expected_bases = (5 + (case[1] if case[3] == 3 else 0)) if case[4] else 0
+                for report in (render_before, render_after):
+                    for sample in report['samples']:
+                        if (sample['model'], sample['size']) != case[:2]:
+                            continue
+                        for row in sample['cases']:
+                            if (row['entry'], row['shape'], row['archives_populated']) == case[2:] and row.get('archive_input_bases') != expected_bases:
+                                raise ValueError('Archive input population differs from the declared fixture')
+                result['archive_slicing_allowance'] = per_base * expected_bases
+                result['limit'] += result['archive_slicing_allowance']
+                result['passed'] = right[case] <= result['limit']
+            results.append({'case': list(case), 'metric': key, **result})
     return results
 
 

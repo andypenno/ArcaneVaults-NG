@@ -27,6 +27,31 @@ namespace TransferFeedback {
         std::string label;
         std::unique_ptr<SKSEMenuFramework::Model::HudElement> overlay;
         std::unique_ptr<SKSEMenuFramework::Model::InputEvent> input;
+        struct FrameWait {
+            std::shared_ptr<Request> owner;
+            unsigned target;
+            Clock::time_point began{Clock::now()};
+            std::function<void()> work;
+            std::function<void()> cancelled;
+        };
+
+        void Resume(const std::shared_ptr<FrameWait>& wait) {
+            if (wait->owner && (wait->owner->cancelled || pending != wait->owner)) {
+                auto cancelled = std::move(wait->cancelled);
+                wait->work = {};
+                if (cancelled) cancelled();
+                return;
+            }
+            if (!wait->owner || !registered || renderedFrames.load() >= wait->target || Clock::now() - wait->began >= std::chrono::milliseconds(250)) {
+                auto work = std::move(wait->work);
+                if (work) work();
+                return;
+            }
+            std::thread([wait] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(16));
+                SKSE::GetTaskInterface()->AddTask([wait] { Resume(wait); });
+            }).detach();
+        }
 
         void __stdcall Render() {
             if (!busy.load()) return;
@@ -152,6 +177,14 @@ namespace TransferFeedback {
         std::thread([request] {
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
             if (!request->cancelled) SKSE::GetTaskInterface()->AddTask([request] { Poll(request); });
+        }).detach();
+    }
+
+    void WaitForFrame(std::function<void()> work, std::function<void()> cancelled) {
+        auto wait = std::make_shared<FrameWait>(FrameWait{pending, renderedFrames.load() + 1, Clock::now(), std::move(work), std::move(cancelled)});
+        std::thread([wait] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+            SKSE::GetTaskInterface()->AddTask([wait] { Resume(wait); });
         }).detach();
     }
 

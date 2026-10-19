@@ -19,7 +19,7 @@ def main():
         root = Path(directory)
         (root / 'common.hpp').write_text((ROOT / 'tests/support/engine.hpp').read_text())
         flags = ['-fsanitize=address,undefined', '-fno-omit-frame-pointer'] if args.sanitize else []
-        subprocess.run(['g++', '-std=c++20', '-Wall', '-Wextra', '-Werror', *flags, '-I', str(root), '-I', str(ROOT),
+        subprocess.run(['g++', '-std=c++20', '-O1', '-Wall', '-Wextra', '-Werror', *flags, '-I', str(root), '-I', str(ROOT),
                         '-include', str(root / 'common.hpp'), str(ROOT / 'src/InventoryStacks.cpp'),
                         str(ROOT / 'tests/integration/inventory.cpp'), '-o', str(root / 'inventory')], check=True, timeout=90)
         for case in cases:

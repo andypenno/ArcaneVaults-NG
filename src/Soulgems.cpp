@@ -2,6 +2,7 @@
 #include "InventoryStacks.h"
 #include "Utility.h"
 #include "Settings.h"
+#include "OffloadBatch.h"
 #include <array>
 #include <unordered_set>
 
@@ -64,6 +65,16 @@ namespace {
 
     void Move(RE::TESObjectREFR* source, RE::TESObjectREFR* target, RE::TESSoulGem* gem, const Stack& stack, int count) {
         if (stack.favorite) return;
+        if (OffloadBatch::current) {
+            if (!OffloadBatch::current->active() || count <= 0) return;
+            auto physical = std::optional{InventoryStacks::Stack{source, gem, stack.extra, count}};
+            if (!stack.extra && stack.guardedBare) physical = InventoryStacks::Materialize(*physical);
+            if (physical && InventoryStacks::Move(*physical, target)) {
+                OffloadBatch::current->Moved(true);
+                OffloadBatch::current->repeat = true;
+            }
+            return;
+        }
         if (stack.guardedBare) {
             while (count > 0) {
                 const auto physical = InventoryStacks::Materialize({source, gem, nullptr, count});
@@ -79,14 +90,17 @@ namespace {
     template<class Select>
     void MoveAll(RE::TESObjectREFR* source, RE::TESObjectREFR* target, Select select) {
         if (!source || !target || source == target) return;
-        const auto inventory = source->GetInventory([](RE::TESBoundObject& item) { return item.As<RE::TESSoulGem>() != nullptr; });
+        const auto inventory = source->GetInventory([](RE::TESBoundObject& item) { return item.As<RE::TESSoulGem>() && (!OffloadBatch::current || !OffloadBatch::current->item || OffloadBatch::current->item == &item); });
         std::vector<Stack> stacks;
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->template As<RE::TESSoulGem>() : nullptr;
             if (!gem || !data.second || Protected(gem, *data.second) || !select(gem)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
             // Move explicit stacks before a null extra-list can select them.
-            for (const auto& stack : stacks) Move(source, target, gem, stack, stack.count);
+            for (const auto& stack : stacks) {
+                Move(source, target, gem, stack, stack.count);
+                if (OffloadBatch::current && OffloadBatch::current->repeat) return;
+            }
         }
     }
 
@@ -119,16 +133,18 @@ namespace Soulgems {
     }
 
     void Recover(const std::unordered_set<RE::FormID>& a_sortExcluded) {
-        Consolidate();
+        if (!OffloadBatch::current) Consolidate();
         auto* utility = Utility::GetSingleton();
         auto* bank = utility->GetContainer(Container::Soulgem);
         for (auto kind : {Container::Smithing, Container::Crafting, Container::Smelting,
-            Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort})
+            Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort}) {
             MoveAll(utility->GetContainer(kind), bank, [kind, &a_sortExcluded](auto* gem) {
                 auto* settings = Settings::GetSingleton();
                 return kind != Container::Sort || (!HasCategory(ClassifyItem(gem), ItemCategory::Ignore) && !a_sortExcluded.contains(gem->GetFormID()) &&
                     (!settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem)));
             });
+            if (OffloadBatch::current && OffloadBatch::current->repeat) return;
+        }
     }
 
     void Split() {
@@ -151,13 +167,15 @@ namespace Soulgems {
 
     void Deposit(int a_keepEmpty, bool a_respectIgnores) {
         if (a_keepEmpty < 0) return;
-        Recover();
+        if (!OffloadBatch::current) Recover();
         auto* utility = Utility::GetSingleton();
         auto* bank = utility->GetContainer(Container::Soulgem);
         auto* buffer = utility->GetContainer(Container::EmptySoulgems);
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!bank || !buffer || !player) return;
-        const auto inventory = player->GetInventory();
+        const auto inventory = player->GetInventory([](auto& item) {
+            return !OffloadBatch::current || OffloadBatch::current->item == &item;
+        });
         std::vector<Stack> stacks;
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
@@ -166,12 +184,17 @@ namespace Soulgems {
             if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(gem)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
             int keep = a_keepEmpty;
+            bool retainedExtras = false;
             for (const auto& stack : stacks) {
                 const int retained = stack.filled ? 0 : (std::min)(keep, stack.count);
                 keep -= retained;
-                Move(player, bank, gem, stack, stack.count - retained);
+                auto moving = stack;
+                if (OffloadBatch::current && !moving.extra && retainedExtras) moving.guardedBare = true;
+                Move(player, bank, gem, moving, stack.count - retained);
+                if (OffloadBatch::current && OffloadBatch::current->repeat) return;
+                retainedExtras |= retained && stack.extra;
                 // Park retained extras so bare filled items cannot remove them.
-                if (retained && stack.extra && gem->GetContainedSoul() != RE::SOUL_LEVEL::kNone)
+                if (!OffloadBatch::current && retained && stack.extra && gem->GetContainedSoul() != RE::SOUL_LEVEL::kNone)
                     Move(player, buffer, gem, stack, retained);
             }
             MoveAll(buffer, player, [](auto*) { return true; });

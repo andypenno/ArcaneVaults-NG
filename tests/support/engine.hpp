@@ -117,6 +117,7 @@ struct InventoryEntryData {
     bool IsOwnedBy(PlayerCharacter*,TESForm* owner,bool defaultTo) { return owner?owner->playerOwned:defaultTo; }
 };
 struct Ref { TESObjectREFR* value;explicit operator bool() const{return value!=nullptr;}TESObjectREFR* get()const{return value;} };
+struct TESEquipEvent {Ref actor;unsigned baseObject=0,originalRefr=0;std::uint16_t uniqueID=0;bool equipped=false;};
 struct Handle { unsigned id=0;unsigned native_handle()const{return id;}Ref get()const {return {TESForm::refs.contains(id)?TESForm::refs[id]:nullptr};} };
 using ObjectRefHandle=Handle;
 struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};Ref actor,targetFurniture;FurnitureEventType type;};
@@ -126,6 +127,12 @@ enum class BSEventNotifyControl { kContinue };
 template<class T> struct BSTEventSource {};
 template<class T> struct BSTEventSink { virtual BSEventNotifyControl ProcessEvent(const T*,BSTEventSource<T>*)=0; };
 struct ScriptEventSourceHolder {
+    std::vector<BSTEventSink<TESEquipEvent>*> equipSinks;
+    template<class Event> requires std::is_same_v<Event, TESEquipEvent>
+    void AddEventSink(BSTEventSink<Event>* sink) {
+        equipSinks.push_back(sink);
+    }
+    void Send(TESEquipEvent event){for(auto* sink:equipSinks)sink->ProcessEvent(&event,nullptr);}
     std::vector<BSTEventSink<TESContainerChangedEvent>*> sinks;
     static ScriptEventSourceHolder* GetSingleton(){static ScriptEventSourceHolder h;return &h;}
     void AddEventSink(BSTEventSink<TESContainerChangedEvent>* s){sinks.push_back(s);}
@@ -252,6 +259,7 @@ struct ItemList {
     void Update(TESObjectREFR* source){assert(source==PlayerCharacter::GetSingleton());++refreshes;if(refresh)refresh();}
     inline static std::size_t rowVisits=0;
     struct Rows:std::vector<Item*> {
+        Item* operator[](std::size_t index){++rowVisits;return std::vector<Item*>::operator[](index);}
         struct Iterator {
             std::vector<Item*>::iterator value;
             Item* operator*()const{++rowVisits;return *value;}
@@ -420,6 +428,11 @@ void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*
 namespace TransferFeedback {
 inline void Begin(std::function<void(Complete)> start){start([]{return true;});}
 inline void Reset(){}
+}
+namespace TransferFeedback {
+inline void WaitForFrame(std::function<void()> work,std::function<void()>) {
+    std::thread([work=std::move(work)] {std::this_thread::sleep_for(std::chrono::milliseconds(16));SKSE::GetTaskInterface()->AddTask(work);}).detach();
+}
 }
 
 namespace PlayerEquipment { void PollForCheck(); }

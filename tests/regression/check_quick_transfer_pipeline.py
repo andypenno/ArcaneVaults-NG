@@ -19,6 +19,7 @@ parser.add_argument("--sanitize",action="store_true")
 parser.add_argument("--source-ref")
 parser.add_argument("--feedback",action="store_true",help="Run the actual overlay barrier and completion with the full transfer pipeline")
 parser.add_argument("--startup-only",action="store_true",help="Run startup readiness, protection work and populated-archive regressions")
+parser.add_argument("--frame-startup",action="store_true",help="Require rendered-frame opportunities across preparation, inspection and queued actions")
 parser.add_argument("--render-probe",action="store_true",help="Measure rendering gaps with declared native-call costs; fail if distributed work blocks frames")
 parser.add_argument("--cost-models",nargs="+",choices=rendering.MODELS,default=rendering.MODELS)
 parser.add_argument("--profile",action="store_true",help="Profile fixture phases and two test-only candidates against unchanged production")
@@ -26,6 +27,9 @@ parser.add_argument("--samples",type=int,default=5)
 parser.add_argument("--sizes",type=int,nargs="+",default=[0,1000])
 parser.add_argument("--scenarios",type=Path,help="Run representative JSON sorting inventories through every entry path")
 args=parser.parse_args()
+if args.frame_startup:
+    if args.startup_only or args.scenarios or args.profile or args.render_probe:parser.error("Frame startup checks run separately")
+    args.feedback=True
 if args.startup_only:
     if args.scenarios or args.profile or args.render_probe:parser.error("Startup checks are separate from scenario and performance probes")
     args.feedback=True
@@ -54,6 +58,10 @@ if args.feedback:
     stub="namespace TransferFeedback {\ninline void Begin(std::function<void(Complete)> start){start([]{return true;});}\ninline void Reset(){}\n}"
     assert stub in common
     common=common.replace(stub, "")
+    wait_stub=common.index('namespace TransferFeedback {\ninline void WaitForFrame(')
+    wait_end=common.index('\n}',wait_stub)+2
+    wait_end=common.index('\n}',wait_end)+2
+    common=common[:wait_stub]+common[wait_end:]
     common=common.replace("inline const char* Translate(const char* text){return text;}", "inline const char* Translate(const char* text){return std::string_view{text}==\"Vault.Sorting\"?\"Sorting items...\":text;}")
     common+='namespace RE {struct InputEvent {bool up=false;bool IsUp()const{return up;}InputEvent* AsButtonEvent(){return this;}};}\n'
     framework=feedback.FRAMEWORK[:feedback.FRAMEWORK.index("namespace AVTranslation")]
@@ -147,7 +155,7 @@ inline void DumpProfile(double ms){
 }
 '''
 
-startup_checks=args.feedback and not (args.scenarios or args.profile or args.render_probe)
+startup_checks=args.feedback and not (args.scenarios or args.profile or args.render_probe or args.frame_startup)
 if startup_checks:
     common=common.replace('namespace RE { struct TESBoundObject; }', '''namespace StartupProbe {
 inline int equippedQueries=0,explicitUpdates=0,confirmations=0;
@@ -185,13 +193,13 @@ for name in ("InventoryStacks","PlayerEquipment"):
         text=text.replace("using Clock = std::chrono::steady_clock;", "using Clock = ProbeClock;")
         start=text.index("        void Later(")
         end=text.index("\n        void Close(",start)
-        text=text[:start]+"        void Later(const std::shared_ptr<Request>& request){timers.emplace_back([request]{Poll(request);});}\n"+text[end:]
+        later = 'TransferFeedback::WaitForFrame([request]{Poll(request);},[request]{if(Active(request))Reset();});' if args.feedback and '        void CaptureStep(' in text else 'timers.emplace_back([request]{Poll(request);});'
+        text=text[:start]+"        void Later(const std::shared_ptr<Request>& request){"+later+"}\n"+text[end:]
         text=profiled(text,"        Snapshot Read(","equipment UI read")
         text=profiled(text,"        void Work(","equipment validation and work")
         text=profiled(text,"    void Run(","equipment preflight")
         needle="            for (const auto& stack : InventoryStacks::Read(player)) fresh[stack.item].push_back(stack);"
-        assert needle in text
-        text=text.replace(needle,"            if(RE::Profile::candidate!=2 || !snapshot.empty())\n"+needle)
+        if needle in text:text=text.replace(needle,"            if(RE::Profile::candidate!=2 || !snapshot.empty())\n"+needle)
     program+="\n".join(line for line in text.splitlines() if not line.startswith("#include"))+"\n"
 if not args.feedback:
     program+='namespace TransferFeedback {void Run(std::function<bool(const std::function<bool()>&)> step,std::function<void()> complete){while(!step([]{return true;})){}if(complete)complete();}}\n'
@@ -227,7 +235,7 @@ int main(){
         banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));utility->containers[kind]=banks[kind].get();
     }
     RE::TESObjectREFR chest{8000},assignment{8001};RE::TESBoundObject ring{200,false,true},note{201},book{202},potion{203},instrument{204},lockpick{205};
-    RE::TESSoulGem gem{206};RE::TESBoundObject favorite{207,true},quest{208},ignored{209};
+    RE::TESSoulGem gem{206};gem.categories=ToMask(ItemCategory::Soulgem);RE::TESBoundObject favorite{207,true},quest{208},ignored{209};
     favorite.categories=ToMask(ItemCategory::Weapon)|ToMask(ItemCategory::OneHand);quest.categories=ToMask(ItemCategory::Note);ignored.categories=ToMask(ItemCategory::Gear);
     ring.categories=ToMask(ItemCategory::Jewelry)|ToMask(ItemCategory::Armor);note.categories=ToMask(ItemCategory::Note);book.categories=ToMask(ItemCategory::Book);
     potion.categories=ToMask(ItemCategory::Potion);instrument.categories=ToMask(ItemCategory::Gear);lockpick.categories=ToMask(ItemCategory::Lockpick)|ToMask(ItemCategory::Gear);
@@ -277,6 +285,7 @@ int main(){
         assert(banks[Container::HealthPotions]->rows[&potion].total==0 && banks[Container::Concoction]->rows[&potion].total==archived);
         assert(banks[Container::Instruments]->rows[&instrument].total==0 && banks[Container::Gear]->rows[&instrument].total==archived);
         assert(player->rows[&lockpick].total==(shape==3?25:0) && banks[Container::Gear]->rows[&lockpick].total==(shape==3?15:0));
+        if(player->rows[&gem].total!=(shape==4?(gems?25:50):0))std::cerr<<"Gem mismatch entry="<<entry<<" shape="<<shape<<" enabled="<<gems<<" player="<<player->rows[&gem].total<<" bank="<<banks[Container::Soulgem]->rows[&gem].total<<'\n';
         assert(player->rows[&gem].total==(shape==4?(gems?25:50):0));
         assert(banks[Container::Soulgem]->rows[&gem].total==(shape==4 && gems?25:0));
         if(shape==4 && gems){assert(banks[Container::Soulgem]->rows[&gem].extras.front()->soul->soul==RE::SOUL_LEVEL::kGrand);assert(player->rows[&gem].extras.empty());}
@@ -353,7 +362,7 @@ if args.feedback and not args.render_probe and "bool Apply(" in source("PlayerEq
             auto ready=std::move(timers);timers.clear();for(auto& action:ready)action();
             queue->ProcessCommands();tasks->RunUI();tasks->Run();
         };
-        for(int frame=0;banks[Container::Armor]->rows[&ring].total==0 && frame<100;++frame)pump();
+        for(int frame=0;banks[Container::Armor]->rows[&ring].total==0 && frame<400;++frame)pump();
         const int moved=banks[Container::Armor]->rows[&ring].total;
         assert(moved>0 && moved<100 && !finished);
         if(interruption==1)player->rows[&ring].extras.front()->worn=true;
@@ -377,6 +386,7 @@ if args.scenarios:
     program=program[:program.index('int main(){')]+(ROOT/'tests/support/sorting.cpp').read_text().replace('SORTING_DEFINITIONS',sorting.definitions())
 
 if startup_checks:
+    if '        void CaptureStep(' in program:program = '#define AV_SLICED_INSPECTION\n' + program
     startup=(ROOT/'tests/support/transfer_startup.cpp').read_text()
     if args.startup_only:
         program=program[:program.index('int main(){')]+startup+'\nint main(){CheckStartup();}\n'
@@ -426,14 +436,19 @@ if args.profile or args.render_probe:
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM,stop_profile)
 with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
-    path=Path(directory);(path/"OffloadBatch.h").write_text((ROOT/"src/OffloadBatch.h").read_text().replace("using Clock = std::chrono::steady_clock;", "using Clock = ProbeClock;"));(path/"common.hpp").write_text("#pragma once\n"+common);(path/"check.cpp").write_text(program)
+    path=Path(directory);(path/"OffloadBatch.h").write_text((ROOT/"src/OffloadBatch.h").read_text().replace("using Clock = std::chrono::steady_clock;", "using Clock = ProbeClock;"))
     soul=source("Soulgems");soul=soul[:soul.index("    void TakeEmpty(")]+"}\n"
     soul=soul.replace("    Counts carriedBefore;", "").replace("    std::unordered_set<RE::FormID> loanForms;", "").replace("    std::int64_t remainingLoan{};", "")
     start=soul.index("    Counts CountGems(");soul=soul[:start]+soul[soul.index("\n}\n",start):]
     soul=profiled(soul,"    void Deposit(","soul gem deposit")
     soul=profiled(soul,"    void Recover(","soul gem recovery")
     soul=soul.replace("            if (archive && archive != bank) {", "            if (archive && archive != bank) {\n                if(RE::Profile::candidate==1 && !InventoryStacks::HasItems(archive))continue;")
-    (path/"Soulgems.cpp").write_text('#include "common.hpp"\n'+"\n".join(line for line in soul.splitlines() if not line.startswith("#include")))
+    if args.frame_startup:
+        from support import transfer_frame_probe
+        common,program,soul=transfer_frame_probe.instrument(common,program,soul)
+    (path/"common.hpp").write_text("#pragma once\n"+common)
+    (path/"check.cpp").write_text(program)
+    (path/"Soulgems.cpp").write_text('#include "common.hpp"\n#include "OffloadBatch.h"\n'+"\n".join(line for line in soul.splitlines() if not line.startswith("#include")))
     flags=["-fsanitize=address,undefined","-fno-omit-frame-pointer"] if args.sanitize else []
     if args.profile or args.render_probe:
         flags.append("-DAV_PROFILE")
@@ -474,8 +489,34 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
                 cases.extend(json.loads(line) for line in subprocess.check_output([str(path/'check'),str(expanded)],text=True,timeout=120).splitlines())
                 print(f'Validated representative inventory {fixture.stem}',flush=True)
         else:
-            cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
+            cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=120 if args.frame_startup else 30).splitlines()]
 args.output.parent.mkdir(parents=True,exist_ok=True)
+if args.frame_startup:
+    controls=[case for case in cases if 'control' in case]
+    rows=[case for case in cases if 'control' not in case]
+    expected={(entry,phase,size) for entry in range(3) for phase in (
+        'capture','protected capture','row indexing','row matching','delayed rows','validation',
+        'candidate enumeration','job expansion','soul gem recovery','distinct soul gems','native inventory','native menu','native bulk',
+        'cancel during readiness') for size in (1,1000)}
+    population={(case['entry'],case['phase'],case['size']) for case in rows}
+    if population!=expected or len(rows)!=len(expected) or len(controls)!=5 or not all(c['passed'] for c in controls):
+        raise ValueError('Incomplete frame-startup scenarios or failed scheduler controls')
+    if any(not case['draw_gaps_ms'] or abs(max(case['draw_gaps_ms'])-case['max_gap_ms'])>.01 for case in rows):
+        raise ValueError('Frame gap summary differs from raw draws')
+    failures=[case for case in rows if not case['passed']]
+    args.output.write_text(json.dumps({'complete':True,'passed':not failures,'source_ref':args.source_ref,
+        'source_commit':subprocess.check_output(['git','rev-parse',args.source_ref or 'HEAD'],cwd=ROOT,text=True).strip(),
+        'sanitizers':args.sanitize,
+        'source_sha256':{name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources},
+        'fixture_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in (
+            'tests/support/transfer_frame_probe.py','tests/support/transfer_frames.cpp','tests/support/engine.hpp',
+            'tests/regression/check_quick_transfer_pipeline.py','tests/regression/check_quick_transfer_frames.py',
+            'tests/support/feedback.py','tests/support/engine.py')},
+        'boundary':'Actual production loops/controller/transfers with supplied engine and UI boundaries. Each targeted loop iteration costs 0.1 simulated ms. Opaque native controls cost 250 simulated ms once. Draw callbacks run only in the fixture frame pump, never inside production work or opaque calls. These inputs are not Skyrim timings or proof of the reported native cause.',
+        'frame_interval_simulated_ms':16,'max_gap_budget_simulated_ms':50,'controls':controls,'cases':rows,
+        'responsiveness_failures':failures},indent=2)+'\n')
+    print(f"Frame startup: {len(rows)} cases, {len(failures)} responsiveness failures; safety assertions passed; {args.output}")
+    raise SystemExit(1 if failures else 0)
 startup_cases=[case for case in cases if case.get('startup')]
 cases=[case for case in cases if not case.get('startup')]
 startup_contract={

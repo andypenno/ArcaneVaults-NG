@@ -54,3 +54,22 @@ class PerformancePolicyTests(unittest.TestCase):
             if sample['variant'] == 'working':
                 sample['ms'] = 100
         self.assertFalse(all(r['passed'] for r in verify(render, render, {'samples': slower}, policy)))
+        sliced_policy = {**policy, 'render_archive_native_calls_per_base': 3}
+        archived = copy.deepcopy(render)
+        for sample in archived['samples']:
+            for row in sample['cases']:
+                row['archive_input_bases'] = 5 if row['archives_populated'] else 0
+        candidate = copy.deepcopy(archived)
+        for sample in candidate['samples']:
+            for row in sample['cases']:
+                if row['archives_populated']:
+                    row['charged_native_calls'] += 15
+        self.assertTrue(all(r['passed'] for r in verify(archived, candidate, {'samples': samples}, sliced_policy)))
+        unrelated = copy.deepcopy(candidate)
+        for sample in unrelated['samples']:
+            for row in sample['cases']:
+                row['charged_native_calls'] += 30
+        self.assertFalse(all(r['passed'] for r in verify(archived, unrelated, {'samples': samples}, sliced_policy)))
+        candidate['samples'][0]['cases'][0]['archive_input_bases'] = 999
+        with self.assertRaises(ValueError):
+            verify(archived, candidate, {'samples': samples}, sliced_policy)

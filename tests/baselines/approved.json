@@ -17,6 +17,7 @@
     "relative_increase": 0.1,
     "absolute_calls": 8
   },
-  "rationale": "Preserve the released frame-gap contract. Host gate rejects only material repeatable regressions beyond two observed sample ranges. 1 ms is a materiality floor, not an in-game latency promise. Reference and candidate use the same harness, compiler and host. These reviewable tolerances do not auto-update.",
+  "render_archive_native_calls_per_base": 3,
+  "rationale": "Preserve the released frame-gap contract. Bounded archive recovery replaces an indivisible bulk call with verified per-base transfers, allowing three additional native calls per populated archive input base. Input populations must match the declared fixture; other calls and loans keep the existing work budget. Host gate rejects only material repeatable regressions beyond two observed sample ranges. 1 ms is a materiality floor, not an in-game latency promise. Reference and candidate use the same harness, compiler and host. These reviewable tolerances do not auto-update.",
   "retry_samples": 8
 }

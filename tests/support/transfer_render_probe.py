@@ -157,7 +157,7 @@ def instrument(common, program):
     assert "RenderProbe::Draw" in program
     for signature, phase in [
         ('    void Run(std::function<void()> work, std::function<void()> complete, std::function<bool(RE::TESBoundObject*)> eligible) {' if 'std::function<bool(RE::TESBoundObject*)> eligible) {' in program else '    void Run(std::function<void()> work, std::function<void()> complete) {', 'equipment preflight'),
-        ('        Snapshot Capture(RE::PlayerCharacter* player, InventoryStacks::Select select = {}) {' if 'Snapshot Capture(RE::PlayerCharacter* player, InventoryStacks::Select' in program else '        Snapshot Capture(RE::PlayerCharacter* player) {', 'physical capture'),
+        (next(line for line in program.splitlines() if line.startswith('        Snapshot Capture(')), 'physical capture'),
         ('        Snapshot Read(RE::InventoryMenu* menu, const Snapshot& physical, RE::RefHandle owner) {', 'equipment menu rows'),
         ('        void Work(const std::shared_ptr<Request>& request, const Snapshot& snapshot) {', 'equipment validation'),
         ('void Stores::OffloadItemsNow(std::function<void()> complete) {' if 'void Stores::OffloadItemsNow(std::function<void()> complete) {' in program else 'void Stores::OffloadItemsNow() {', 'transfer queue setup'),
@@ -166,6 +166,13 @@ def instrument(common, program):
     ]:
         assert program.count(signature) == 1, signature
         program = program.replace(signature, signature + f'\n    RenderProbe::Phase renderPhase{{"{phase}"}};')
+    for signature, phase in [
+        ('        void CaptureStep(const std::shared_ptr<Request>& request) {', 'physical capture'),
+        ('        void ValidateStep(const std::shared_ptr<Request>& request) {', 'equipment validation'),
+        ('        void ReadStep(const std::shared_ptr<Request>& request, RE::InventoryMenu* menu) {', 'equipment menu rows'),
+    ]:
+        if signature in program:
+            program = program.replace(signature, signature + f'\n    RenderProbe::Phase renderPhase{{"{phase}"}};')
     program = program.replace("int main(){", CONTROLS + "\nint main(int argc,char** argv){\n    assert(argc==3);RenderProbe::model=std::stoi(argv[1]);const int workload=std::stoi(argv[2]);")
     program = program.replace("    SKSEMenuFramework::installed=true;TransferFeedback::Register();", "    SKSEMenuFramework::installed=true;TransferFeedback::Register();CheckRenderScheduler();")
     signature = 'void Stores::OffloadItemsNow(std::function<void()> complete) {' if 'void Stores::OffloadItemsNow(std::function<void()> complete) {' in program else 'void Stores::OffloadItemsNow() {'
@@ -192,6 +199,11 @@ def instrument(common, program):
             }
         }
         if(shape==4)player->Put(&gem,workload);
+        int archiveInputBases = 0;
+        for (const auto& [kind, bank] : banks) {
+            (void)kind;
+            for (const auto& [item, row] : bank->rows) { (void)item; archiveInputBases += row.total > 0; }
+        }
         RenderProbe::Reset();
 '''
     program = program.replace('        const auto input=RE::input;', seed + '\n        const auto input=RE::input;', 1)
@@ -210,7 +222,7 @@ def instrument(common, program):
         }
 '''
     program = program.replace('        assert((entry==0)==!stores->options.empty());', verify + '\n        assert((entry==0)==!stores->options.empty());')
-    program = program.replace('DumpProfile(fixtureMs);std::cout<<"}\\n";', 'DumpProfile(fixtureMs);RenderProbe::Dump();std::cout<<"}\\n";')
+    program = program.replace('DumpProfile(fixtureMs);std::cout<<"}\\n";', 'DumpProfile(fixtureMs);RenderProbe::Dump();std::cout<<",\\"archive_input_bases\\":"<<archiveInputBases<<"}\\n";')
     program = program.replace("elapsed<12000", "elapsed<120000")
     recovery = program.index('    TransferFeedback::Reset();player->rows.clear();settings->ignored.clear();')
     program = program[:recovery] + program[program.index('\n}\n', recovery):]

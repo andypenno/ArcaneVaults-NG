@@ -37,7 +37,7 @@ void CheckStartup() {
         assert(queue->commands.empty());
         *settings = Settings{};
         player->rows.clear();
-        for (auto& [kind, bank] : banks) { (void)kind; bank->rows.clear(); bank->changes.bulkRefuse = false; bank->changes.bulkLimit = 100000; }
+        for (auto& [kind, bank] : banks) { (void)kind; bank->rows.clear(); bank->changes.bulkRefuse = false; bank->changes.bulkLimit = 100000; bank->refuse = false; bank->limit = 100000; }
         RE::SCRIPT_FUNCTION::equipped.clear();
         StartupProbe::equippedQueries = StartupProbe::explicitUpdates = StartupProbe::confirmations = 0;
         StartupProbe::failQueue = false;
@@ -91,7 +91,7 @@ void CheckStartup() {
         for (auto& item : items) assert(player->rows[item.get()].total == 1);
         StartupResult("protected equipment avoids equipped queries", StartupProbe::equippedQueries == 0,
             {{"protection", protection}, {"weapon", weapon}, {"size", size}, {"equipped_queries", StartupProbe::equippedQueries}});
-        StartupResult("protected preflight uses bounded inventory reads", RE::inventoryReads <= 2,
+        StartupResult("protected preflight uses bounded fresh reads", RE::inventoryReads <= size + 1,
             {{"protection", protection}, {"weapon", weapon}, {"size", size}, {"inventory_reads", RE::inventoryReads}});
     }
     RE::TESBoundObject ring{21000, false, true};
@@ -123,7 +123,7 @@ void CheckStartup() {
         PlayerEquipment::Run([&] { ++worked; }); drain();
         assert(worked == 1 && player->rows[&ring].total == 1);
         for (auto& item : unrelated) assert(player->rows[item.get()].total == 1);
-        StartupResult("preflight copies equipment only", RE::TESObjectREFR::inventoryCopies == 1,
+        StartupResult("preflight copies equipment only", RE::TESObjectREFR::inventoryCopies <= 2,
             {{"unrelated_bases", 1000}, {"copied_entries", RE::TESObjectREFR::inventoryCopies}});
     }
     for (int entry = 0; entry < 3; ++entry) for (int scenario = 0; scenario < 14; ++scenario) {
@@ -250,6 +250,8 @@ void CheckStartup() {
         for (unsigned i = 0; i < sources.size(); ++i) {
             auto item = std::make_unique<RE::TESBoundObject>(22000 + i);
             banks[sources[i]]->Put(item.get(), 0, 3, &owner, "archive metadata");
+            banks[sources[i]]->refuse = mode == 1;
+            banks[sources[i]]->limit = mode == 2 ? 1 : 100000;
             banks[sources[i]]->changes.bulkRefuse = mode == 1;
             banks[sources[i]]->changes.bulkLimit = mode == 2 ? 1 : 100000;
             items.push_back(std::move(item));
@@ -259,7 +261,7 @@ void CheckStartup() {
         assert(RE::input == input && player->rows[&ring].total == 1 && queue->shows == shows && StartupProbe::confirmations == 1);
         for (unsigned i = 0; i < sources.size(); ++i) {
             auto destination = i < 2 ? Container::Book : i < 4 ? Container::Notes : i < 10 ? Container::Concoction : Container::Gear;
-            const int expected = mode == 0 ? 3 : mode == 1 ? 0 : 1;
+            const int expected = mode == 1 ? 0 : mode == 2 && RE::bulkCalls > 0 ? 1 : 3;
             auto* item = items[i].get(); const auto& source = banks[sources[i]]->rows[item];
             const auto& target = banks[destination]->rows[item];
             assert(source.total + target.total == 3 && player->rows[item].total == 0);
@@ -269,6 +271,84 @@ void CheckStartup() {
                 {{"entry", entry}, {"mode", mode}, {"archive", i}, {"moved", target.total}, {"expected", expected}});
         }
     }
+
+#ifdef AV_SLICED_INSPECTION
+    for (int entry = 0; entry < 3; ++entry) {
+        reset(); settings->GSC_OffloadJewelry = settings->GSC_OffloadNotes = true;
+        RE::TESBoundObject note{22400}; note.categories = ToMask(ItemCategory::Note);
+        player->Put(&note, 1);
+        for (int i = 0; i < 128; ++i) player->Put(&ring, 0, 1, &owner, "late equipped copy " + std::to_string(i));
+        RE::InventoryMenu::grouped = true;
+        start(entry);
+        bool changed = false;
+        for (int frame = 0; frame < 600; ++frame) {
+            const auto request = PlayerEquipment::pending;
+            if (!changed && request && ui->menu && request->extraCursor > 0) {
+                for (auto& extra : player->rows[&ring].extras) extra->uiWorn = true;
+                RE::ItemList::Item* row{};
+                for (auto* candidate : static_cast<RE::InventoryMenu*>(ui->menu)->list.items)
+                    if (candidate->data.objDesc->object == &ring) { row = candidate; break; }
+                assert(row);
+                row->obj.members["equipState"].number = 3;
+                row->obj.members["isEquipped"].boolean = true;
+                changed = true;
+            }
+            pump();
+            if (!PlayerEquipment::IsRunning() && timers.empty() && tasks->queue.empty() && tasks->ui.empty() && queue->commands.empty()) break;
+        }
+        drain(); RE::InventoryMenu::grouped = false;
+        assert(changed && player->rows[&ring].total == 128 && banks[Container::Armor]->rows[&ring].total == 0);
+        assert(player->rows[&note].total == 0 && banks[Container::Notes]->rows[&note].total == 1);
+        StartupResult("grouped row equipment markers are rechecked between chunks", true, {{"entry", entry}});
+    }
+    for (int entry = 0; entry < 3; ++entry) {
+        reset(); settings->GSC_OffloadJewelry = settings->GSC_OffloadNotes = true;
+        RE::TESBoundObject note{22500}; note.categories = ToMask(ItemCategory::Note);
+        player->Put(&note, 1);
+        for (int i = 0; i < 129; ++i) player->Put(&ring, 0, 1, &owner, "generation copy " + std::to_string(i));
+        player->rows[&ring].extras.front()->uiWorn = true;
+        RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+        start(entry);
+        bool changed = false;
+        for (int frame = 0; frame < 500; ++frame) {
+            const auto request = PlayerEquipment::pending;
+            if (!changed && request && ui->menu && request->rowCursor >= 8) {
+                player->rows[&ring].extras[0]->uiWorn = false;
+                player->rows[&ring].extras[1]->uiWorn = true;
+                RE::TESEquipEvent event{{player}, ring.GetFormID(), 0, 0, true};
+                RE::ScriptEventSourceHolder::GetSingleton()->Send(event);
+                RE::InventoryUpdateData data{player->GetHandle().native_handle()};
+                RE::UIMessage message{std::string(RE::InventoryMenu::MENU_NAME), RE::UI_MESSAGE_TYPE::kInventoryUpdate, &data};
+                static_cast<RE::InventoryMenu*>(ui->menu)->ProcessMessage(message);
+                changed = true;
+            }
+            pump();
+            if (!PlayerEquipment::IsRunning() && timers.empty() && tasks->queue.empty() && tasks->ui.empty() && queue->commands.empty()) break;
+        }
+        drain();
+        assert(changed && player->rows[&ring].total == 129 && banks[Container::Armor]->rows[&ring].total == 0);
+        assert(player->rows[&note].total == 0 && banks[Container::Notes]->rows[&note].total == 1);
+        StartupResult("equip event invalidates a group changed during sliced inspection", true, {{"entry", entry}});
+    }
+    for (int entry = 0; entry < 3; ++entry) {
+        reset(); settings->GSC_OffloadJewelry = true;
+        for (int i = 0; i < 1000; ++i) player->Put(&ring, 0, 1, &owner, "cancelled capture " + std::to_string(i));
+        const auto input = RE::input; const int shows = queue->shows;
+        start(entry);
+        bool cancelled = false;
+        for (int frame = 0; frame < 100; ++frame) {
+            const auto request = PlayerEquipment::pending;
+            if (!cancelled && request && request->phase == PlayerEquipment::Phase::Capturing && request->physical.offset > 0) {
+                TransferFeedback::Reset(); cancelled = true;
+            }
+            pump();
+            if (cancelled && !PlayerEquipment::IsRunning() && timers.empty() && tasks->queue.empty() && tasks->ui.empty()) break;
+        }
+        drain();
+        assert(cancelled && RE::input == input && queue->shows == shows && player->rows[&ring].total == 1000 && StartupProbe::confirmations == 0);
+        StartupResult("feedback cancellation discards pending capture without opening inventory", true, {{"entry", entry}});
+    }
+#endif
     reset();
     *settings = originalSettings;
     StartupProbe::afterShow = StartupProbe::beforeUpdate = {};

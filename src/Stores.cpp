@@ -498,53 +498,93 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
     auto equipment = std::make_shared<PlayerEquipment::Snapshot>();
     auto inspectionRules = std::make_shared<std::vector<std::pair<ItemCategory, CategoryMask>>>();
     auto candidates = std::make_shared<std::vector<RE::TESBoundObject*>>();
+    using Counts = decltype(std::declval<RE::TESObjectREFR*>()->GetInventoryCounts());
+    struct Listing {
+        std::optional<Counts> counts;
+        Counts::const_iterator next;
+    };
+    const auto list = [actions](RE::TESObjectREFR* source, std::function<void(RE::TESBoundObject*, int)> emit) {
+        if (!source) return;
+        auto listing = std::make_shared<Listing>();
+        const auto handle = source->GetHandle();
+        actions->push_back([listing, handle, emit = std::move(emit)] {
+            auto source = handle.get();
+            if (!source) return;
+            if (!listing->counts) {
+                listing->counts = source.get()->GetInventoryCounts([](auto&) { return true; }, true);
+                listing->next = listing->counts->cbegin();
+            }
+            for (int n = 0; listing->next != listing->counts->cend() && n < 16; ++n) {
+                const auto [item, count] = *listing->next++;
+                if (item && count > 0) emit(item, count);
+                if (OffloadBatch::Clock::now() >= OffloadBatch::current->deadline) break;
+            }
+            OffloadBatch::current->repeat = listing->next != listing->counts->cend();
+        });
+    };
     const auto deposit = [this, actions, queued, candidates, equipment, inspectionRules](ItemCategory category, Container chest, int count = 0,
         int keep = 0, bool ignores = true, CategoryMask excluded = 0) {
         inspectionRules->emplace_back(category, excluded);
-        actions->push_back([this, queued, candidates, equipment, category, chest, count, keep, ignores, excluded] {
+        auto remaining = std::make_shared<std::optional<std::size_t>>();
+        actions->push_back([this, queued, candidates, equipment, remaining, category, chest, count, keep, ignores, excluded] {
             auto actions = queued.lock();
             if (!actions) return;
-            for (auto it = candidates->rbegin(); it != candidates->rend(); ++it) {
-                auto* item = *it;
+            if (!*remaining) *remaining = candidates->size();
+            for (int n = 0; **remaining > 0 && n < 16; ++n) {
+                auto* item = (*candidates)[--**remaining];
                 const auto categories = ClassifyItem(item);
-                if (!HasCategory(categories, category) || HasAnyCategory(categories, excluded)) continue;
-                actions->push_front([this, equipment, item, category, chest, count, keep, ignores, excluded] {
-                    OffloadBatch::current->item = item;
-                    PlayerEquipment::Apply(*equipment, item, [&] {
-                        PlayerToStore(category, chest, count, keep, ignores, excluded);
-                        return OffloadBatch::current->changed;
+                if (HasCategory(categories, category) && !HasAnyCategory(categories, excluded))
+                    actions->push_front([this, equipment, item, category, chest, count, keep, ignores, excluded] {
+                        OffloadBatch::current->item = item;
+                        if (item->As<RE::TESSoulGem>()) {
+                            Soulgems::Deposit(Settings::GetSingleton()->GSC_SoulgemKeepAmount, ignores);
+                            return;
+                        }
+                        PlayerEquipment::Apply(*equipment, item, [&] {
+                            PlayerToStore(category, chest, count, keep, ignores, excluded);
+                            return OffloadBatch::current->changed;
+                        });
                     });
-                });
+                if (OffloadBatch::Clock::now() >= OffloadBatch::current->deadline) break;
             }
+            OffloadBatch::current->repeat = **remaining > 0;
         });
     };
     const auto ammunition = [this, actions, queued, candidates] {
-        actions->push_back([this, queued, candidates] {
+        auto remaining = std::make_shared<std::optional<std::size_t>>();
+        actions->push_back([this, queued, candidates, remaining] {
             auto actions = queued.lock();
             if (!actions) return;
-            for (auto it = candidates->rbegin(); it != candidates->rend(); ++it) {
-                auto* item = *it;
-                if (!HasCategory(ClassifyItem(item), ItemCategory::Ammunition)) continue;
-                actions->push_front([this, item] { OffloadBatch::current->item = item; KeepAmmunition(true); });
+            if (!*remaining) *remaining = candidates->size();
+            for (int n = 0; **remaining > 0 && n < 16; ++n) {
+                auto* item = (*candidates)[--**remaining];
+                if (HasCategory(ClassifyItem(item), ItemCategory::Ammunition))
+                    actions->push_front([this, item] { OffloadBatch::current->item = item; KeepAmmunition(true); });
+                if (OffloadBatch::Clock::now() >= OffloadBatch::current->deadline) break;
             }
+            OffloadBatch::current->repeat = **remaining > 0;
         });
     };
-    const auto all = [this, actions](Container source, Container destination) {
-        actions->push_back([this, source, destination] { AllToStore(source, destination); });
+    const auto all = [actions, queued, list](Container from, Container to) {
+        auto* utility = Utility::GetSingleton();
+        const auto source = utility->GetContainer(from);
+        const auto target = utility->GetContainer(to);
+        if (!source || !target || source == target) return;
+        const auto handle = source->GetHandle(), destination = target->GetHandle();
+        list(source, [queued, handle, destination](auto* item, int count) {
+            if (auto actions = queued.lock()) actions->push_front([handle, destination, item, count] {
+                auto source = handle.get(), target = destination.get();
+                if (source && target) MoveItems(source.get(), target.get(), item, count);
+            });
+        });
     };
-    const auto recover = [this, actions, queued](ItemCategory category, Container from, Container to) {
-        actions->push_back([this, queued, category, from, to] {
-            auto actions = queued.lock();
-            if (!actions) return;
-            auto* source = Utility::GetSingleton()->GetContainer(from);
-            if (!source) return;
-            for (const auto& [item, count] : source->GetInventoryCounts()) {
-                if (!item || count <= 0 || !HasCategory(ClassifyItem(item), category)) continue;
-                actions->push_front([this, item, category, from, to] {
-                    OffloadBatch::current->item = item;
-                    StoreToStore(category, from, to);
-                });
-            }
+    const auto recover = [this, queued, list](ItemCategory category, Container from, Container to) {
+        list(Utility::GetSingleton()->GetContainer(from), [this, queued, category, from, to](auto* item, int) {
+            if (!HasCategory(ClassifyItem(item), category)) return;
+            if (auto actions = queued.lock()) actions->push_front([this, item, category, from, to] {
+                OffloadBatch::current->item = item;
+                StoreToStore(category, from, to);
+            });
         });
     };
     all(Container::SpellTomes, Container::Book);
@@ -558,10 +598,8 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         Container::HealthPotions, Container::MagickaPotions, Container::StaminaPotions})
         all(archive, Container::Concoction);
     all(Container::Instruments, Container::Gear);
-    actions->push_back([candidates] {
-        if (auto* player = RE::PlayerCharacter::GetSingleton())
-            for (const auto& [item, count] : player->GetInventoryCounts())
-                if (item && count > 0) candidates->push_back(item);
+    list(RE::PlayerCharacter::GetSingleton(), [candidates](auto* item, int) {
+        candidates->push_back(item);
     });
     auto* settings = Settings::GetSingleton();
 
@@ -577,8 +615,19 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         deposit(ItemCategory::Personal, Container::Personal, 0, 0, true);
 
     if (settings->GSC_OffloadSoulgems) {
+        all(Container::FilledSoulgems, Container::Soulgem);
+        all(Container::EmptySoulgems, Container::Soulgem);
+        for (auto from : {Container::Smithing, Container::Crafting, Container::Smelting,
+            Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort}) {
+            list(Utility::GetSingleton()->GetContainer(from), [queued](auto* item, int) {
+                if (!item->template As<RE::TESSoulGem>()) return;
+                if (auto actions = queued.lock()) actions->push_front([item] {
+                    OffloadBatch::current->item = item;
+                    Soulgems::Recover();
+                });
+            });
+        }
         deposit(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
-        actions->push_back([keep = settings->GSC_SoulgemKeepAmount] { Soulgems::Deposit(keep, true); });
     }
 
     if (settings->GSC_OffloadGold)
@@ -652,18 +701,20 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         if (const auto* snapshot = PlayerEquipment::Current()) *equipment = *snapshot;
         TransferFeedback::Run([actions](const std::function<bool()>& active) {
             const auto deadline = OffloadBatch::Clock::now() + std::chrono::milliseconds(4);
+            int moves{};
             for (int count = 0; active() && !actions->empty() && count < 16; ++count) {
                 auto action = std::move(actions->front());
                 actions->pop_front();
-                OffloadBatch::Slice slice{nullptr, deadline, active};
+                OffloadBatch::Slice slice{nullptr, deadline, active, moves};
                 struct Restore {
                     OffloadBatch::Slice* previous{OffloadBatch::current};
                     ~Restore() { OffloadBatch::current = previous; }
                 } restore;
                 OffloadBatch::current = &slice;
                 action();
+                moves = slice.moves;
                 if (slice.repeat && active()) actions->push_front(std::move(action));
-                if (OffloadBatch::Clock::now() >= deadline) break;
+                if (moves >= 16 || OffloadBatch::Clock::now() >= deadline) break;
             }
             return actions->empty();
         }, [complete] {

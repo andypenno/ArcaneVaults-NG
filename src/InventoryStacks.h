@@ -1,5 +1,6 @@
 #pragma once
 #include <optional>
+#include <unordered_set>
 
 namespace InventoryStacks {
     struct Stack {
@@ -9,6 +10,15 @@ namespace InventoryStacks {
         int count;
     };
     using Select = std::function<bool(RE::TESBoundObject*, RE::InventoryEntryData&, RE::ExtraDataList*)>;
+    struct ReadCursor {
+        std::size_t offset{};
+        int total{-1};
+        std::int64_t explicitCount{};
+        bool valid{true};
+        std::unordered_set<RE::ExtraDataList*> seen;
+    };
+    bool ReadPart(RE::TESObjectREFR* source, RE::TESBoundObject* item, ReadCursor& cursor,
+        const std::function<void(RE::InventoryEntryData&, RE::ExtraDataList*, int)>& visit);
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {}, RE::TESBoundObject* item = nullptr, bool firstOnly = false);
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* item, bool firstOnly,
         std::function<bool(RE::TESBoundObject&)> filter);

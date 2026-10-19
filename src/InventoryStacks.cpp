@@ -3,6 +3,37 @@
 #include <unordered_set>
 
 namespace InventoryStacks {
+    bool ReadPart(RE::TESObjectREFR* source, RE::TESBoundObject* item, ReadCursor& cursor,
+        const std::function<void(RE::InventoryEntryData&, RE::ExtraDataList*, int)>& visit) {
+        if (!source || !item || !cursor.valid) { cursor.valid = false; return true; }
+        const auto inventory = source->GetInventory([item](auto& candidate) { return &candidate == item; });
+        const auto found = inventory.find(item);
+        if (found == inventory.end() || found->second.first <= 0 || !found->second.second) {
+            cursor.valid = false; return true;
+        }
+        const auto total = found->second.first;
+        if (cursor.total < 0) cursor.total = total;
+        if (cursor.total != total) { cursor.valid = false; return true; }
+        auto& entry = *found->second.second;
+        std::size_t offset{};
+        int processed{};
+        if (entry.extraLists) for (auto* extra : *entry.extraLists) {
+            if (offset++ < cursor.offset) continue;
+            if (processed++ == 16) return false;
+            cursor.offset = offset;
+            if (!extra) continue;
+            const int count = extra->GetCount();
+            if (!cursor.seen.insert(extra).second || count <= 0 || cursor.explicitCount + count > total) {
+                cursor.valid = false; return true;
+            }
+            cursor.explicitCount += count;
+            visit(entry, extra, count);
+        }
+        if (offset < cursor.offset || cursor.explicitCount > total) { cursor.valid = false; return true; }
+        if (cursor.explicitCount < total) visit(entry, nullptr, static_cast<int>(total - cursor.explicitCount));
+        return true;
+    }
+
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem, bool firstOnly) {
         return Read(source, std::move(select), onlyItem, firstOnly, {});
     }

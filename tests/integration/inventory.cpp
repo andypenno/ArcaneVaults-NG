@@ -6,7 +6,57 @@
 #error Inventory checks require assertions
 #endif
 
+void CheckReadCursor() {
+    RE::TESBoundObject item{91000};
+    RE::TESObjectREFR source{91001};
+    RE::TESForm owner{91002};
+    RE::EnchantmentItem enchantment;
+    for (int mode = 0; mode < 8; ++mode) {
+        source.rows.clear();
+        for (int i = 0; i < 33; ++i) {
+            source.Put(&item, 0, 1, &owner, std::to_string(i));
+            source.rows[&item].extras.back()->enchantment = RE::ExtraEnchantment{&enchantment};
+        }
+        source.rows[&item].total += 5;
+        if (mode == 1) source.rows[&item].duplicate = true;
+        if (mode == 2) source.rows[&item].extras[17]->count = 0;
+        if (mode == 3) source.rows[&item].total = 16;
+        InventoryStacks::ReadCursor cursor;
+        std::unordered_set<RE::ExtraDataList*> seen;
+        int total{}, bare{}, calls{};
+        bool done{};
+        do {
+            int visited{};
+            done = InventoryStacks::ReadPart(&source, &item, cursor, [&](auto&, auto* extra, int count) {
+                ++visited; total += count;
+                if (!extra) { bare += count; return; }
+                assert(seen.insert(extra).second && extra->owner == &owner && extra->enchantment->enchantment == &enchantment);
+            });
+            assert(visited <= 17 && ++calls < 10);
+            if (calls == 1 && !done) {
+                if (mode == 4) ++source.rows[&item].total;
+                if (mode == 5) source.rows[&item].extras.clear();
+                if (mode == 6) source.rows[&item].total = 0;
+                if (mode == 7) source.rows.erase(&item);
+            }
+        } while (!done);
+        assert(cursor.valid == (mode == 0));
+        if (mode == 0) assert(calls == 3 && total == 38 && bare == 5 && seen.size() == 33);
+    }
+    source.rows.clear(); source.Put(&item, 7);
+    InventoryStacks::ReadCursor cursor;
+    assert(InventoryStacks::ReadPart(&source, &item, cursor, [](auto&, auto* extra, int count) { assert(!extra && count == 7); }));
+    assert(cursor.valid);
+    for (int mode = 0; mode < 3; ++mode) {
+        cursor = {}; if (mode == 2) cursor.valid = false;
+        assert(InventoryStacks::ReadPart(mode == 0 ? nullptr : &source, mode == 1 ? nullptr : &item, cursor,
+            [](auto&, auto*, int) { assert(false); }));
+        assert(!cursor.valid);
+    }
+}
+
 int main(int argc, char** argv) {
+    CheckReadCursor();
     assert(argc == 2);
     nlohmann::json data;
     std::ifstream(argv[1]) >> data;
