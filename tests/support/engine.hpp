@@ -377,6 +377,7 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container c){return containers.contains(c)?containers[c]:nullptr;}
     const auto& GetVaultChoices()const{return vaults;}
 };
+#include "src/PlayerEquipment.h"
 struct Settings {bool GSC_AllowRemovingStolenTags=false;std::unordered_set<RE::TESBoundObject*> ignored;bool IsIgnored(RE::TESBoundObject* item)const{return ignored.contains(item);}static Settings* GetSingleton(){static Settings s;return &s;} };
 inline CategoryMask ClassifyItem(RE::TESBoundObject* item)noexcept{return ToMask(item->armor?ItemCategory::Jewelry:ItemCategory::Weapon);}
 inline CategoryMask ToMask(ItemCategory c)noexcept{return CategoryMask{1}<<static_cast<unsigned>(c);}
@@ -406,7 +407,7 @@ struct Stores {
     void EnchantedItemsMenu(RE::TESObjectREFR*);
     void PlayerToStore(ItemCategory,Container,int=0,int=0,bool=false,CategoryMask=0);
     void OffloadItems(std::function<void()> complete={});
-    void OffloadItemsNow(std::function<void()> complete={}){PlayerToStore(ItemCategory::Jewelry,Container::Armor);if(complete)complete();}
+    void OffloadItemsNow(std::function<void()> complete={}){PlayerEquipment::Run([this]{PlayerToStore(ItemCategory::Jewelry,Container::Armor);},std::move(complete));}
 
 void StolenItemsMenu(RE::TESObjectREFR*);void OpenStolenItems(RE::TESObjectREFR*);void ShowStolenItemsMenu(RE::TESObjectREFR*);
     void Click(int i){auto action=options[i].action;options.clear();action();SKSE::GetTaskInterface()->Run();}

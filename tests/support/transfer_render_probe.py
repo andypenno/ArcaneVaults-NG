@@ -7,6 +7,7 @@ PROBE = r'''
 struct ProbeClock {using time_point=std::chrono::steady_clock::time_point;inline static time_point tick{};static time_point now(){return tick;}};
 namespace RenderProbe {
 inline int model=0,bulkDepth=0;
+struct PhaseStats {int visits=0,calls=0;double nativeMs=0,maxSpan=0;};
 struct State {
     bool enabled=false,working=false,finished=false,slowCharged=false;
     int frames=0,workFrames=0,colorChanges=0,confirmations=0,calls=0;
@@ -14,8 +15,17 @@ struct State {
     double start=0,lastDraw=0,workStart=0,workEnd=0,maxGap=0,maxNative=0,maxTask=0,maxTaskCpu=0;
     std::vector<double> gaps;
     std::map<std::string,double> nativeMs;
+    std::string phase="unattributed",slowPhase;
+    std::map<std::string,PhaseStats> phases;
 } inline state;
 inline double Now(){return std::chrono::duration<double,std::milli>(ProbeClock::now().time_since_epoch()).count();}
+struct Phase {
+    std::string name,previous;double start;bool enabled;
+    explicit Phase(const char* value):name(value),previous(state.phase),start(Now()),enabled(state.enabled){
+        if(enabled){state.phase=name;++state.phases[name].visits;}
+    }
+    ~Phase(){if(enabled){auto& phase=state.phases[name];phase.maxSpan=std::max(phase.maxSpan,Now()-start);state.phase=previous;}}
+};
 inline void Reset(){state={};state.enabled=true;state.start=state.lastDraw=Now();bulkDepth=0;}
 inline void Work(){if(state.enabled && !state.working){state.working=true;state.workStart=Now();}}
 inline void Finish(){if(!state.enabled)return;assert(state.working && ++state.confirmations==1);state.finished=true;state.workEnd=Now();state.maxGap=std::max(state.maxGap,Now()-state.lastDraw);}
@@ -33,8 +43,9 @@ struct NativeCall {
         const bool slow=(model==2 && std::string_view{name}=="inventory") ||
             (model==3 && std::string_view{name}=="remove") || (model==4 && std::string_view{name}=="bulk");
         const bool preflight=model==5 && !state.working && std::string_view{name}=="inventory";
-        if(((slow && state.working) || preflight) && !state.slowCharged){cost=250;state.slowCharged=true;}
+        if(((slow && state.working) || preflight) && !state.slowCharged){cost=250;state.slowCharged=true;state.slowPhase=state.phase;}
         state.nativeMs[name]+=cost;state.maxNative=std::max(state.maxNative,cost);
+        auto& phase=state.phases[state.phase];++phase.calls;phase.nativeMs+=cost;
         ProbeClock::tick+=std::chrono::duration_cast<ProbeClock::time_point::duration>(std::chrono::duration<double,std::milli>(cost));
         bulk=std::string_view{name}=="bulk";if(bulk)++bulkDepth;
     }
@@ -53,9 +64,17 @@ inline void Dump(){
         <<",\"work_simulated_ms\":"<<state.workEnd-state.workStart<<",\"max_native_simulated_ms\":"<<state.maxNative
         <<",\"max_task_simulated_ms\":"<<state.maxTask<<",\"max_task_elapsed_ms\":"<<state.maxTaskCpu
         <<",\"injected_slow_call\":"<<(state.slowCharged?"true":"false")<<",\"charged_native_calls\":"<<state.calls
-        <<",\"responsive_simulated\":"<<(gap<=50?"true":"false")<<",\"native_simulated_ms\":{";
+        <<",\"responsive_simulated\":"<<(gap<=50?"true":"false")<<",\"slow_call_phase\":\""<<state.slowPhase<<"\",\"native_simulated_ms\":{";
     bool first=true;for(const auto& [name,time]:state.nativeMs){if(!first)std::cout<<",";first=false;std::cout<<"\""<<name<<"\":"<<time;}std::cout<<"},\"render_gaps_simulated_ms\":[";
-    first=true;for(double time:state.gaps){if(!first)std::cout<<",";first=false;std::cout<<time;}std::cout<<"]";
+    first=true;for(double time:state.gaps){if(!first)std::cout<<",";first=false;std::cout<<time;}std::cout<<"],\"phase_costs\":{";
+    int calls=0;double charged=0;first=true;
+    for(const auto& [name,phase]:state.phases){
+        if(!first){std::cout<<",";}first=false;calls+=phase.calls;charged+=phase.nativeMs;
+        std::cout<<"\""<<name<<"\":{\"visits\":"<<phase.visits<<",\"native_calls\":"<<phase.calls
+            <<",\"native_simulated_ms\":"<<phase.nativeMs<<",\"max_span_simulated_ms\":"<<phase.maxSpan<<"}";
+    }
+    std::cout<<"}";double native=0;for(const auto& [name,time]:state.nativeMs){(void)name;native+=time;}
+    assert(calls==state.calls && std::abs(charged-native)<.001);
     if(state.slowCharged)assert(gap>=249.9);
 }
 }
@@ -74,6 +93,17 @@ void CheckRenderScheduler(){
     {RenderProbe::NativeCall bulk{"bulk",100};RenderProbe::NativeCall nestedRead{"inventory",100};RenderProbe::NativeCall nestedMove{"remove"};}
     assert(RenderProbe::bulkDepth==0 && RenderProbe::state.calls==1 && std::abs(RenderProbe::Now()-before-.45)<.001);
     RenderProbe::state.enabled=false;RenderProbe::NativeCall inactive{"remove"};assert(RenderProbe::state.calls==1);
+    RenderProbe::Reset();
+    {
+        RenderProbe::Phase outer{"outer"};{RenderProbe::NativeCall read{"inventory"};}
+        {RenderProbe::Phase inner{"inner"};RenderProbe::NativeCall remove{"remove"};}
+        {RenderProbe::NativeCall read{"inventory"};}
+    }
+    assert(RenderProbe::state.phase=="unattributed" && RenderProbe::state.calls==3);
+    assert(RenderProbe::state.phases["outer"].calls==2 && RenderProbe::state.phases["inner"].calls==1);
+    assert(std::abs(RenderProbe::state.phases["outer"].nativeMs-.5)<.001 &&
+        std::abs(RenderProbe::state.phases["outer"].maxSpan-1.5)<.001 &&
+        std::abs(RenderProbe::state.phases["inner"].maxSpan-1)<.001);
     for(int model=0;model<6;++model){
         RenderProbe::model=model;RenderProbe::Reset();const auto start=RenderProbe::Now();
         if(model!=5)RenderProbe::Work();
@@ -125,11 +155,24 @@ def instrument(common, program):
         common = common.replace(old, new)
     program = program.replace('textPosition=position;++texts;', 'textPosition=position;++texts;RenderProbe::Draw(lineColors.back());')
     assert "RenderProbe::Draw" in program
+    for signature, phase in [
+        ('    void Run(std::function<void()> work, std::function<void()> complete, std::function<bool(RE::TESBoundObject*)> eligible) {' if 'std::function<bool(RE::TESBoundObject*)> eligible) {' in program else '    void Run(std::function<void()> work, std::function<void()> complete) {', 'equipment preflight'),
+        ('        Snapshot Capture(RE::PlayerCharacter* player, InventoryStacks::Select select = {}) {' if 'Snapshot Capture(RE::PlayerCharacter* player, InventoryStacks::Select' in program else '        Snapshot Capture(RE::PlayerCharacter* player) {', 'physical capture'),
+        ('        Snapshot Read(RE::InventoryMenu* menu, const Snapshot& physical, RE::RefHandle owner) {', 'equipment menu rows'),
+        ('        void Work(const std::shared_ptr<Request>& request, const Snapshot& snapshot) {', 'equipment validation'),
+        ('void Stores::OffloadItemsNow(std::function<void()> complete) {' if 'void Stores::OffloadItemsNow(std::function<void()> complete) {' in program else 'void Stores::OffloadItemsNow() {', 'transfer queue setup'),
+        ('void Stores::AllToStore(Container a_source, Container a_destination) {', 'archive consolidation'),
+        ('void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container a_destination) {', 'archive rerouting'),
+    ]:
+        assert program.count(signature) == 1, signature
+        program = program.replace(signature, signature + f'\n    RenderProbe::Phase renderPhase{{"{phase}"}};')
     program = program.replace("int main(){", CONTROLS + "\nint main(int argc,char** argv){\n    assert(argc==3);RenderProbe::model=std::stoi(argv[1]);const int workload=std::stoi(argv[2]);")
     program = program.replace("    SKSEMenuFramework::installed=true;TransferFeedback::Register();", "    SKSEMenuFramework::installed=true;TransferFeedback::Register();CheckRenderScheduler();")
     signature = 'void Stores::OffloadItemsNow(std::function<void()> complete) {' if 'void Stores::OffloadItemsNow(std::function<void()> complete) {' in program else 'void Stores::OffloadItemsNow() {'
     assert program.count(signature) == 1
-    program = program.replace(signature, signature + '\n    RenderProbe::Work();')
+    work = '    TransferFeedback::Run([actions](const std::function<bool()>& active) {'
+    assert program.count(work) == 1
+    program = program.replace(work, '    RenderProbe::Work();\n' + work)
     assert 'RenderProbe::Work();' in program
     program = program.replace('for(bool stalled:{false,true})for(bool gems:{false,true})', 'for(bool stalled:{false})for(bool gems:{true})')
     program = program.replace('        TransferFeedback::Reset();\n        settings->ignored.clear();', '        RenderProbe::state.enabled=false;TransferFeedback::Reset();\n        settings->ignored.clear();')

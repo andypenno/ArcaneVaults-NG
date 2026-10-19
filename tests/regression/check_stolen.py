@@ -1,5 +1,10 @@
 """Exercise physical equipment, stolen and enchanted archive regressions."""
 from support.physical import *
+common += '\nstruct ProbeClock {using time_point=std::chrono::steady_clock::time_point;inline static time_point tick{};static time_point now(){return tick;}};\n'
+equipment=modules['PlayerEquipment'].replace('using Clock = std::chrono::steady_clock;', 'using Clock = ProbeClock;')
+start=equipment.index('        void Later(')
+end=equipment.index('\n        void Close(', start)
+modules['PlayerEquipment']=equipment[:start]+'        void Later(const std::shared_ptr<Request>&) {}\n'+equipment[end:]
 program += r'''
 int main(){
     RE::TESObjectREFR alchemy{1},personal{2},junk{3},trade{4},archive{5},sort{6},ignore{7},source{8};
@@ -120,11 +125,11 @@ int main(){
         RE::UI::available=true;RE::UI::factoryFails=false;RE::allocationFails=false;s->ignored.clear();DepositLearning::moved=0;
     };
     auto pump=[&](const auto& done){
-        const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+        const auto deadline=ProbeClock::now()+std::chrono::seconds(2);
         while(!done()){
-            assert(std::chrono::steady_clock::now()<deadline);
-            RE::UIMessageQueue::GetSingleton()->ProcessCommands();tasks->RunUI();tasks->Run();
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            assert(ProbeClock::now()<deadline);
+            RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
+            ProbeClock::tick+=std::chrono::milliseconds(2);
         }
     };
     auto deposit=[&](int request=0,int reserve=0,bool ignores=false){
@@ -263,7 +268,9 @@ int main(){
     auto* inspection=static_cast<RE::InventoryMenu*>(ui->menu);const auto refreshes=RE::ItemList::refreshes;
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
     assert(!initializedDone && inspection->uiMovie->visible && RE::ItemList::refreshes==refreshes);
-    assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kInventoryUpdate)!=RE::UIMessageQueue::GetSingleton()->commands.end());
+    assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kInventoryUpdate)==RE::UIMessageQueue::GetSingleton()->commands.end());
+    pump([&]{return std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kInventoryUpdate)!=RE::UIMessageQueue::GetSingleton()->commands.end();});
+    assert(!initializedDone && inspection->uiMovie->visible && count(*player,ring)==3);
     RE::InventoryMenu::empty=false;RE::UIMessageQueue::GetSingleton()->ProcessCommands();
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
     assert(RE::ItemList::refreshes==refreshes+1 && !inspection->uiMovie->visible);
@@ -275,21 +282,22 @@ int main(){
     menu->OffloadItems([&]{emptyDone=true;});RE::UIMessageQueue::GetSingleton()->ProcessCommands();
     const auto emptyRefreshes=RE::ItemList::refreshes;
     PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
+    assert(RE::ItemList::refreshes==emptyRefreshes && !emptyDone && count(*player,ring)==3);
+    pump([&]{return RE::ItemList::refreshes==emptyRefreshes+1;});
+    assert(!emptyDone && count(*player,ring)==3);
+    pump([&]{return std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kHide)!=RE::UIMessageQueue::GetSingleton()->commands.end();});
     RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
-    assert(RE::ItemList::refreshes==emptyRefreshes+1 && !emptyDone && count(*player,ring)==3);
-    assert(std::ranges::find(RE::UIMessageQueue::GetSingleton()->commands,RE::UI_MESSAGE_TYPE::kHide)!=RE::UIMessageQueue::GetSingleton()->commands.end());
-    RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();
     assert(emptyDone && count(*player,ring)==3 && count(armorBank,ring)==0);
     resetTransfer();player->Put(&ring,3);bool refusedDone=false;
     RE::UIMessageQueue::refuseHide=true;
     menu->OffloadItems([&]{refusedDone=true;});
-    const auto revealDeadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+    const auto revealDeadline=ProbeClock::now()+std::chrono::seconds(2);
     bool hidden=false;
     while(!hidden || !ui->menu || !ui->menu->uiMovie->visible){
-        assert(std::chrono::steady_clock::now()<revealDeadline);
-        RE::UIMessageQueue::GetSingleton()->ProcessCommands();tasks->RunUI();tasks->Run();
+        assert(ProbeClock::now()<revealDeadline);
+        RE::UIMessageQueue::GetSingleton()->ProcessCommands();PlayerEquipment::PollForCheck();tasks->RunUI();tasks->Run();
         if(ui->menu && !ui->menu->uiMovie->visible)hidden=true;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        ProbeClock::tick+=std::chrono::milliseconds(2);
     }
     assert(!refusedDone && count(*player,ring)==3 && count(armorBank,ring)==0);RE::UIMessageQueue::refuseHide=false;
     RE::UIMessageQueue::GetSingleton()->AddMessage(RE::InventoryMenu::MENU_NAME,RE::UI_MESSAGE_TYPE::kHide,nullptr);

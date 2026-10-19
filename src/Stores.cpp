@@ -487,11 +487,7 @@ void Stores::OffloadItems(std::function<void()> complete) {
     if (PlayerEquipment::IsRunning()) return;
     TransferFeedback::Begin([this, complete = std::move(complete)](TransferFeedback::Complete end) mutable {
         if (PlayerEquipment::IsRunning()) { TransferFeedback::Reset(); return; }
-        auto started = std::make_shared<bool>(false);
-        PlayerEquipment::Run([this, started, end, complete] {
-            OffloadItemsNow([end, complete] { if (end() && complete) complete(); });
-            *started = true;
-        }, [started, end, complete] { if (!*started && end() && complete) complete(); });
+        OffloadItemsNow([end, complete] { if (end() && complete) complete(); });
     });
 }
 
@@ -500,10 +496,11 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
     auto actions = std::make_shared<Actions>();
     const std::weak_ptr<Actions> queued = actions;
     auto equipment = std::make_shared<PlayerEquipment::Snapshot>();
-    if (const auto* snapshot = PlayerEquipment::Current()) *equipment = *snapshot;
+    auto inspectionRules = std::make_shared<std::vector<std::pair<ItemCategory, CategoryMask>>>();
     auto candidates = std::make_shared<std::vector<RE::TESBoundObject*>>();
-    const auto deposit = [this, actions, queued, candidates, equipment](ItemCategory category, Container chest, int count = 0,
+    const auto deposit = [this, actions, queued, candidates, equipment, inspectionRules](ItemCategory category, Container chest, int count = 0,
         int keep = 0, bool ignores = true, CategoryMask excluded = 0) {
+        inspectionRules->emplace_back(category, excluded);
         actions->push_back([this, queued, candidates, equipment, category, chest, count, keep, ignores, excluded] {
             auto actions = queued.lock();
             if (!actions) return;
@@ -650,25 +647,35 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         deposit(ItemCategory::Concoction, Container::Concoction, 0, 0, true, ItemCategory::Potion | ItemCategory::Poison | ItemCategory::Restorative);
 
 
-    TransferFeedback::Run([actions](const std::function<bool()>& active) {
-        const auto deadline = OffloadBatch::Clock::now() + std::chrono::milliseconds(4);
-        for (int count = 0; active() && !actions->empty() && count < 16; ++count) {
-            auto action = std::move(actions->front());
-            actions->pop_front();
-            OffloadBatch::Slice slice{nullptr, deadline, active};
-            struct Restore {
-                OffloadBatch::Slice* previous{OffloadBatch::current};
-                ~Restore() { OffloadBatch::current = previous; }
-            } restore;
-            OffloadBatch::current = &slice;
-            action();
-            if (slice.repeat && active()) actions->push_front(std::move(action));
-            if (OffloadBatch::Clock::now() >= deadline) break;
-        }
-        return actions->empty();
-    }, [complete = std::move(complete)] {
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
-        if (complete) complete();
+    auto started = std::make_shared<bool>(false);
+    PlayerEquipment::Run([actions, equipment, started, complete] {
+        if (const auto* snapshot = PlayerEquipment::Current()) *equipment = *snapshot;
+        TransferFeedback::Run([actions](const std::function<bool()>& active) {
+            const auto deadline = OffloadBatch::Clock::now() + std::chrono::milliseconds(4);
+            for (int count = 0; active() && !actions->empty() && count < 16; ++count) {
+                auto action = std::move(actions->front());
+                actions->pop_front();
+                OffloadBatch::Slice slice{nullptr, deadline, active};
+                struct Restore {
+                    OffloadBatch::Slice* previous{OffloadBatch::current};
+                    ~Restore() { OffloadBatch::current = previous; }
+                } restore;
+                OffloadBatch::current = &slice;
+                action();
+                if (slice.repeat && active()) actions->push_front(std::move(action));
+                if (OffloadBatch::Clock::now() >= deadline) break;
+            }
+            return actions->empty();
+        }, [complete] {
+            RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+            if (complete) complete();
+        });
+        *started = true;
+    }, [started, complete] { if (!*started && complete) complete(); }, [inspectionRules](auto* item) {
+        const auto categories = ClassifyItem(item);
+        return std::ranges::any_of(*inspectionRules, [categories](const auto& rule) {
+            return HasCategory(categories, rule.first) && !HasAnyCategory(categories, rule.second);
+        });
     });
 }
 

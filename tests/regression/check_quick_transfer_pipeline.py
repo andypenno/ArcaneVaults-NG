@@ -18,6 +18,7 @@ parser.add_argument("--output",type=Path,required=True)
 parser.add_argument("--sanitize",action="store_true")
 parser.add_argument("--source-ref")
 parser.add_argument("--feedback",action="store_true",help="Run the actual overlay barrier and completion with the full transfer pipeline")
+parser.add_argument("--startup-only",action="store_true",help="Run startup readiness, protection work and populated-archive regressions")
 parser.add_argument("--render-probe",action="store_true",help="Measure rendering gaps with declared native-call costs; fail if distributed work blocks frames")
 parser.add_argument("--cost-models",nargs="+",choices=rendering.MODELS,default=rendering.MODELS)
 parser.add_argument("--profile",action="store_true",help="Profile fixture phases and two test-only candidates against unchanged production")
@@ -25,6 +26,9 @@ parser.add_argument("--samples",type=int,default=5)
 parser.add_argument("--sizes",type=int,nargs="+",default=[0,1000])
 parser.add_argument("--scenarios",type=Path,help="Run representative JSON sorting inventories through every entry path")
 args=parser.parse_args()
+if args.startup_only:
+    if args.scenarios or args.profile or args.render_probe:parser.error("Startup checks are separate from scenario and performance probes")
+    args.feedback=True
 if args.scenarios:
     if args.profile or args.render_probe:parser.error("JSON scenarios are separate from profiling probes")
     args.feedback=True
@@ -102,7 +106,7 @@ common=common.replace("TESBoundObject* currentAmmo=nullptr;", "bool IsSneaking()
 start=common.index("    void AllToStore(Container from,")
 end=common.index("\n    }",start)+6
 common=common[:start]+"    void AllToStore(Container,Container);\n"+common[end:]
-common=common.replace("void OffloadItemsNow(std::function<void()> complete={}){PlayerToStore(ItemCategory::Jewelry,Container::Armor);if(complete)complete();}", ("void OffloadItemsNow(std::function<void()> complete = {});" if "OffloadItemsNow(std::function<void()>" in stores else "void OffloadItemsNow();"))
+common=common.replace("void OffloadItemsNow(std::function<void()> complete={}){PlayerEquipment::Run([this]{PlayerToStore(ItemCategory::Jewelry,Container::Armor);},std::move(complete));}", ("void OffloadItemsNow(std::function<void()> complete = {});" if "OffloadItemsNow(std::function<void()>" in stores else "void OffloadItemsNow();"))
 common=common.replace("void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> f){f(source);}", "using AnimationCallback=std::function<void(RE::TESObjectREFR*)>;void OpenStoreObject(RE::TESObjectREFR*,AnimationCallback);")
 common=common.replace("void VaultMenu(RE::TESObjectREFR*){closed=false;options.clear();returnToVault_={};}", "void VaultMenu(RE::TESObjectREFR*);void ShowVaultMenu(RE::TESObjectREFR*);")
 common=common.replace("options=std::move(value);cancel=c;", "options=std::move(value);cancel=c;RE::UI::GetSingleton()->messageBox=true;")
@@ -142,6 +146,27 @@ inline void DumpProfile(double ms){
     std::cout<<"}";
 }
 '''
+
+startup_checks=args.feedback and not (args.scenarios or args.profile or args.render_probe)
+if startup_checks:
+    common=common.replace('namespace RE { struct TESBoundObject; }', '''namespace StartupProbe {
+inline int equippedQueries=0,explicitUpdates=0,confirmations=0;
+inline bool failQueue=false;
+inline std::function<void()> afterShow,beforeUpdate;
+}
+namespace RE { struct TESBoundObject; }''')
+    needle='static bool Query(TESObjectREFR*,void* item,void*,double& value){'
+    assert common.count(needle)==1
+    common=common.replace(needle,needle+'++StartupProbe::equippedQueries;')
+    needle='                inventory->ProcessMessage(message);'
+    assert common.count(needle)==1
+    common=common.replace(needle,needle+'if(StartupProbe::afterShow)StartupProbe::afterShow();')
+    needle='assert(payload && !payload->updateObj);++ItemList::refreshes;'
+    assert common.count(needle)==1
+    common=common.replace(needle,needle+'++StartupProbe::explicitUpdates;if(StartupProbe::beforeUpdate)StartupProbe::beforeUpdate();')
+    needle='message=text;'
+    assert common.count(needle)==1
+    common=common.replace(needle,needle+'++StartupProbe::confirmations;')
 
 def body(text,signature,ending="\n}\n"):
     start=text.index(signature)
@@ -185,6 +210,10 @@ for name in ("PlayerToStore","StoreToStore","AllToStore","ConsolidateBooks","Con
 program+=body((ROOT/"src/Utility.cpp").read_text(),"bool Utility::RunContainerAction(")
 if args.feedback:
     feedback_source=source("TransferFeedback").replace("using Clock = std::chrono::steady_clock;", "using Clock = ProbeClock;").replace("std::thread(", "TestThread(").replace("std::this_thread::sleep_for(std::chrono::milliseconds(16));", "")
+    if startup_checks:
+        signature='    void Run(std::function<bool(const std::function<bool()>&)> step, std::function<void()> complete) {'
+        assert feedback_source.count(signature)==1
+        feedback_source=feedback_source.replace(signature,signature+'if(StartupProbe::failQueue)throw std::runtime_error("queue failure");')
     program+="\n".join(line for line in feedback_source.splitlines() if not line.startswith("#include"))
 program+=r'''
 int main(){
@@ -347,6 +376,13 @@ if args.scenarios:
     from support import sorting
     program=program[:program.index('int main(){')]+(ROOT/'tests/support/sorting.cpp').read_text().replace('SORTING_DEFINITIONS',sorting.definitions())
 
+if startup_checks:
+    startup=(ROOT/'tests/support/transfer_startup.cpp').read_text()
+    if args.startup_only:
+        program=program[:program.index('int main(){')]+startup+'\nint main(){CheckStartup();}\n'
+    else:
+        program=program.replace('int main(){',startup+'\nint main(){\nCheckStartup();',1)
+
 if args.render_probe:
     common,program=rendering.instrument(common,program)
 
@@ -364,6 +400,7 @@ int main(int argc,char** argv){
     program=program.replace("        assert((entry==0)==!stores->options.empty());", "        for(auto& item:unrelated)assert(player->rows[item.get()].total==1);\n        assert((entry==0)==!stores->options.empty());")
 
 profile={"complete":False,"runner_pid":os.getpid(),"active_child_pid":None,"samples":[]}
+cases=[]
 def profile_command(command,timeout):
     with subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True) as child:
         profile["active_child_pid"]=child.pid
@@ -439,6 +476,19 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
         else:
             cases=[json.loads(line) for line in subprocess.check_output([str(path/"check")],text=True,timeout=30).splitlines()]
 args.output.parent.mkdir(parents=True,exist_ok=True)
+startup_cases=[case for case in cases if case.get('startup')]
+cases=[case for case in cases if not case.get('startup')]
+startup_contract={
+    'startup_fixture_sha256':hashlib.sha256((ROOT/'tests/support/transfer_startup.cpp').read_bytes()).hexdigest(),
+    'startup_boundary':'Production controller and physical transfer code. Engine/UI messages and readiness are modelled; delayed initial completion is an external fixture input, not a verified Skyrim schedule. Call counts and clock values are not measured game latency.',
+    'startup_scenarios':['disabled jewelry','two native-worn copies','ready worn and enchanted spare',
+        'initial rows delayed five frames','initial rows delayed eight frames','row objects delayed five frames',
+        'equipment markers delayed five frames','cancel during initialization and stale poll',
+        'initialization never completes','favorite state changes after inspection','favorite enchanted copy and spare',
+        'one explicit refresh required','valid-looking unequipped markers before late stamping',
+        'originating message box delays initial menu opening'],
+    'startup_protections':['quest','favorite','ignore list'],
+} if startup_checks else {}
 if args.scenarios:
     args.output.write_text(json.dumps({'complete':True,'passed':True,'cases':cases,'boundary':'Production Quick Transfer controller, inspection, physical transfers and feedback with supplied classification masks and engine/UI stubs. Host fixture durations are observations, not game latency or calibrated performance gates.'},indent=2)+'\n')
     print(f'Representative sorting checks: {len(cases)} inventory/entry cases; {args.output}')
@@ -483,7 +533,8 @@ if args.profile:
     args.output.write_text(json.dumps(profile,indent=2)+"\n")
     print(f"Profile complete: {sum(len(sample['cases']) for sample in profile['samples'])} inventory/input cases; report {args.output}")
     raise SystemExit(0)
-args.output.write_text(json.dumps({"source_ref":args.source_ref,"feedback_enabled":args.feedback,"extra_cases":["refused native Hide, manual exit and restored input"] if args.feedback else [],"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems","standard protected loadout","standard loadout and one spare"],"cases":cases},indent=2)+"\n")
+args.output.write_text(json.dumps({"source_ref":args.source_ref,"feedback_enabled":args.feedback,"extra_cases":["refused native Hide, manual exit and restored input"] if args.feedback else [],"source_sha256":{name:hashlib.sha256(source(name).encode()).hexdigest() for name in tracked_sources},"boundary":"Production inspector, OffloadItemsNow, Book/Note/potion/instrument consolidation, physical animation polling, Arcane Vault callback and assignment dispatch. Engine, classification and message-box presentation are stubs. Hotkey starts at its OffloadItems handoff, without keyboard matching. Uses production soul-gem recovery and deposit, including mixed empty/filled stacks and reserves. Empty and populated archives are exercised. No artificial game-poll stall is injected. Native bulk/remove/read call counts are observations in the fixture, not measured Skyrim costs. Times and input state are simulated.","entries":["Arcane Vault","assigned Quick Transfer","hotkey handoff"],"shapes":["empty","worn only","worn and spares","mixed reserves and notes","mixed empty/filled soul gems","standard protected loadout","standard loadout and one spare"],"cases":cases,"startup_cases":startup_cases,**startup_contract},indent=2)+"\n")
 failures=sum(not case["prompt"] for case in cases)
-print(f"Pipeline checks: {len(cases)} inventory/input invariants pass; {failures} slow returns; report {args.output}")
-raise SystemExit(1 if failures else 0)
+startup_failures=sum(not case['passed'] for case in startup_cases)
+print(f"Pipeline checks: {len(cases)} inventory/input invariants pass; {failures} slow returns; {startup_failures}/{len(startup_cases)} startup requirements fail; report {args.output}")
+raise SystemExit(1 if failures or startup_failures else 0)

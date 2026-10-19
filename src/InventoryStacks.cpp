@@ -4,9 +4,16 @@
 
 namespace InventoryStacks {
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem, bool firstOnly) {
+        return Read(source, std::move(select), onlyItem, firstOnly, {});
+    }
+
+    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem, bool firstOnly,
+        std::function<bool(RE::TESBoundObject&)> filter) {
         std::vector<Stack> result;
         if (!source) return result;
-        for (const auto& [item, data] : source->GetInventory([onlyItem](RE::TESBoundObject& item) { return !onlyItem || &item == onlyItem; })) {
+        for (const auto& [item, data] : source->GetInventory([onlyItem, &filter](RE::TESBoundObject& item) {
+            return (!onlyItem || &item == onlyItem) && (!filter || filter(item));
+        })) {
             auto* entry = data.second.get();
             if (!item || data.first <= 0 || !entry) continue;
             std::vector<Stack> selected;

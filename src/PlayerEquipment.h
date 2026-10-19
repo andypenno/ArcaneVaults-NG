@@ -20,6 +20,8 @@ namespace PlayerEquipment {
     const Snapshot* Current();
     bool Apply(Snapshot& snapshot, RE::TESBoundObject* item, const std::function<bool()>& work);
     void Run(std::function<void()> work, std::function<void()> complete = {});
+    void Run(std::function<void()> work, std::function<void()> complete,
+        std::function<bool(RE::TESBoundObject*)> eligible);
     bool IsRunning();
     void Reset();
 }

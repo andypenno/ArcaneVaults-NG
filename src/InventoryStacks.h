@@ -10,6 +10,8 @@ namespace InventoryStacks {
     };
     using Select = std::function<bool(RE::TESBoundObject*, RE::InventoryEntryData&, RE::ExtraDataList*)>;
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select = {}, RE::TESBoundObject* item = nullptr, bool firstOnly = false);
+    std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* item, bool firstOnly,
+        std::function<bool(RE::TESBoundObject&)> filter);
     bool IsFavorited(const RE::InventoryEntryData& entry, RE::ExtraDataList* extra);
     RE::BGSKeyword* FavoriteKeyword();
     void RestoreFavorites(RE::TESObjectREFR* source);

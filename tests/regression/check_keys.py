@@ -527,6 +527,9 @@ struct ItemEquipment { std::unordered_set<RE::ExtraDataList*> equipped; };
 using Snapshot=std::unordered_map<RE::TESBoundObject*,ItemEquipment>;
 const Snapshot* Current(){return nullptr;}
 bool Apply(Snapshot&,RE::TESBoundObject*,const std::function<bool()>& work){return work();}
+void Run(std::function<void()> work, std::function<void()> complete, std::function<bool(RE::TESBoundObject*)>) {
+    work(); if (complete) complete();
+}
 }
 
 '''

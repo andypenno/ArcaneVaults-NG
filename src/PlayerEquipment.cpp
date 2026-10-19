@@ -64,13 +64,14 @@ namespace PlayerEquipment {
             std::atomic<bool> cancelled{};
             Phase phase{Phase::Waiting};
             Clock::time_point deadline{Clock::now() + inspectionBudget};
+            Clock::time_point refreshAt{};
             RE::IMenu* owned{};
             Snapshot snapshot;
+            std::unordered_set<RE::TESBoundObject*> expectedEquipped;
             RE::RefHandle owner{};
             Clock::time_point retry{};
             bool worked{};
             bool refreshRequested{};
-            unsigned rowRetries{};
         };
         std::shared_ptr<Request> pending;
         thread_local const Snapshot* current{};
@@ -88,10 +89,10 @@ namespace PlayerEquipment {
             return result;
         }
 
-        Snapshot Capture(RE::PlayerCharacter* player) {
+        Snapshot Capture(RE::PlayerCharacter* player, InventoryStacks::Select select = {}) {
             std::unordered_map<RE::TESBoundObject*, std::vector<InventoryStacks::Stack>> items;
-            for (const auto& stack : InventoryStacks::Read(player, [](auto* item, auto&, auto*) {
-                return item->template As<RE::TESObjectARMO>() || item->template As<RE::TESObjectWEAP>();
+            for (const auto& stack : InventoryStacks::Read(player, std::move(select), nullptr, false, [](auto& item) {
+                return item.template As<RE::TESObjectARMO>() || item.template As<RE::TESObjectWEAP>();
             })) items[stack.item].push_back(stack);
             Snapshot result;
             for (const auto& [item, stacks] : items)
@@ -184,6 +185,8 @@ namespace PlayerEquipment {
             const bool open = menu && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME);
             if (request->phase == Phase::Opening && open) {
                 if (request->owned && menu.get() != request->owned) { Finish(request); return; }
+                if (!request->owned)
+                    request->refreshAt = Clock::now() + std::chrono::duration_cast<std::chrono::milliseconds>(inspectionBudget) * 3 / 4;
                 request->owned = menu.get();
                 request->phase = Phase::Reading;
                 SKSE::GetTaskInterface()->AddUITask([request] {
@@ -195,29 +198,25 @@ namespace PlayerEquipment {
                         auto* inventory = skyrim_cast<RE::InventoryMenu*>(menu.get());
                         auto* list = inventory->GetRuntimeData().itemList;
                         const bool ready = menu->uiMovie && list;
-                        bool postpone = !ready;
-                        if (ready && Clock::now() < request->deadline) {
-                            bool rowsReady = list->root.IsObject();
-                            if (!rowsReady) for (auto* row : list->items) {
-                                if (row && row->data.objDesc && row->data.objDesc->object && row->obj.IsObject()) {
-                                    rowsReady = true;
-                                    break;
+                        if (ready) try {
+                            snapshot = Read(inventory, request->snapshot, request->owner);
+                        } catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
+                        for (auto* item : request->expectedEquipped) {
+                            const auto found = snapshot.find(item);
+                            if (found != snapshot.end() && found->second.equipped.empty()) snapshot.erase(found);
+                        }
+                        if (snapshot.size() != request->snapshot.size() && Clock::now() < request->deadline) {
+                            // Leave initial loading alone; reserve the final quarter of the budget for one recovery refresh.
+                            if (ready && !request->refreshRequested &&
+                                Clock::now() >= request->refreshAt) {
+                                request->refreshRequested = true;
+                                if (auto* player = RE::PlayerCharacter::GetSingleton()) {
+                                    auto* data = new RE::InventoryUpdateData{};
+                                    data->inventoryRef = player->GetHandle().native_handle();
+                                    data->updateObj = nullptr;
+                                    RE::UIMessageQueue::GetSingleton()->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kInventoryUpdate, data);
                                 }
                             }
-                            auto* player = RE::PlayerCharacter::GetSingleton();
-                            if ((list->items.empty() || !rowsReady) && !request->refreshRequested && player) {
-                                request->refreshRequested = true;
-                                auto* data = new RE::InventoryUpdateData{};
-                                data->inventoryRef = player->GetHandle().native_handle();
-                                data->updateObj = nullptr;
-                                RE::UIMessageQueue::GetSingleton()->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kInventoryUpdate, data);
-                                postpone = true;
-                            } else if (!rowsReady && !list->items.empty() && request->rowRetries < 2) {
-                                ++request->rowRetries;
-                                postpone = true;
-                            }
-                        }
-                        if (postpone && Clock::now() < request->deadline) {
                             SKSE::GetTaskInterface()->AddTask([request] {
                                 if (Active(request) && request->phase == Phase::Reading) {
                                     request->phase = Phase::Opening;
@@ -226,9 +225,6 @@ namespace PlayerEquipment {
                             });
                             return;
                         }
-                        if (ready) try {
-                            snapshot = Read(inventory, request->snapshot, request->owner);
-                        } catch (const std::exception&) { logger::error("Could not read equipment rows for Quick Transfer"); }
                         if (menu->uiMovie) menu->uiMovie->SetVisible(false);
                     }
                     SKSE::GetTaskInterface()->AddTask([request, snapshot = std::move(snapshot)] {
@@ -304,37 +300,41 @@ namespace PlayerEquipment {
         return changed;
     }
 
-    void Run(std::function<void()> work, std::function<void()> complete) {
+    void Run(std::function<void()> work, std::function<void()> complete, std::function<bool(RE::TESBoundObject*)> eligible) {
         if (pending) return;
         auto* player = RE::PlayerCharacter::GetSingleton();
-        bool equipment = false;
+        std::unordered_set<RE::TESBoundObject*> movable;
+        auto physical = Capture(player, [&eligible, &movable](auto* item, auto& entry, auto* extra) {
+            if (entry.IsQuestObject() || Settings::GetSingleton()->IsIgnored(item) ||
+                HasCategory(ClassifyItem(item), ItemCategory::Ignore) || (eligible && !eligible(item))) return false;
+            const bool worn = extra && (extra->template HasType<RE::ExtraWorn>() || extra->template HasType<RE::ExtraWornLeft>());
+            if (!worn && !InventoryStacks::IsFavorited(entry, extra)) movable.insert(item);
+            return true;
+        });
+        auto request = std::make_shared<Request>();
         const auto* command = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
         const auto equipped = command ? command->conditionFunction : nullptr;
-        if (player) for (const auto& [item, data] : player->GetInventory([](RE::TESBoundObject& item) {
-            return item.As<RE::TESObjectARMO>() || item.As<RE::TESObjectWEAP>();
-        })) {
-            if (!item || data.first <= 0 || !data.second) continue;
-            const bool favoriteOnly = data.second->IsFavorited() && InventoryStacks::Read(player,
-                [](auto*, auto& entry, auto* extra) { return !InventoryStacks::IsFavorited(entry, extra); }, item).empty();
-            const bool protectedItem = data.second->IsQuestObject() || favoriteOnly ||
-                Settings::GetSingleton()->IsIgnored(item);
+        for (auto& [item, equipment] : physical) {
+            if (!movable.contains(item)) continue;
+            const bool single = equipment.stacks.size() == 1 && equipment.stacks.front().count == 1;
             double worn{};
-            const bool wornSingle = data.first == 1 && (data.second->IsWorn() ||
-                (equipped && equipped(player, item, nullptr, worn) && worn != 0.0));
-            if (!protectedItem && !wornSingle) {
-                equipment = true;
-                break;
-            }
+            const bool formEquipped = (!single || request->snapshot.empty()) &&
+                equipped && equipped(player, item, nullptr, worn) && worn != 0.0;
+            if (formEquipped && single) continue;
+            if (formEquipped) request->expectedEquipped.insert(item);
+            request->snapshot.emplace(item, std::move(equipment));
         }
-        auto request = std::make_shared<Request>();
         request->work = std::move(work); request->complete = std::move(complete);
         pending = request;
-        if (!equipment) { Work(request, {}); Finish(request); }
+        if (request->snapshot.empty()) { Work(request, {}); Finish(request); }
         else {
-            request->snapshot = Capture(player);
             request->owner = player->GetHandle().native_handle();
             Poll(request);
         }
+    }
+
+    void Run(std::function<void()> work, std::function<void()> complete) {
+        Run(std::move(work), std::move(complete), {});
     }
 
     bool IsRunning() { return pending != nullptr; }
