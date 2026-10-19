@@ -410,8 +410,10 @@ namespace PlayerEquipment {
             const bool open = menu && ui->IsMenuOpen(RE::InventoryMenu::MENU_NAME);
             if (request->phase == Phase::Opening && open) {
                 if (request->owned && menu.get() != request->owned) { Finish(request); return; }
-                if (!request->owned)
-                    request->refreshAt = Clock::now() + std::chrono::duration_cast<std::chrono::milliseconds>(inspectionBudget) * 3 / 4;
+                if (!request->owned) {
+                    const auto now = Clock::now();
+                    request->refreshAt = now + (request->deadline - now) * 3 / 4;
+                }
                 if (!request->owned) request->readBegan = Clock::now();
                 request->owned = menu.get();
                 request->phase = Phase::Reading;

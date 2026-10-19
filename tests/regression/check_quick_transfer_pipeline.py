@@ -160,6 +160,7 @@ if startup_checks:
     common=common.replace('namespace RE { struct TESBoundObject; }', '''namespace StartupProbe {
 inline int equippedQueries=0,explicitUpdates=0,confirmations=0;
 inline bool failQueue=false;
+inline std::unordered_set<unsigned> validatedEquipment;
 inline std::function<void()> afterShow,beforeUpdate;
 }
 namespace RE { struct TESBoundObject; }''')
@@ -198,6 +199,14 @@ for name in ("InventoryStacks","PlayerEquipment"):
         text=profiled(text,"        Snapshot Read(","equipment UI read")
         text=profiled(text,"        void Work(","equipment validation and work")
         text=profiled(text,"    void Run(","equipment preflight")
+        if startup_checks:
+            start=text.index("        void Work(")
+            end=text.index("try { request->work();",start)
+            work=text[start:end]
+            marker = "current = &validated;" if "current = &validated;" in work else "current = &snapshot;"
+            assert work.count(marker) == 1
+            work=work.replace(marker, marker + "for(const auto& [item, value]:*current){(void)value;StartupProbe::validatedEquipment.insert(item->GetFormID());}")
+            text=text[:start]+work+text[end:]
         needle="            for (const auto& stack : InventoryStacks::Read(player)) fresh[stack.item].push_back(stack);"
         if needle in text:text=text.replace(needle,"            if(RE::Profile::candidate!=2 || !snapshot.empty())\n"+needle)
     program+="\n".join(line for line in text.splitlines() if not line.startswith("#include"))+"\n"
@@ -527,7 +536,8 @@ startup_contract={
         'equipment markers delayed five frames','cancel during initialization and stale poll',
         'initialization never completes','favorite state changes after inspection','favorite enchanted copy and spare',
         'one explicit refresh required','valid-looking unequipped markers before late stamping',
-        'originating message box delays initial menu opening'],
+        'originating message box delays initial menu opening',
+        '400 ms menu opening with recovery-required rows and equipment/non-equipment controls'],
     'startup_protections':['quest','favorite','ignore list'],
 } if startup_checks else {}
 if args.scenarios:

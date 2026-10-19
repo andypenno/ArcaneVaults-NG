@@ -41,6 +41,7 @@ void CheckStartup() {
         RE::SCRIPT_FUNCTION::equipped.clear();
         StartupProbe::equippedQueries = StartupProbe::explicitUpdates = StartupProbe::confirmations = 0;
         StartupProbe::failQueue = false;
+        StartupProbe::validatedEquipment.clear();
         RE::SendHUDMessage::message.clear();
         StartupProbe::afterShow = StartupProbe::beforeUpdate = {};
         RE::inventoryReads = RE::bulkCalls = RE::removeCalls = 0;
@@ -98,6 +99,79 @@ void CheckStartup() {
     ring.categories = ItemCategory::Armor | ItemCategory::Jewelry;
     RE::TESForm owner{21001}; owner.playerOwned = true;
     RE::EnchantmentItem enchantmentA, enchantmentB;
+    for (int entry = 0; entry < 3; ++entry) for (int shape = 0; shape < 6; ++shape)
+        for (int fields = 0; fields < 4; ++fields) {
+        reset();
+        settings->GSC_OffloadOneHand = settings->GSC_OffloadTwoHand = settings->GSC_OffloadArchery = true;
+        settings->GSC_OffloadLightArmor = settings->GSC_OffloadHeavyArmor = settings->GSC_OffloadClothing = true;
+        settings->GSC_OffloadJewelry = settings->GSC_OffloadNotes = true;
+        const std::array names{"Ancient Nord sword", "Ancient Nord battle axe", "Ebony bow", "Fur armor", "Iron armor", "Bandit robes"};
+        const std::array categories{ItemCategory::OneHand, ItemCategory::TwoHand, ItemCategory::Archery,
+            ItemCategory::LightArmor, ItemCategory::HeavyArmor, ItemCategory::Clothing};
+        std::vector<std::unique_ptr<RE::TESBoundObject>> loot;
+        const int count = shape == 2 || shape == 5 ? 3 : 1;
+        const bool explicitStack = shape == 1 || shape == 5;
+        for (unsigned i = 0; i < names.size(); ++i) {
+            auto item = std::make_unique<RE::TESBoundObject>(50000 + i, i < 3, i >= 3);
+            item->categories = (i < 3 ? ItemCategory::Weapon : ItemCategory::Armor) | categories[i];
+            player->Put(item.get(), explicitStack ? 0 : count, explicitStack ? count : 0,
+                explicitStack ? &owner : nullptr, names[i]);
+            if (shape == 3 || shape == 4) {
+                player->Put(item.get(), 0, 1, &owner, "protected named enchanted copy");
+                auto& extra = player->rows[item.get()].extras.back();
+                extra->hotkey = shape == 3; extra->uiWorn = shape == 4;
+                extra->enchantment = RE::ExtraEnchantment{&enchantmentA};
+                extra->displayName = "My " + std::string(names[i]);
+                if (shape == 4) RE::SCRIPT_FUNCTION::equipped.insert(item.get());
+            }
+            loot.push_back(std::move(item));
+        }
+        RE::TESBoundObject note{50100}, ingredient{50101};
+        note.categories = ToMask(ItemCategory::Note);
+        ingredient.categories = ItemCategory::Alchemy | ItemCategory::Ingredient;
+        player->Put(&note, 2); player->Put(&ingredient, 5);
+        player->Put(&ring, 0, 1, &owner, "worn loadout");
+        player->rows[&ring].extras.back()->worn = true;
+        player->rows[&ring].extras.back()->hotkey = true;
+        RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+        // Missing both equipment fields must retain equipment rather than assume it is unworn.
+        StartupProbe::afterShow = [&] {
+            for (auto* row : static_cast<RE::InventoryMenu*>(ui->menu)->list.items) {
+                if (fields == 1 || fields == 3) row->obj.members.erase("isEquipped");
+                if (fields == 2 || fields == 3) row->obj.members.erase("equipState");
+            }
+        };
+        StartupProbe::beforeUpdate = [&] { RE::InventoryMenu::missingFields = fields == 3; };
+        const auto input = RE::input;
+        const bool blocked = RE::PlayerControls::GetSingleton()->blockPlayerInput;
+        start(entry); drain();
+        RE::InventoryMenu::missingFields = false;
+        assert(RE::input == input && RE::PlayerControls::GetSingleton()->blockPlayerInput == blocked);
+        assert(player->rows[&ring].total == 1 && player->rows[&ring].extras.front()->worn);
+        assert(player->rows[&note].total == 0 && banks[Container::Notes]->rows[&note].total == 2);
+        assert(player->rows[&ingredient].total == 0 && banks[Container::Alchemy]->rows[&ingredient].total == 5);
+        assert(StartupProbe::confirmations == 1);
+        for (unsigned i = 0; i < loot.size(); ++i) {
+            auto* item = loot[i].get();
+            const auto destination = i < 3 ? Container::Weapon : Container::Armor;
+            const int moved = banks[destination]->rows[item].total;
+            assert(player->rows[item].total + moved == count + (shape == 3 || shape == 4 ? 1 : 0));
+            if (shape == 3 || shape == 4) {
+                const auto& extras = player->rows[item].extras;
+                const auto found = std::ranges::find_if(extras, [](auto& extra) { return extra->hotkey || extra->uiWorn; });
+                assert(found != extras.end() && (*found)->owner == &owner && (*found)->enchantment->enchantment == &enchantmentA);
+                assert((*found)->displayName == "My " + std::string(names[i]));
+            }
+            if (explicitStack && moved) {
+                const auto& extras = banks[destination]->rows[item].extras;
+                assert(extras.size() == 1 && extras.front()->owner == &owner && extras.front()->metadata == names[i]);
+            }
+            const bool validated = StartupProbe::validatedEquipment.contains(item->GetFormID());
+            StartupResult(names[i], moved == (fields == 3 ? 0 : count),
+                {{"entry", entry}, {"physical_shape", shape}, {"ui_fields", fields}, {"validated", validated},
+                 {"moved", moved}, {"expected", fields == 3 ? 0 : count}});
+        }
+    }
     {
         reset();
         std::vector<std::unique_ptr<RE::TESBoundObject>> candidates;
@@ -126,7 +200,7 @@ void CheckStartup() {
         StartupResult("preflight copies equipment only", RE::TESObjectREFR::inventoryCopies <= 2,
             {{"unrelated_bases", 1000}, {"copied_entries", RE::TESObjectREFR::inventoryCopies}});
     }
-    for (int entry = 0; entry < 3; ++entry) for (int scenario = 0; scenario < 14; ++scenario) {
+    for (int entry = 0; entry < 3; ++entry) for (int scenario = 0; scenario < 15; ++scenario) {
         reset();
         settings->GSC_OffloadJewelry = scenario != 0;
         settings->GSC_OffloadSoulgems = false;
@@ -143,14 +217,22 @@ void CheckStartup() {
             player->Put(&ring, 0, 1, &owner, "spare custom ring");
             player->rows[&ring].extras.back()->enchantment = RE::ExtraEnchantment{&enchantmentB};
         }
+        RE::TESBoundObject sword{21400, true}, note{21401};
+        if (scenario == 14) {
+            settings->GSC_OffloadOneHand = settings->GSC_OffloadNotes = true;
+            sword.categories = ItemCategory::Weapon | ItemCategory::OneHand;
+            note.categories = ToMask(ItemCategory::Note);
+            player->Put(&sword, 3); player->Put(&note, 2);
+        }
         const auto input = RE::input; const bool blocked = RE::PlayerControls::GetSingleton()->blockPlayerInput;
         const int shows = queue->shows;
-        const bool deferred = (scenario >= 3 && scenario <= 7) || scenario >= 12;
+        const bool deferred = (scenario >= 3 && scenario <= 7) || scenario == 12 || scenario == 13;
         bool loading = deferred; int redundant = 0, shownFrame = -1;
         StartupProbe::afterShow = [&] {
+            if (scenario == 14) ProbeClock::tick += std::chrono::milliseconds(400);
             shownFrame = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(ProbeClock::tick.time_since_epoch()).count() / 16);
             auto* menu = static_cast<RE::InventoryMenu*>(ui->menu);
-            if (scenario == 3 || scenario == 4 || scenario == 7 || scenario == 8 || scenario == 11 || scenario == 13) {
+            if (scenario == 3 || scenario == 4 || scenario == 7 || scenario == 8 || scenario == 11 || scenario == 13 || scenario == 14) {
                 RE::InventoryMenu::empty = true; menu->list.items.clear(); menu->list.root.kind = RE::GFxValue::Undefined;
             } else if (scenario == 5) {
                 menu->list.root.kind = RE::GFxValue::Undefined;
@@ -163,7 +245,7 @@ void CheckStartup() {
         };
         StartupProbe::beforeUpdate = [&] {
             if (loading) ++redundant;
-            if (scenario == 11) RE::InventoryMenu::empty = false;
+            if (scenario == 11 || scenario == 14) RE::InventoryMenu::empty = false;
         };
         if (scenario == 9) queue->afterHide = [&] { player->rows[&ring].favorite = true; };
         start(entry);
@@ -214,6 +296,15 @@ void CheckStartup() {
         if (scenario == 11) StartupResult("one recovery refresh makes equipment usable", moved == 1 && StartupProbe::explicitUpdates == 1 &&
             ProbeClock::tick.time_since_epoch() <= std::chrono::milliseconds(1100),
             {{"entry", entry}, {"refreshes", StartupProbe::explicitUpdates}, {"moved", moved}});
+        if (scenario == 14) {
+            const int weapons = banks[Container::Weapon]->rows[&sword].total;
+            assert(player->rows[&sword].total + weapons == 3);
+            assert(player->rows[&note].total == 0 && banks[Container::Notes]->rows[&note].total == 2);
+            StartupResult("delayed menu opening still permits recovery and equipment sorting",
+                moved == 1 && weapons == 3 && StartupProbe::explicitUpdates == 1,
+                {{"entry", entry}, {"opening_delay_ms", 400}, {"refreshes", StartupProbe::explicitUpdates},
+                 {"armor_moved", moved}, {"weapons_moved", weapons}, {"notes_moved", 2}});
+        }
         if (scenario == 7) assert(cancelled && moved == 0 && stores->options.empty());
     }
     for (int entry = 0; entry < 3; ++entry) {
