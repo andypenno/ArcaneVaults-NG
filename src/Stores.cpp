@@ -221,6 +221,46 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto* currentAmmo = player->GetCurrentAmmo();
+    if (auto* prepared = OffloadBatch::current ? OffloadBatch::current->prepared : nullptr) {
+        if (!prepared->complete || !InventoryStacks::Valid(prepared->cursor) || prepared->quest ||
+            (a_respectIgnores && Settings::GetSingleton()->IsIgnored(OffloadBatch::current->item))) return;
+        auto* item = OffloadBatch::current->item;
+        if (!item || item->As<RE::TESSoulGem>() || item == currentAmmo) return;
+        const auto categories = ClassifyItem(item);
+        if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) return;
+        double equipped{};
+        const bool worn = prepared->worn || (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0);
+        const auto* equipment = PlayerEquipment::Current();
+        const auto rows = equipment ? equipment->find(item) : PlayerEquipment::Snapshot::const_iterator{};
+        const bool inspected = equipment && rows != equipment->end();
+        if ((item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>()) && !inspected) return;
+        if (worn && (!inspected || rows->second.equipped.empty())) return;
+        if (prepared->favorite && !prepared->identifiedFavorite) return;
+        int count = prepared->cursor.total - a_keepCount;
+        if (i_count > 0) count = (std::min)(count, i_count);
+        for (std::size_t index = 0; index < prepared->stacks.size() && count > 0; ++index) {
+            auto stack = prepared->stacks[index];
+            if (!OffloadBatch::current->active() || !InventoryStacks::Valid(prepared->cursor)) return;
+            if ((inspected && rows->second.equipped.contains(stack.extra)) || (stack.extra &&
+                (stack.extra->HasType<RE::ExtraHotkey>() || stack.extra->HasType<RE::ExtraWorn>() || stack.extra->HasType<RE::ExtraWornLeft>()))) continue;
+            while (stack.count > 0 && count > 0) {
+                auto moving = stack;
+                moving.count = (std::min)(moving.count, count);
+                if (!moving.extra && (prepared->favorite || (inspected && !rows->second.equipped.empty()))) {
+                    const auto physical = InventoryStacks::Materialize(moving);
+                    if (!physical) return;
+                    moving = *physical;
+                }
+                const int moved = InventoryStacks::MovePrepared(moving, chest, *prepared, index);
+                if (!moved) return;
+                DepositLearning::RecordAutomaticTransfer(player, chest, item, moved);
+                count -= moved; stack.count -= moved;
+                if (OffloadBatch::current->Moved(count > 0)) return;
+                if (!OffloadBatch::current->active() || !InventoryStacks::Valid(prepared->cursor)) return;
+            }
+        }
+        return;
+    }
     const auto inventory = player->GetInventoryCounts([](RE::TESBoundObject& item) {
         return !OffloadBatch::current || OffloadBatch::current->item == &item;
     });
@@ -511,7 +551,7 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
             auto source = handle.get();
             if (!source) return;
             if (!listing->counts) {
-                listing->counts = source.get()->GetInventoryCounts([](auto&) { return true; }, true);
+                listing->counts = InventoryStacks::Counts(source.get(), {}, true);
                 listing->next = listing->counts->cbegin();
             }
             for (int n = 0; listing->next != listing->counts->cend() && n < 16; ++n) {
@@ -534,16 +574,23 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
                 auto* item = (*candidates)[--**remaining];
                 const auto categories = ClassifyItem(item);
                 if (HasCategory(categories, category) && !HasAnyCategory(categories, excluded))
-                    actions->push_front([this, equipment, item, category, chest, count, keep, ignores, excluded] {
+                    actions->push_front([this, equipment, item, category, chest, count, keep, ignores, excluded,
+                        prepared = std::make_shared<InventoryStacks::Prepared>()] {
                         OffloadBatch::current->item = item;
+                        OffloadBatch::current->prepared = prepared.get();
                         if (item->As<RE::TESSoulGem>()) {
+                            if (!Soulgems::PrepareDeposit(item, *prepared)) {
+                                OffloadBatch::current->repeat = true; return;
+                            }
                             Soulgems::Deposit(Settings::GetSingleton()->GSC_SoulgemKeepAmount, ignores);
+                            *prepared = {};
                             return;
                         }
                         PlayerEquipment::Apply(*equipment, item, [&] {
                             PlayerToStore(category, chest, count, keep, ignores, excluded);
                             return OffloadBatch::current->changed;
                         });
+                        if (prepared->complete) *prepared = {};
                     });
                 if (OffloadBatch::Clock::now() >= OffloadBatch::current->deadline) break;
             }
@@ -619,11 +666,21 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         all(Container::EmptySoulgems, Container::Soulgem);
         for (auto from : {Container::Smithing, Container::Crafting, Container::Smelting,
             Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort}) {
-            list(Utility::GetSingleton()->GetContainer(from), [queued](auto* item, int) {
+            auto* source = Utility::GetSingleton()->GetContainer(from);
+            if (!source) continue;
+            const auto handle = source->GetHandle();
+            list(Utility::GetSingleton()->GetContainer(from), [queued, handle](auto* item, int) {
                 if (!item->template As<RE::TESSoulGem>()) return;
-                if (auto actions = queued.lock()) actions->push_front([item] {
+                if (auto actions = queued.lock()) actions->push_front([item, handle, prepared = std::make_shared<InventoryStacks::Prepared>()] {
+                    auto source = handle.get();
+                    if (!source) return;
                     OffloadBatch::current->item = item;
+                    OffloadBatch::current->prepared = prepared.get();
+                    if (!Soulgems::PrepareTransfer(source.get(), item, *prepared)) {
+                        OffloadBatch::current->repeat = true; return;
+                    }
                     Soulgems::Recover();
+                    *prepared = {};
                 });
             });
         }

@@ -11,7 +11,7 @@ void CheckReadCursor() {
     RE::TESObjectREFR source{91001};
     RE::TESForm owner{91002};
     RE::EnchantmentItem enchantment;
-    for (int mode = 0; mode < 8; ++mode) {
+    for (int mode = 0; mode < 10; ++mode) {
         source.rows.clear();
         for (int i = 0; i < 33; ++i) {
             source.Put(&item, 0, 1, &owner, std::to_string(i));
@@ -38,6 +38,14 @@ void CheckReadCursor() {
                 if (mode == 5) source.rows[&item].extras.clear();
                 if (mode == 6) source.rows[&item].total = 0;
                 if (mode == 7) source.rows.erase(&item);
+                if (mode == 8) {
+                    RE::ScriptEventSourceHolder::GetSingleton()->Send(RE::TESContainerChangedEvent{source.id, 0, item.id, 1});
+                    source.rows[&item].extras[20] = std::make_shared<RE::ExtraDataList>();
+                }
+                if (mode == 9) {
+                    RE::ScriptEventSourceHolder::GetSingleton()->Send(RE::TESEquipEvent{{&source}, item.id});
+                    source.rows[&item].extras[20]->worn = true;
+                }
             }
         } while (!done);
         assert(cursor.valid == (mode == 0));
@@ -53,10 +61,75 @@ void CheckReadCursor() {
             [](auto&, auto*, int) { assert(false); }));
         assert(!cursor.valid);
     }
+    cursor={};RE::ScriptEventSourceHolder::available=false;
+    assert(InventoryStacks::ReadPart(&source,&item,cursor,[](auto&,auto*,int){assert(false);}));
+    assert(!cursor.valid);RE::ScriptEventSourceHolder::available=true;
+}
+
+void CheckCounts() {
+    RE::TESBoundObject item{92000}, other{92001};
+    RE::TESObjectREFR source{92002};
+    for (int stock : {0, 4}) for (int delta : {-4, 0, 3}) for (bool leveled : {false, true}) {
+        source.rows.clear();
+        source.Put(&item, delta + (leveled ? 0 : stock));
+        source.rows[&item].baseStock = stock;
+        source.rows[&item].leveled = leveled;
+        source.Put(&other, 7);
+        int baseEntries = 0;
+        source.GetContainer()->ForEachContainerObject([&](auto& entry) {
+            assert(entry.obj == &item && entry.count == stock);++baseEntries;
+        });
+        assert(baseEntries == (stock != 0));
+        assert(InventoryStacks::Counts(&source) == source.GetInventoryCounts());
+        const auto counts = InventoryStacks::Counts(&source, [&](auto& candidate) { return &candidate == &item; });
+        assert(counts.size() == 1 && counts.at(&item) == delta + (leveled ? 0 : stock));
+        assert(InventoryStacks::Count(&source, &item) == (std::max)(0, counts.at(&item)));
+        assert(InventoryStacks::Count(&source, &other) == 7);
+    }
+    source.initialized = false;
+    InventoryStacks::Counts(&source, {}, true);
+    assert(!source.initialized);
+    InventoryStacks::Counts(&source);
+    assert(source.initialized);
+    assert(InventoryStacks::Counts(nullptr).empty());
+}
+
+void CheckPreparedMoves() {
+    RE::TESBoundObject item{93000};
+    RE::TESObjectREFR source{93001}, target{93002}, diverted{93003};
+    source.Put(&item, 0, 1, nullptr, "first");source.Put(&item, 0, 1, nullptr, "second");
+    InventoryStacks::Prepared prepared;
+    while (!InventoryStacks::Prepare(&source, &item, prepared)) {}
+    struct SideEffect final : RE::BSTEventSink<RE::TESContainerChangedEvent> {
+        std::function<void()> run;
+        RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent*, RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
+            if (run) { auto callback=std::move(run);run={};callback(); }
+            return RE::BSEventNotifyControl::kContinue;
+        }
+    } effect;
+    effect.run=[&]{source.RemoveItem(&item,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,prepared.stacks[1].extra,&diverted);};
+    auto* events=RE::ScriptEventSourceHolder::GetSingleton();events->AddEventSink(&effect);
+    assert(InventoryStacks::MovePrepared(prepared.stacks[0],&target,prepared,0)==0);
+    assert(!InventoryStacks::Valid(prepared.cursor));
+    assert(InventoryStacks::MovePrepared(prepared.stacks[1],&target,prepared,1)==0);
+    assert(InventoryStacks::Count(&target,&item)==1 && InventoryStacks::Count(&diverted,&item)==1);
+    std::erase(events->sinks,&effect);
+    prepared={};source.rows.clear();target.rows.clear();source.Put(&item,0,3);source.limit=1;
+    while (!InventoryStacks::Prepare(&source,&item,prepared)) {}
+    assert(InventoryStacks::MovePrepared(prepared.stacks.front(),&target,prepared,0)==1);
+    assert(InventoryStacks::Valid(prepared.cursor) && InventoryStacks::Count(&source,&item)==2);
+    prepared={};source.rows.clear();source.limit=std::numeric_limits<int>::max();
+    for(int i=0;i<33;++i)source.Put(&item,0,1);
+    assert(!InventoryStacks::Prepare(&source,&item,prepared));
+    source.rows[&item].quest=true;source.rows[&item].favorite=true;
+    while(!InventoryStacks::Prepare(&source,&item,prepared)) {}
+    assert(prepared.quest && prepared.favorite);
 }
 
 int main(int argc, char** argv) {
     CheckReadCursor();
+    CheckCounts();
+    CheckPreparedMoves();
     assert(argc == 2);
     nlohmann::json data;
     std::ifstream(argv[1]) >> data;

@@ -93,10 +93,12 @@ int main(int argc,char** argv){
  std::vector<RE::TESBoundObject> carried(100);
  for(int i=0;i<100;++i){carried[i].id=40000+i;player->Put(&carried[i],0,1,&owner,"carried");player->rows[&carried[i]].favorite=true;}
  auto run=[&](const char* phase,const auto& action){
-  RE::Counters::Reset();const auto start=std::chrono::steady_clock::now();action();SKSE::GetTaskInterface()->Run();
-  const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+  RE::Counters::Reset();RE::TESObjectREFR::mirrorTime={};const auto start=std::chrono::steady_clock::now();action();SKSE::GetTaskInterface()->Run();
+  const double rawMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+  const double mirrorMs=std::chrono::duration<double,std::milli>(RE::TESObjectREFR::mirrorTime).count();
+  assert(mirrorMs>=0 && mirrorMs<=rawMs);const double ms=rawMs-mirrorMs;
   std::cout<<"{\"bench\":"<<bench<<",\"size\":"<<size<<",\"mode\":"<<mode<<",\"sample\":"<<sample<<",\"scenario\":"<<scenario
-   <<",\"all_materials\":"<<(Settings::GetSingleton()->GSC_AllCraftingMaterials?"true":"false")<<",\"phase\":\""<<phase<<"\",\"ms\":"<<ms<<",\"inventory_calls\":"<<RE::Counters::calls
+   <<",\"all_materials\":"<<(Settings::GetSingleton()->GSC_AllCraftingMaterials?"true":"false")<<",\"phase\":\""<<phase<<"\",\"ms\":"<<ms<<",\"raw_ms\":"<<rawMs<<",\"fixture_mirror_ms\":"<<mirrorMs<<",\"inventory_calls\":"<<RE::Counters::calls
    <<",\"entries_visited\":"<<RE::Counters::visits<<",\"entries_copied\":"<<RE::Counters::copies<<",\"moves\":"<<RE::Counters::moves
    <<",\"bulk_calls\":"<<RE::Counters::bulks<<"}\n"<<std::flush;
  };

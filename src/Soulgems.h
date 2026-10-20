@@ -1,8 +1,11 @@
 #pragma once
 #include <optional>
 #include <unordered_set>
+namespace InventoryStacks { struct Prepared; }
 
 namespace Soulgems {
+    bool PrepareDeposit(RE::TESBoundObject* item, InventoryStacks::Prepared& prepared);
+    bool PrepareTransfer(RE::TESObjectREFR* source, RE::TESBoundObject* item, InventoryStacks::Prepared& prepared);
     void Consolidate();
     void Recover(const std::unordered_set<RE::FormID>& a_sortExcluded = {});
     void Split();

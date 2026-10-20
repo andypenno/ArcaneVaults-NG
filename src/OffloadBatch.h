@@ -3,6 +3,7 @@
 #include <functional>
 
 namespace RE { class TESBoundObject; }
+namespace InventoryStacks { struct Prepared; }
 
 namespace OffloadBatch {
     using Clock = std::chrono::steady_clock;
@@ -12,6 +13,7 @@ namespace OffloadBatch {
         std::function<bool()> active;
         int moves{};
         bool changed{}, repeat{};
+        InventoryStacks::Prepared* prepared{};
         bool Moved(bool more) {
             changed = true;
             const bool exhausted = ++moves >= 16 || Clock::now() >= deadline;

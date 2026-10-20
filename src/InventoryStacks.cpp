@@ -1,26 +1,83 @@
 #include "InventoryStacks.h"
 #include <limits>
+#include <atomic>
+#include <mutex>
 #include <unordered_set>
 
 namespace InventoryStacks {
-    bool ReadPart(RE::TESObjectREFR* source, RE::TESBoundObject* item, ReadCursor& cursor,
-        const std::function<void(RE::InventoryEntryData&, RE::ExtraDataList*, int)>& visit) {
-        if (!source || !item || !cursor.valid) { cursor.valid = false; return true; }
-        const auto inventory = source->GetInventory([item](auto& candidate) { return &candidate == item; });
-        const auto found = inventory.find(item);
-        if (found == inventory.end() || found->second.first <= 0 || !found->second.second) {
+    struct ReadState {
+        using Iterator = decltype(std::declval<RE::InventoryEntryData>().extraLists->begin());
+        RE::FormID source{}, item{};
+        RE::InventoryEntryData* entry{};
+        decltype(RE::InventoryEntryData::extraLists) lists{};
+        RE::ExtraDataList** head{};
+        Iterator next;
+        std::atomic<bool> invalid{};
+        RE::FormID destination{};
+        int expected{};
+    };
+
+    namespace {
+        std::mutex readersLock;
+        std::vector<std::weak_ptr<ReadState>> readers;
+        struct ReadEvents final : RE::BSTEventSink<RE::TESContainerChangedEvent>, RE::BSTEventSink<RE::TESEquipEvent> {
+            void Invalidate(RE::FormID from, RE::FormID to, RE::FormID item, int count = 0) {
+                std::lock_guard guard(readersLock);
+                for (auto it = readers.begin(); it != readers.end();) {
+                    if (const auto reader = it->lock()) {
+                        if ((reader->source == from || reader->source == to) && reader->item == item) {
+                            if (from == reader->source && to == reader->destination && count > 0 && count <= reader->expected)
+                                reader->expected -= count;
+                            else reader->invalid = true;
+                        }
+                        ++it;
+                    } else it = readers.erase(it);
+                }
+            }
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* event,
+                RE::BSTEventSource<RE::TESContainerChangedEvent>*) override {
+                if (event) Invalidate(event->oldContainer, event->newContainer, event->baseObj, event->itemCount);
+                return RE::BSEventNotifyControl::kContinue;
+            }
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESEquipEvent* event,
+                RE::BSTEventSource<RE::TESEquipEvent>*) override {
+                if (event && event->actor) Invalidate(event->actor.get()->GetFormID(), 0, event->baseObject);
+                return RE::BSEventNotifyControl::kContinue;
+            }
+        } readEvents;
+    }
+
+    bool ReadEntryPart(RE::TESObjectREFR* source, RE::TESBoundObject* item, RE::InventoryEntryData& entry,
+        int total, ReadCursor& cursor, const std::function<void(RE::InventoryEntryData&, RE::ExtraDataList*, int)>& visit) {
+        if (!source || !item || !cursor.valid || total <= 0) { cursor.valid = false; return true; }
+        auto* head = entry.extraLists && !entry.extraLists->empty() ? std::addressof(*entry.extraLists->begin()) : nullptr;
+        if (!cursor.state) {
+            cursor.state = std::make_shared<ReadState>();
+            auto& state = *cursor.state;
+            state.source = source->GetFormID(); state.item = item->GetFormID(); state.entry = &entry;
+            state.lists = entry.extraLists; state.head = head;
+            if (entry.extraLists) state.next = entry.extraLists->begin();
+            if (auto* events = RE::ScriptEventSourceHolder::GetSingleton()) {
+                events->AddEventSink(static_cast<RE::BSTEventSink<RE::TESContainerChangedEvent>*>(&readEvents));
+                events->AddEventSink<RE::TESEquipEvent>(&readEvents);
+            } else { cursor.valid = false; return true; }
+            {
+                std::lock_guard guard(readersLock);
+                std::erase_if(readers, [](const auto& reader) { return reader.expired(); });
+                readers.emplace_back(cursor.state);
+            }
+            cursor.total = total;
+        }
+        auto& state = *cursor.state;
+        if (state.invalid || state.source != source->GetFormID() || state.item != item->GetFormID() ||
+            state.entry != &entry || state.lists != entry.extraLists || state.head != head || cursor.total != total) {
             cursor.valid = false; return true;
         }
-        const auto total = found->second.first;
-        if (cursor.total < 0) cursor.total = total;
-        if (cursor.total != total) { cursor.valid = false; return true; }
-        auto& entry = *found->second.second;
-        std::size_t offset{};
         int processed{};
-        if (entry.extraLists) for (auto* extra : *entry.extraLists) {
-            if (offset++ < cursor.offset) continue;
+        while (entry.extraLists && state.next != entry.extraLists->end()) {
             if (processed++ == 16) return false;
-            cursor.offset = offset;
+            auto* extra = *state.next++;
+            ++cursor.offset;
             if (!extra) continue;
             const int count = extra->GetCount();
             if (!cursor.seen.insert(extra).second || count <= 0 || cursor.explicitCount + count > total) {
@@ -28,10 +85,56 @@ namespace InventoryStacks {
             }
             cursor.explicitCount += count;
             visit(entry, extra, count);
+            if (!cursor.valid || state.invalid) { cursor.valid = false; return true; }
         }
-        if (offset < cursor.offset || cursor.explicitCount > total) { cursor.valid = false; return true; }
         if (cursor.explicitCount < total) visit(entry, nullptr, static_cast<int>(total - cursor.explicitCount));
         return true;
+    }
+
+    bool ReadPart(RE::TESObjectREFR* source, RE::TESBoundObject* item, ReadCursor& cursor,
+        const std::function<void(RE::InventoryEntryData&, RE::ExtraDataList*, int)>& visit) {
+        if (!source || !item || !cursor.valid) { cursor.valid = false; return true; }
+        auto* changes = source->GetInventoryChanges();
+        RE::InventoryEntryData* entry{};
+        if (changes && changes->entryList) for (auto* candidate : *changes->entryList)
+            if (candidate && candidate->object == item) { entry = candidate; break; }
+        const int total = Count(source, item);
+        if (!entry) {
+            if (cursor.state) { cursor.valid = false; return true; }
+            RE::InventoryEntryData bare{item, 0};
+            return ReadEntryPart(source, item, bare, total, cursor, visit);
+        }
+        return ReadEntryPart(source, item, *entry, total, cursor, visit);
+    }
+
+    bool Valid(const ReadCursor& cursor) { return cursor.valid && cursor.state && !cursor.state->invalid; }
+
+    bool Prepare(RE::TESObjectREFR* source, RE::TESBoundObject* item, Prepared& prepared,
+        const std::function<bool(RE::ExtraDataList*, int, std::size_t)>& validate) {
+        if (prepared.complete) return true;
+        bool first = true;
+        prepared.complete = ReadPart(source, item, prepared.cursor, [&](auto& entry, auto* extra, int count) {
+            if (first) {
+                first = false;
+                prepared.quest |= entry.IsQuestObject();
+                prepared.favorite |= entry.IsFavorited();
+            }
+            prepared.identifiedFavorite |= extra && extra->template HasType<RE::ExtraHotkey>();
+            prepared.worn |= extra && (extra->template HasType<RE::ExtraWorn>() || extra->template HasType<RE::ExtraWornLeft>());
+            if (validate && !validate(extra, count, prepared.stacks.size())) prepared.cursor.valid = false;
+            prepared.stacks.push_back({source, item, extra, count});
+        });
+        return prepared.complete;
+    }
+
+    int MovePrepared(const Stack& stack, RE::TESObjectREFR* target, Prepared& prepared, std::size_t index) {
+        if (!Valid(prepared.cursor) || !target || index >= prepared.stacks.size()) return 0;
+        auto& state = *prepared.cursor.state;
+        { std::lock_guard guard(readersLock); state.destination = target->GetFormID(); state.expected = stack.count; }
+        const int moved = Move(stack, target);
+        { std::lock_guard guard(readersLock); state.destination = 0; state.expected = 0; }
+        if (moved) prepared.moved.emplace_back(index, moved);
+        return moved;
     }
 
     std::vector<Stack> Read(RE::TESObjectREFR* source, Select select, RE::TESBoundObject* onlyItem, bool firstOnly) {
@@ -101,15 +204,49 @@ namespace InventoryStacks {
         ClearOrigins(source, keyword);
     }
 
+    std::map<RE::TESBoundObject*, int> Counts(RE::TESObjectREFR* source,
+        std::function<bool(RE::TESBoundObject&)> filter, bool noInit) {
+        std::map<RE::TESBoundObject*, int> counts;
+        if (!source) return counts;
+        std::unordered_map<RE::TESBoundObject*, const RE::InventoryEntryData*> entries;
+        const auto* changes = source->GetInventoryChanges(noInit);
+        if (changes && changes->entryList) for (const auto* entry : *changes->entryList) {
+            if (!entry || !entry->object || (filter && !filter(*entry->object))) continue;
+            counts.emplace(entry->object, entry->countDelta);
+            entries.emplace(entry->object, entry);
+        }
+        if (auto* container = source->GetContainer()) container->ForEachContainerObject([&](auto& entry) {
+            if (entry.obj && (!filter || filter(*entry.obj))) {
+                const auto found = entries.find(entry.obj);
+                if (!entry.count || found == entries.end() || !found->second->IsLeveled())
+                    counts[entry.obj] += entry.count;
+            }
+            return RE::BSContainer::ForEachResult::kContinue;
+        });
+        return counts;
+    }
+
     int Count(RE::TESObjectREFR* source, RE::TESBoundObject* item) {
-        const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
-        const auto found = counts.find(item);
-        return found == counts.end() ? 0 : (std::max)(0, found->second);
+        if (!source || !item) return 0;
+        int count = 0;
+        bool leveled = false;
+        const auto* changes = source->GetInventoryChanges();
+        if (changes && changes->entryList) for (auto* entry : *changes->entryList) {
+            if (!entry || entry->object != item) continue;
+            count = entry->countDelta;
+            leveled = entry->IsLeveled();
+            break;
+        }
+        if (!leveled) if (auto* container = source->GetContainer()) container->ForEachContainerObject([&](auto& entry) {
+            if (entry.obj == item) count += entry.count;
+            return RE::BSContainer::ForEachResult::kContinue;
+        });
+        return (std::max)(0, count);
     }
 
     bool HasItems(RE::TESObjectREFR* source) {
         if (!source) return false;
-        for (const auto& [item, count] : source->GetInventoryCounts([](auto&) { return true; }, true))
+        for (const auto& [item, count] : Counts(source, {}, true))
             if (item && count > 0) return true;
         return false;
     }

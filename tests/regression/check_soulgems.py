@@ -151,6 +151,9 @@ struct Settings {
 program += r'''
 #include "src/InventoryStacks.h"
 namespace InventoryStacks {
+bool Prepare(RE::TESObjectREFR*,RE::TESBoundObject*,Prepared&,const std::function<bool(RE::ExtraDataList*,int,std::size_t)>&){assert(false);return false;}
+bool Valid(const ReadCursor&){assert(false);return false;}
+int MovePrepared(const Stack&,RE::TESObjectREFR*,Prepared&,std::size_t){assert(false);return 0;}
 bool HasItems(RE::TESObjectREFR* source){
     if(!source)return false;
     for(const auto& [item,data]:source->GetInventory())if(item && data.first>0)return true;

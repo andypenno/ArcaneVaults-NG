@@ -347,7 +347,10 @@ program += r'''
 namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
 
 namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }
+namespace InventoryStacks {struct Prepared;}
 namespace Soulgems {
+    bool PrepareDeposit(RE::TESBoundObject*,InventoryStacks::Prepared&);
+    bool PrepareTransfer(RE::TESObjectREFR*,RE::TESBoundObject*,InventoryStacks::Prepared&);
     std::unordered_set<RE::FormID> sortExcluded;
     bool allLoan=false;int loanBegins=0,loanEnds=0;
     void Recover(const std::unordered_set<RE::FormID>& excluded = {}) { sortExcluded = excluded; } void Deposit(int, bool = false) {} void BeginLoan(bool, bool all = false) {allLoan=all;++loanBegins;} void EndLoan() {++loanEnds;} void ResetLoan() {}
@@ -501,6 +504,18 @@ bool HasItems(RE::TESObjectREFR* source){
 }
 
 struct Stack { RE::TESObjectREFR* source; RE::TESBoundObject* item; RE::ExtraDataList* extra; int count; };
+struct ReadCursor {int total=0;bool valid=true;};
+struct Prepared {ReadCursor cursor;std::vector<Stack> stacks;bool complete=false,quest=false,favorite=false,worn=false,identifiedFavorite=false;};
+auto Counts(RE::TESObjectREFR* source,std::function<bool(RE::TESBoundObject&)> filter={},bool noInit=false){return source->GetInventoryCounts(filter?filter:[](auto&){return true;},noInit);}
+bool Valid(const ReadCursor& cursor){return cursor.valid;}
+bool Prepare(RE::TESObjectREFR* source,RE::TESBoundObject* item,Prepared& prepared){
+    if(prepared.complete)return true;
+    auto found=source->inventory.find(item);prepared.complete=true;
+    if(found==source->inventory.end() || found->second.first<=0){prepared.cursor.valid=false;return true;}
+    prepared.cursor.total=found->second.first;auto& entry=*found->second.second;
+    prepared.quest=entry.IsQuestObject();prepared.favorite=entry.IsFavorited();prepared.worn=entry.IsWorn();
+    prepared.stacks.push_back({source,item,nullptr,found->second.first});return true;
+}
 std::vector<Stack> Read(RE::TESObjectREFR* source,std::function<bool(RE::TESBoundObject*,RE::InventoryEntryData&,RE::ExtraDataList*)> select = {},RE::TESBoundObject* onlyItem = nullptr) {
     std::vector<Stack> result;
     for(const auto& [item,data]:source->GetInventory())
@@ -520,13 +535,21 @@ int Move(const Stack& stack,RE::TESObjectREFR* target) {
     stack.source->RemoveItem(stack.item,stack.count,RE::ITEM_REMOVE_REASON::kStoreInContainer,stack.extra,target);
     return before-Count(stack.source,stack.item);
 }
+int MovePrepared(const Stack& stack,RE::TESObjectREFR* target,Prepared&,std::size_t){return Move(stack,target);}
+}
+namespace Soulgems {
+bool PrepareDeposit(RE::TESBoundObject* item,InventoryStacks::Prepared& prepared){return InventoryStacks::Prepare(RE::PlayerCharacter::GetSingleton(),item,prepared);}
+bool PrepareTransfer(RE::TESObjectREFR* source,RE::TESBoundObject* item,InventoryStacks::Prepared& prepared){return InventoryStacks::Prepare(source,item,prepared);}
 }
 
 namespace PlayerEquipment {
 struct ItemEquipment { std::unordered_set<RE::ExtraDataList*> equipped; };
 using Snapshot=std::unordered_map<RE::TESBoundObject*,ItemEquipment>;
 const Snapshot* Current(){return nullptr;}
-bool Apply(Snapshot&,RE::TESBoundObject*,const std::function<bool()>& work){return work();}
+bool Apply(Snapshot&,RE::TESBoundObject* item,const std::function<bool()>& work){
+    if(OffloadBatch::current && OffloadBatch::current->prepared)InventoryStacks::Prepare(RE::PlayerCharacter::GetSingleton(),item,*OffloadBatch::current->prepared);
+    return work();
+}
 void Run(std::function<void()> work, std::function<void()> complete, std::function<bool(RE::TESBoundObject*)>) {
     work(); if (complete) complete();
 }

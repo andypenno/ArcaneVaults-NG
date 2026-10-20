@@ -7,6 +7,8 @@ namespace FrameProbe {
 inline std::string target,scope,worstPhase;
 inline bool enabled=false,opaqueCharged=false;
 inline double lastDraw=0,maxGap=0;
+inline double nativeDelay=250;
+inline int drawsBeforeOpaque=-1;
 inline int draws=0,units=0,confirmations=0;
 inline std::map<std::string,double> sinceDraw;
 inline std::vector<double> gaps;
@@ -27,7 +29,7 @@ inline void Unit(const char* name){
     if(phase==target)Spend(phase,.1);
 }
 inline void Opaque(const char* name){
-    if(enabled && !opaqueCharged && target==name){opaqueCharged=true;Spend(name,250);}
+    if(enabled && !opaqueCharged && target==name){opaqueCharged=true;drawsBeforeOpaque=draws;Spend(name,nativeDelay);}
 }
 inline void Observe(){
     const double gap=Now()-lastDraw;
@@ -41,6 +43,7 @@ inline void Draw(){if(enabled){Observe();lastDraw=Now();sinceDraw.clear();++draw
 inline void Reset(std::string name){
     target=std::move(name);scope.clear();worstPhase.clear();enabled=true;opaqueCharged=false;
     lastDraw=Now();maxGap=0;draws=units=confirmations=0;sinceDraw.clear();gaps.clear();afterShow={};
+    nativeDelay=250;drawsBeforeOpaque=-1;
 }
 }
 '''
@@ -62,9 +65,29 @@ def instrument(common, program, soul):
         ('ui->menu=new InventoryMenu;', 'FrameProbe::Opaque("native menu");ui->menu=new InventoryMenu;'),
         ('                inventory->ProcessMessage(message);', '                inventory->ProcessMessage(message);if(FrameProbe::afterShow)FrameProbe::afterShow();'),
         ('message=text;', 'message=text;if(FrameProbe::enabled)++FrameProbe::confirmations;'),
+        ('++inventoryReads;std::map', 'FrameProbe::Opaque(("native " + FrameProbe::scope + " read").c_str());++inventoryReads;std::map'),
+        ('bool GetMember(const char* name,GFxValue* value)const{', 'bool GetMember(const char* name,GFxValue* value)const{FrameProbe::Opaque("native row member");'),
+        ('void ProcessMessage(UIMessage& message) {', 'void ProcessMessage(UIMessage& message) {FrameProbe::Opaque("native menu population");'),
+        ('assert(payload && !payload->updateObj);++ItemList::refreshes;', 'if(FrameProbe::enabled && FrameProbe::target=="native recovery refresh"){assert(ui->menu && ui->menu->uiMovie && !ui->menu->uiMovie->visible);}FrameProbe::Opaque("native recovery refresh");assert(payload && !payload->updateObj);++ItemList::refreshes;'),
+        ('ui->menu->Release();ui->menu=nullptr;', 'FrameProbe::Opaque("native menu close");ui->menu->Release();ui->menu=nullptr;'),
+        ('assert(!inspectionOpen);++removeCalls;', 'FrameProbe::Opaque("native item removal");assert(!inspectionOpen);++removeCalls;'),
+        ('for(auto& x:row.extras)e->lists.push_back(x.get());', 'for(auto& x:row.extras){if(FrameProbe::scope=="transfer" && id!=0x14){FrameProbe::Unit("destination count scan");}if(FrameProbe::scope=="archive listing"){FrameProbe::Unit("archive listing scan");}e->lists.push_back(x.get());}'),
     ]:
         common = replace_once(common, old, new)
     paced = '        void CaptureStep(const std::shared_ptr<Request>& request) {' in program
+    if '    bool ReadEntryPart(' in program:
+        common = replace_once(common, 'Changes* GetInventoryChanges(bool noInit=false){',
+            'Changes* GetInventoryChanges(bool noInit=false){FrameProbe::Opaque("native inventory");'
+            'FrameProbe::Opaque(("native "+FrameProbe::scope+" read").c_str());')
+    if '    std::map<RE::TESBoundObject*, int> Counts(' in program:
+        boundary = '        if (changes && changes->entryList) for (const auto* entry : *changes->entryList) {'
+        program = replace_once(program, boundary, boundary +
+            'if(FrameProbe::scope=="transfer" && source->GetFormID()!=0x14)FrameProbe::Unit("destination count scan");'
+            'if(FrameProbe::scope=="archive listing")FrameProbe::Unit("archive listing scan");')
+        lookup = '        if (changes && changes->entryList) for (auto* entry : *changes->entryList) {'
+        if lookup in program:
+            program = replace_once(program, lookup, lookup +
+                'if(FrameProbe::scope=="transfer" && source->GetFormID()!=0x14)FrameProbe::Unit("destination count scan");')
     scopes = [
         ('        void CaptureStep(const std::shared_ptr<Request>& request) {', 'capture'),
         ('        void ValidateStep(const std::shared_ptr<Request>& request) {', 'validation'),
@@ -75,11 +98,30 @@ def instrument(common, program, soul):
     for signature, phase in scopes:
         program = replace_once(program, signature, signature + f'FrameProbe::Scope frameScope{{"{phase}"}};')
     if paced:
-        start = program.index('    bool ReadPart(')
+        signature = '    bool Apply(Snapshot& snapshot, RE::TESBoundObject* item, const std::function<bool()>& work) {'
+        program = replace_once(program, signature, signature + 'FrameProbe::Scope frameScope{"transfer"};')
+        signature = '        actions->push_back([listing, handle, emit = std::move(emit)] {'
+        program = replace_once(program, signature, signature + 'FrameProbe::Scope frameScope{"archive listing"};')
+        incremental = '    bool ReadEntryPart(' in program
+        start = program.index('    bool ReadEntryPart(' if incremental else '    bool ReadPart(')
         end = program.index('    std::vector<Stack> Read(', start)
         fragment = program[start:end]
-        fragment = replace_once(fragment, '        const auto total =', '        FrameProbe::Unit("physical");const auto total =')
+        if incremental:
+            fragment = replace_once(fragment, '            auto* extra = *state.next++;',
+                '            FrameProbe::Unit((FrameProbe::scope.empty()?"row prefix":FrameProbe::scope + " prefix").c_str());auto* extra = *state.next++;')
+        else:
+            fragment = replace_once(fragment, '            if (offset++ < cursor.offset) continue;', '            FrameProbe::Unit((FrameProbe::scope + " prefix").c_str());if (offset++ < cursor.offset) continue;')
+            fragment = replace_once(fragment, '        const auto total =', '        FrameProbe::Unit("physical");const auto total =')
         fragment = replace_once(fragment, '            const int count =', '            FrameProbe::Unit("physical");const int count =')
+        if incremental:
+            fragment = replace_once(fragment, '            FrameProbe::Unit("physical");',
+                '            if(FrameProbe::scope=="transfer"){FrameProbe::Unit("transfer stack scan");FrameProbe::Unit("misc stack scan");}FrameProbe::Unit("physical");')
+        program = program[:start] + fragment + program[end:]
+        start = program.index('    std::vector<Stack> Read(')
+        end = program.index('    bool IsFavorited(', start)
+        fragment = program[start:end]
+        fragment = replace_once(fragment, '                    const int count = extra->GetCount();',
+            '                    if(FrameProbe::scope=="transfer"){FrameProbe::Unit("transfer stack scan");FrameProbe::Unit("misc stack scan");}const int count = extra->GetCount();')
         program = program[:start] + fragment + program[end:]
         for old, new in [
             ('                auto* row = list->items[request->rowCursor];', '                FrameProbe::Unit("row indexing");auto* row = list->items[request->rowCursor];'),
@@ -89,6 +131,12 @@ def instrument(common, program, soul):
         ]:
             program = replace_once(program, old, new)
         marker = '                auto* item = (*candidates)[--**remaining];'
+        for condition in ('entry->extraLists', 'request->rowValid && entry->extraLists'):
+            row_loop = f'                if ({condition}) for (auto* extra : *entry->extraLists) {{'
+            if condition == 'request->rowValid && entry->extraLists' and '    bool ReadEntryPart(' in program:
+                if row_loop in program: raise ValueError('Unexpected duplicate resumable row traversal')
+            else:
+                program = replace_once(program, row_loop, row_loop + 'FrameProbe::Unit("row prefix");')
     else:
         for old, new in [
             ('            auto* entry = data.second.get();', '            FrameProbe::Unit("physical");auto* entry = data.second.get();'),
@@ -106,7 +154,15 @@ def instrument(common, program, soul):
     program = program.replace(marker, '                FrameProbe::Unit("job expansion");' + marker.strip())
     program = replace_once(program, 'textPosition=position;++texts;', 'textPosition=position;++texts;FrameProbe::Draw();')
     signature = '    void Move(RE::TESObjectREFR* source, RE::TESObjectREFR* target, RE::TESSoulGem* gem, const Stack& stack, int count) {'
+    if '    bool PrepareDeposit(' in soul:
+        signature_prepare = '    bool PrepareTransfer(RE::TESObjectREFR* source, RE::TESBoundObject* item, InventoryStacks::Prepared& prepared) {'
+        soul = replace_once(soul, signature_prepare, signature_prepare + 'FrameProbe::Scope frameScope{"transfer"};')
+        soul = replace_once(soul, '            prepared.filled.push_back(', '            FrameProbe::Unit("soul gem scan");prepared.filled.push_back(')
+        soul = replace_once(soul, '                const auto& stack = prepared->stacks[index];',
+            '                FrameProbe::Unit("soul gem recovery");const auto& stack = prepared->stacks[index];')
     soul = replace_once(soul, signature, signature + 'FrameProbe::Unit("soul gem recovery");')
+    soul = replace_once(soul, '            for (auto* extra : *entry.extraLists) {',
+        '            for (auto* extra : *entry.extraLists) {FrameProbe::Unit("soul gem scan");')
     main = (Path(__file__).with_name('transfer_frames.cpp')).read_text()
     program = program[:program.index('int main(){')] + main
     return common, program, soul

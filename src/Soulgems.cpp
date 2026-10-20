@@ -90,6 +90,32 @@ namespace {
     template<class Select>
     void MoveAll(RE::TESObjectREFR* source, RE::TESObjectREFR* target, Select select) {
         if (!source || !target || source == target) return;
+        if (auto* prepared = OffloadBatch::current ? OffloadBatch::current->prepared : nullptr) {
+            auto* item = OffloadBatch::current->item;
+            auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
+            if (!gem || !InventoryStacks::Valid(prepared->cursor) || prepared->stacks.empty() ||
+                prepared->stacks.front().source != source || prepared->quest || prepared->worn ||
+                (prepared->favorite && !prepared->identifiedFavorite) || !select(gem)) return;
+            std::unordered_set<RE::TESSoulGem*> visited;
+            for (auto* linked = gem; linked && visited.insert(linked).second; linked = linked->linkedSoulGem)
+                if (linked->GetFormID() == 0x63B27 || linked->GetFormID() == 0x63B29) return;
+            for (std::size_t index = 0; index < prepared->stacks.size(); ++index) {
+                const auto& stack = prepared->stacks[index];
+                if (!OffloadBatch::current->active() || !InventoryStacks::Valid(prepared->cursor)) return;
+                if (stack.extra && (stack.extra->HasType<RE::ExtraHotkey>() || InventoryStacks::HasOrigin(stack.extra, InventoryStacks::FavoriteKeyword()))) continue;
+                auto moving = stack;
+                if (!moving.extra && prepared->identifiedFavorite) {
+                    const auto physical = InventoryStacks::Materialize(moving);
+                    if (!physical) return;
+                    moving = *physical;
+                }
+                const int moved = InventoryStacks::MovePrepared(moving, target, *prepared, index);
+                if (!moved) return;
+                if (OffloadBatch::current->Moved(moved < stack.count || index + 1 < prepared->stacks.size())) return;
+                if (moved < stack.count) { OffloadBatch::current->repeat = true; return; }
+            }
+            return;
+        }
         const auto inventory = source->GetInventory([](RE::TESBoundObject& item) { return item.As<RE::TESSoulGem>() && (!OffloadBatch::current || !OffloadBatch::current->item || OffloadBatch::current->item == &item); });
         std::vector<Stack> stacks;
         for (const auto& [item, data] : inventory) {
@@ -119,6 +145,23 @@ namespace {
 }
 
 namespace Soulgems {
+    bool PrepareTransfer(RE::TESObjectREFR* source, RE::TESBoundObject* item, InventoryStacks::Prepared& prepared) {
+        auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
+        if (!gem) { prepared.cursor.valid = false; return true; }
+        if (static_cast<unsigned>(gem->GetContainedSoul()) > static_cast<unsigned>(RE::SOUL_LEVEL::kGrand)) {
+            prepared.cursor.valid = false; return true;
+        }
+        return InventoryStacks::Prepare(source, item, prepared, [&](auto* extra, int, std::size_t) {
+            prepared.identifiedFavorite |= extra && InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+            const auto* soul = extra ? extra->template GetByType<RE::ExtraSoul>() : nullptr;
+            const auto level = soul ? soul->GetContainedSoul() : gem->GetContainedSoul();
+            prepared.filled.push_back(level != RE::SOUL_LEVEL::kNone);
+            return static_cast<unsigned>(level) <= static_cast<unsigned>(RE::SOUL_LEVEL::kGrand);
+        });
+    }
+    bool PrepareDeposit(RE::TESBoundObject* item, InventoryStacks::Prepared& prepared) {
+        return PrepareTransfer(RE::PlayerCharacter::GetSingleton(), item, prepared);
+    }
     void Consolidate() {
         auto* utility = Utility::GetSingleton();
         auto* bank = utility->GetContainer(Container::Soulgem);
@@ -167,6 +210,41 @@ namespace Soulgems {
 
     void Deposit(int a_keepEmpty, bool a_respectIgnores) {
         if (a_keepEmpty < 0) return;
+        if (auto* prepared = OffloadBatch::current ? OffloadBatch::current->prepared : nullptr) {
+            auto* item = OffloadBatch::current->item;
+            auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
+            if (!gem || !prepared->complete || !InventoryStacks::Valid(prepared->cursor) || prepared->quest || prepared->worn ||
+                (prepared->favorite && !prepared->identifiedFavorite) || HasCategory(ClassifyItem(gem), ItemCategory::Ignore) ||
+                (a_respectIgnores && Settings::GetSingleton()->IsIgnored(gem))) return;
+            std::unordered_set<RE::TESSoulGem*> visited;
+            for (auto* linked = gem; linked && visited.insert(linked).second; linked = linked->linkedSoulGem)
+                if (linked->GetFormID() == 0x63B27 || linked->GetFormID() == 0x63B29) return;
+            auto* bank = Utility::GetSingleton()->GetContainer(Container::Soulgem);
+            int keep = a_keepEmpty;
+            bool retainedExtras = false;
+            for (std::size_t index = 0; index < prepared->stacks.size(); ++index) {
+                if (!OffloadBatch::current->active() || !InventoryStacks::Valid(prepared->cursor)) return;
+                auto stack = prepared->stacks[index];
+                const int retained = prepared->filled[index] ? 0 : (std::min)(keep, stack.count);
+                keep -= retained;
+                const bool favorite = stack.extra && (stack.extra->HasType<RE::ExtraHotkey>() ||
+                    InventoryStacks::HasOrigin(stack.extra, InventoryStacks::FavoriteKeyword()));
+                if (!favorite && stack.count > retained) {
+                    stack.count -= retained;
+                    if (!stack.extra && (retainedExtras || prepared->identifiedFavorite)) {
+                        const auto physical = InventoryStacks::Materialize(stack);
+                        if (!physical) return;
+                        stack = *physical;
+                    }
+                    const int moved = InventoryStacks::MovePrepared(stack, bank, *prepared, index);
+                    if (!moved) return;
+                    if (OffloadBatch::current->Moved(true)) return;
+                    if (moved < stack.count) { OffloadBatch::current->repeat = true; return; }
+                }
+                retainedExtras |= retained && stack.extra;
+            }
+            return;
+        }
         if (!OffloadBatch::current) Recover();
         auto* utility = Utility::GetSingleton();
         auto* bank = utility->GetContainer(Container::Soulgem);

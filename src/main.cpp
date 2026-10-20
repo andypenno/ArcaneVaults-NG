@@ -13,6 +13,7 @@
 #include "EnchantedItems.h"
 #include "PlayerEquipment.h"
 #include "TransferFeedback.h"
+#include "InventoryPreview.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -23,6 +24,7 @@ using namespace QuickLoot;
 static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 	switch (message->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
+		InventoryPreview::Install();
 		AVTranslation::Install();
 		Utility::GetSingleton()->LoadAllForms();
 		Settings::GetSingleton()->Init();

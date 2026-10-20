@@ -74,6 +74,8 @@ The SkyUILib bridge passes option labels as separate ActionScript arguments, con
 
 `RedirectedContainerState` also receives container open/close events, but its `Begin` and `Cancel` have no call sites in current first-party code. Do not infer an active second redirect lifecycle from the class name.
 
+The owned inspection menu suppresses its `UpdateItem3D` callback and `PostDisplay` through `InventoryPreview` hooks. Ordinary inventory menus retain their native callbacks and rendering. Successful closure, cancellation and failed-close manual recovery end suppression. The message hook increments an inspection revision so resumed row traversal can reject a rebuilt menu list. Hiding the GFx movie alone does not control this separate 3D rendering path.
+
 ## Crafting loans
 
 The furniture hook selects the bench through `Utility::GetBenchType`, which checks known keywords first and bench data second. `CraftingMenu` close returns materials through the same transfer helpers.

@@ -36,14 +36,16 @@ int main() {
             RE::InventoryUpdateData data{player->id};
             RE::UIMessage message{std::string(RE::InventoryMenu::MENU_NAME),RE::UI_MESSAGE_TYPE::kInventoryUpdate,&data};
             menu.ProcessMessage(message);
-            const auto begin=Clock::now();
+            RE::TESObjectREFR::mirrorTime={};const auto begin=Clock::now();
             const auto snapshot=PlayerEquipment::Read(&menu,player);
             if(transfer) {
                 auto request=std::make_shared<PlayerEquipment::Request>();
                 request->work=[&]{stores->PlayerToStore(ItemCategory::Jewelry,Container::Armor);};
                 PlayerEquipment::Work(request,snapshot);
             }
-            const auto micros=std::chrono::duration<double,std::micro>(Clock::now()-begin).count();
+            const auto rawMicros=std::chrono::duration<double,std::micro>(Clock::now()-begin).count();
+            const auto mirrorMicros=std::chrono::duration<double,std::micro>(RE::TESObjectREFR::mirrorTime).count();
+            assert(mirrorMicros>=0 && mirrorMicros<=rawMicros);const auto micros=rawMicros-mirrorMicros;
             assert(snapshot.size()==items.size());
             for(auto& item:items) {
                 const auto& row=player->rows.at(&item);
@@ -51,7 +53,7 @@ int main() {
                 assert(row.total==(transfer?1:3) && row.extras.front()->metadata=="worn");
                 if(transfer)assert(bank.rows.at(&item).total==2 && bank.rows.at(&item).extras.front()->metadata=="spare");
             }
-            std::cout<<size<<' '<<transfer<<' '<<micros<<'\n';
+            std::cout<<size<<' '<<transfer<<' '<<micros<<' '<<rawMicros<<' '<<mirrorMicros<<'\n';
         }
     }
 }
@@ -106,8 +108,8 @@ def main():
                 output = subprocess.check_output([str(tmp / label / "quicksort-bench")], text=True, timeout=45)
                 samples = []
                 for line in output.splitlines():
-                    size, transfer, micros = line.split()
-                    samples.append({"items": int(size), "phase": "snapshot_and_transfer" if bool(int(transfer)) else "snapshot", "microseconds": float(micros)})
+                    size, transfer, micros, raw, mirror = line.split()
+                    samples.append({"items": int(size), "phase": "snapshot_and_transfer" if bool(int(transfer)) else "snapshot", "microseconds": float(micros), "raw_microseconds": float(raw), "fixture_mirror_microseconds": float(mirror)})
                 report["batches"].append({"batch": batch, "version": label, "samples": samples})
                 args.output.write_text(json.dumps(report, indent=2) + "\n")
         report["comparisons"] = []

@@ -106,11 +106,13 @@ struct InventoryEntryData {
     std::function<void(ExtraDataList*)> add;
     bool quest=false;
     bool favorite=false;
+    bool leveled=false;
     int countDelta=0;
     InventoryEntryData()=default;
     InventoryEntryData(TESBoundObject* value,int):object(value){}
     void AddExtraList(ExtraDataList* extra){if(add)add(extra);else lists.push_back(extra);}
     bool IsQuestObject()const{return quest;}
+    bool IsLeveled()const{return leveled;}
     bool IsFavorited()const{return favorite || std::ranges::any_of(lists,[](auto* x){return x && x->hotkey;});}
     bool IsWorn()const{return std::ranges::any_of(lists,[](auto* x){return x && (x->worn || x->leftWorn);});}
     std::vector<ExtraDataList*> lists;std::vector<ExtraDataList*>* extraLists=&lists;
@@ -124,42 +126,70 @@ struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};Ref actor
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESContainerChangedEvent { unsigned oldContainer,newContainer,baseObj;int itemCount; };
 enum class BSEventNotifyControl { kContinue };
+namespace BSContainer {enum class ForEachResult {kContinue,kStop};}
 template<class T> struct BSTEventSource {};
 template<class T> struct BSTEventSink { virtual BSEventNotifyControl ProcessEvent(const T*,BSTEventSource<T>*)=0; };
 struct ScriptEventSourceHolder {
+    inline static bool available=true;
     std::vector<BSTEventSink<TESEquipEvent>*> equipSinks;
     template<class Event> requires std::is_same_v<Event, TESEquipEvent>
     void AddEventSink(BSTEventSink<Event>* sink) {
-        equipSinks.push_back(sink);
+        if(std::ranges::find(equipSinks,sink)==equipSinks.end())equipSinks.push_back(sink);
     }
     void Send(TESEquipEvent event){for(auto* sink:equipSinks)sink->ProcessEvent(&event,nullptr);}
     std::vector<BSTEventSink<TESContainerChangedEvent>*> sinks;
-    static ScriptEventSourceHolder* GetSingleton(){static ScriptEventSourceHolder h;return &h;}
-    void AddEventSink(BSTEventSink<TESContainerChangedEvent>* s){sinks.push_back(s);}
+    static ScriptEventSourceHolder* GetSingleton(){static ScriptEventSourceHolder h;return available?&h:nullptr;}
+    void AddEventSink(BSTEventSink<TESContainerChangedEvent>* s){if(std::ranges::find(sinks,s)==sinks.end())sinks.push_back(s);}
     void Send(TESContainerChangedEvent e){for(auto* sink:sinks)sink->ProcessEvent(&e,nullptr);}
 };
 inline bool inspectionOpen=false;
 struct TESObjectREFR {
     struct ChangeFlags {static constexpr unsigned kInventory=32;};
-    struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false,favorite=false;};
+    struct Row {int total=0;std::vector<std::shared_ptr<ExtraDataList>> extras;bool duplicate=false,quest=false,favorite=false;int baseStock=0;bool leveled=false;};
     unsigned id;int limit=std::numeric_limits<int>::max();bool refuse=false;unsigned changed=0;
     bool missingChanges=false;
+    mutable bool initialized=false;mutable int initializations=0;std::function<void()> onInit;
     bool deferTransfers=false;std::deque<std::function<void()>> deliveries;
     std::map<TESBoundObject*,Row> rows;
     struct Changes {
         TESObjectREFR* source;
         std::vector<InventoryEntryData*> entries;
         std::vector<InventoryEntryData*>* entryList=&entries;
+        std::map<TESBoundObject*,InventoryEntryData*> index{};
         int bulkTransfers=0,bulkLimit=std::numeric_limits<int>::max();bool bulkRefuse=false,lastKeepOwnership=false;
         void SetFavorite(InventoryEntryData*,ExtraDataList* extra){extra->hotkey=true;}
         void RemoveAllItems(TESObjectREFR* owner,TESObjectREFR* target,bool stealing,bool keepOwnership,bool);
         void AddEntryData(InventoryEntryData* entry){
             entry->add=[this,item=entry->object](ExtraDataList* extra){source->rows[item].extras.emplace_back(extra);};
             entries.push_back(entry);
+            index[entry->object]=entry;
         }
         ~Changes(){for(auto* entry:entries)delete entry;}
     } changes{this,{},nullptr};
-    Changes* GetInventoryChanges(){changes.entryList=&changes.entries;return missingChanges?nullptr:&changes;}
+    inline static std::chrono::steady_clock::duration mirrorTime{};
+    Changes* GetInventoryChanges(bool noInit=false){
+        if(!noInit && !initialized){initialized=true;++initializations;if(onInit)onInit();}
+        const auto mirrorStart=std::chrono::steady_clock::now();
+        std::erase_if(changes.entries,[&](auto* entry){if(rows.contains(entry->object))return false;changes.index.erase(entry->object);delete entry;return true;});
+        for(auto& [item,row]:rows){
+            auto found=changes.index.find(item);
+            InventoryEntryData* entry;
+            if(found==changes.index.end()){entry=new InventoryEntryData(item,0);changes.AddEntryData(entry);}else entry=found->second;
+            entry->countDelta=row.total-(row.leveled?0:row.baseStock);entry->leveled=row.leveled;
+            entry->quest=row.quest;entry->favorite=row.favorite;
+            const bool duplicate=row.duplicate && !row.extras.empty();
+            bool same=entry->lists.size()==row.extras.size()+duplicate;
+            if(same)for(std::size_t i=0;i<row.extras.size();++i)if(entry->lists[i]!=row.extras[i].get()){same=false;break;}
+            if(!same){entry->lists.clear();for(auto& extra:row.extras)entry->lists.push_back(extra.get());if(duplicate)entry->lists.push_back(entry->lists.front());}
+        }
+        changes.entryList=&changes.entries;mirrorTime+=std::chrono::steady_clock::now()-mirrorStart;return missingChanges?nullptr:&changes;
+    }
+    struct ContainerObject {TESBoundObject* obj;int count;};
+    struct BaseContainer {
+        TESObjectREFR* source;
+        template<class F>void ForEachContainerObject(F visit){for(auto& [item,row]:source->rows){if(!row.baseStock)continue;ContainerObject entry{item,row.baseStock};visit(entry);}}
+    } baseContainer{this};
+    BaseContainer* GetContainer(){return &baseContainer;}
 
     explicit TESObjectREFR(unsigned value):id(value){TESForm::refs[id]=this;}
     unsigned GetFormID()const{return id;}Handle GetHandle()const{return {id};}
@@ -167,6 +197,7 @@ struct TESObjectREFR {
     inline static std::size_t inventoryCopies=0;
     auto GetInventory(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;},bool noInit=false)const{
         (void)noInit;
+        if(!noInit && !initialized){initialized=true;++initializations;if(onInit)onInit();}
         std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>> result;
         for(const auto& [item,row]:rows){if(!item || !filter(*item))continue;++inventoryCopies;auto e=std::make_shared<InventoryEntryData>();e->object=item;e->countDelta=row.total;e->quest=row.quest;e->favorite=row.favorite;for(auto& x:row.extras)e->lists.push_back(x.get());if(row.duplicate&&!e->lists.empty())e->lists.push_back(e->lists.front());result[item]={row.total,e};}return result;
     }
@@ -436,3 +467,9 @@ inline void WaitForFrame(std::function<void()> work,std::function<void()>) {
 }
 
 namespace PlayerEquipment { void PollForCheck(); }
+namespace InventoryPreview {
+inline bool active{};
+inline void Begin(){assert(!active);active=true;}
+inline void End(){active=false;}
+inline std::uint64_t Revision(){return static_cast<std::uint64_t>(RE::ItemList::refreshes);}
+}

@@ -1,6 +1,8 @@
 #include "PlayerEquipment.h"
 #include "Settings.h"
 #include "TransferFeedback.h"
+#include "InventoryPreview.h"
+#include "OffloadBatch.h"
 #include <cmath>
 #include <atomic>
 #include <chrono>
@@ -117,6 +119,8 @@ namespace PlayerEquipment {
             Snapshot read, validated;
             Snapshot::const_iterator reconcile;
             std::size_t rowCursor{}, extraCursor{}, stackCount{};
+            InventoryStacks::ReadCursor rowPhysical;
+            std::uint64_t rowRevision{};
             RE::TESBoundObject* rowItem{};
             std::int64_t rowExplicit{};
             int rowCount{};
@@ -172,6 +176,7 @@ namespace PlayerEquipment {
 
         void Finish(const std::shared_ptr<Request>& request) {
             if (!Active(request)) return;
+            InventoryPreview::End();
             pending.reset();
             request->cancelled = true;
             if (request->complete) request->complete();
@@ -210,7 +215,7 @@ namespace PlayerEquipment {
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player) { Work(request, {}); Finish(request); return; }
             if (!request->inventory) {
-                request->inventory = player->GetInventoryCounts([](auto& item) {
+                request->inventory = InventoryStacks::Counts(player, [](auto& item) {
                     return item.template As<RE::TESObjectARMO>() || item.template As<RE::TESObjectWEAP>();
                 });
                 request->next = request->inventory->cbegin();
@@ -302,18 +307,18 @@ namespace PlayerEquipment {
                     request->rowItem = entry->object; request->rowCount = entry->countDelta;
                     request->rowExplicit = 0; request->extraCursor = 0;
                     request->rowValid = valid;
+                    request->rowRevision = InventoryPreview::Revision();
                     request->rowWorn = worn;
                     ++processed;
                 }
                 if (request->rowItem != entry->object || request->rowCount != entry->countDelta || !valid || request->rowWorn != worn)
                     request->rowValid = false;
+                if (request->rowRevision != InventoryPreview::Revision()) request->rowValid = false;
                 bool remaining = false;
-                std::size_t index{};
-                if (request->rowValid && entry->extraLists) for (auto* extra : *entry->extraLists) {
-                    if (index++ < request->extraCursor) continue;
-                    if (processed >= 16 || Clock::now() >= deadline) { remaining = true; break; }
-                    request->extraCursor = index; ++processed;
-                    if (!extra) continue;
+                if (request->rowValid) remaining = !InventoryStacks::ReadEntryPart(RE::PlayerCharacter::GetSingleton(),
+                    entry->object, *entry, entry->countDelta, request->rowPhysical, [&](RE::InventoryEntryData&, RE::ExtraDataList* extra, int) {
+                    ++request->extraCursor; ++processed;
+                    if (!extra || !request->rowValid) return;
                     std::optional<std::size_t> match;
                     if (const auto found = result.pointers.find(extra); found != result.pointers.end()) match = found->second;
                     if (const auto* id = extra->GetByType<RE::ExtraUniqueID>()) {
@@ -322,12 +327,13 @@ namespace PlayerEquipment {
                             else match = found->second.front();
                         }
                     }
-                    if (!request->rowValid || !match) { request->rowValid = false; break; }
+                    if (!request->rowValid || !match) { request->rowValid = false; return; }
                     const auto& identity = physical.stacks[*match];
-                    if (!result.seen.insert(identity.extra).second || extra->GetCount() != identity.count) { request->rowValid = false; break; }
+                    if (!result.seen.insert(identity.extra).second || extra->GetCount() != identity.count) { request->rowValid = false; return; }
                     request->rowExplicit += identity.count;
                     if (request->rowWorn) result.equipped.insert(identity.extra);
-                }
+                });
+                request->rowValid &= request->rowPhysical.valid;
                 if (remaining) break;
                 const auto bare = request->rowCount - request->rowExplicit;
                 if (!request->rowValid || bare < 0 || bare > result.bare - result.usedBare) result.valid = false;
@@ -336,7 +342,7 @@ namespace PlayerEquipment {
                     result.represented += request->rowCount;
                     if (bare && request->rowWorn) result.equipped.insert(nullptr);
                 }
-                request->rowItem = nullptr; ++request->rowCursor;
+                request->rowItem = nullptr; request->rowPhysical = {}; ++request->rowCursor;
             }
             const bool done = request->rowCursor >= list->items.size();
             SKSE::GetTaskInterface()->AddTask([request, done] {
@@ -402,6 +408,7 @@ namespace PlayerEquipment {
                     Work(request, {}); Finish(request); return;
                 }
                 request->phase = Phase::Opening;
+                InventoryPreview::Begin();
                 queue->AddMessage(RE::InventoryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
                 Later(request);
                 return;
@@ -446,6 +453,7 @@ namespace PlayerEquipment {
                 return;
             } else if (request->phase == Phase::Closing) {
                 if (!open) {
+                    InventoryPreview::End();
                     menu = nullptr;
                     if (!ui->IsItemMenuOpen()) {
                         request->phase = Phase::Validating;
@@ -456,6 +464,7 @@ namespace PlayerEquipment {
                 }
                 if (request->owned && menu.get() != request->owned) { Finish(request); return; }
                 if (expired) {
+                    InventoryPreview::End();
                     if (!request->worked) TransferFeedback::Reset();
                     request->worked = true;
                     request->snapshot.clear();
@@ -487,13 +496,27 @@ namespace PlayerEquipment {
         if (!player || !item) return false;
         const bool equipment = item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>();
         auto found = snapshot.find(item);
+        auto* prepared = OffloadBatch::current ? OffloadBatch::current->prepared : nullptr;
         if (equipment) {
             if (found == snapshot.end()) return false;
             if (found->second.generation != Generation(item)) { snapshot.erase(found); return false; }
-            const auto physical = Capture(player, {}, item);
-            const auto fresh = physical.find(item);
-            if (fresh == physical.end() || found->second.stacks != fresh->second.stacks) {
-                snapshot.erase(found);
+            if (!prepared) {
+                const auto physical = Capture(player, {}, item);
+                const auto fresh = physical.find(item);
+                if (fresh == physical.end() || found->second.stacks != fresh->second.stacks) {
+                    snapshot.erase(found);
+                    return false;
+                }
+            }
+        }
+        if (prepared) {
+            if (!InventoryStacks::Prepare(player, item, *prepared, [&](auto* extra, int count, std::size_t index) {
+                return !equipment || (index < found->second.stacks.size() &&
+                    found->second.stacks[index] == Identities({{player, item, extra, count}}).front());
+            })) { OffloadBatch::current->repeat = true; return false; }
+            if (!InventoryStacks::Valid(prepared->cursor) ||
+                (equipment && prepared->stacks.size() != found->second.stacks.size())) {
+                if (equipment) snapshot.erase(found);
                 return false;
             }
         }
@@ -501,6 +524,17 @@ namespace PlayerEquipment {
         current = &snapshot;
         const bool changed = work();
         if (equipment && changed) {
+            if (prepared) {
+                if (!InventoryStacks::Valid(prepared->cursor)) { snapshot.erase(found); return changed; }
+                std::ranges::stable_sort(prepared->moved, [](const auto& left, const auto& right) { return left.first > right.first; });
+                for (const auto& [index, count] : prepared->moved) {
+                    auto& identities = found->second.stacks;
+                    if (index >= identities.size() || count > identities[index].count) { snapshot.erase(found); return changed; }
+                    identities[index].count -= count;
+                    if (!identities[index].count) identities.erase(identities.begin() + index);
+                }
+                return changed;
+            }
             const auto physical = Capture(player, {}, item);
             const auto currentItem = physical.find(item);
             const auto fresh = currentItem == physical.end() ? std::vector<StackIdentity>{} : currentItem->second.stacks;
@@ -539,6 +573,7 @@ namespace PlayerEquipment {
     bool IsRunning() { return pending != nullptr; }
 
     void Reset() {
+        InventoryPreview::End();
         if (!pending) return;
         auto request = std::move(pending);
         request->cancelled = true;

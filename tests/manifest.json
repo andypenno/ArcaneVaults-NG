@@ -406,6 +406,14 @@
       "timeout_seconds": 600,
       "sanitize": false,
       "release": false
+    },
+    {
+      "id": "inventory-preview",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_inventory_preview.py"],
+      "timeout_seconds": 90,
+      "sanitize": true,
+      "release": true
     }
   ]
 }

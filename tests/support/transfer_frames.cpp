@@ -1,4 +1,4 @@
-int main() {
+int main(int argc, char** argv) {
     auto* player = RE::PlayerCharacter::GetSingleton();
     auto* utility = Utility::GetSingleton();
     auto* stores = Stores::GetSingleton();
@@ -64,11 +64,20 @@ int main() {
     };
     const std::vector<std::string> phases{"capture", "protected capture", "row indexing", "row matching",
         "delayed rows", "validation", "candidate enumeration", "job expansion", "soul gem recovery", "distinct soul gems",
-        "native inventory", "native menu", "native bulk", "cancel during readiness"};
-    for (int entry = 0; entry < 3; ++entry) for (const auto& phase : phases) for (int size : {1, 1000}) {
+        "native inventory", "native menu", "native bulk", "cancel during readiness",
+        "capture prefix", "validation prefix", "row prefix", "transfer stack scan", "misc stack scan", "soul gem scan",
+        "destination count scan", "archive listing scan"};
+    const std::vector<std::string> callPhases{"native capture read", "native validation read", "native transfer read",
+        "native row member", "native menu population", "native recovery refresh", "native menu close", "native item removal"};
+    auto scenarios = phases;
+    scenarios.insert(scenarios.end(), callPhases.begin(), callPhases.end());
+    if (argc > 1) scenarios.assign(argv + 1, argv + argc);
+    for (int entry = 0; entry < 3; ++entry) for (const auto& phase : scenarios) for (int size : {1, 1000})
+    for (int delay : phase.starts_with("native ") ? std::vector<int>{0, 250} : std::vector<int>{250}) {
         assert(idle() && !ui->menu);
         TransferFeedback::Reset(); FrameProbe::enabled = false;
         *Settings::GetSingleton() = Settings{};
+        RE::InventoryMenu::grouped = phase == "row prefix" || phase == "transfer stack scan";
         auto* settings = Settings::GetSingleton();
         settings->GSC_SoulgemKeepAmount = 0;
         settings->GSC_OffloadJewelry = settings->GSC_OffloadNotes = settings->GSC_OffloadPotion = true;
@@ -99,15 +108,16 @@ int main() {
         remember(put(player, &ignored, player, "ignored object"), &ignored); settings->ignored.insert(&ignored);
         const bool equipment = phase == "capture" || phase == "protected capture" || phase == "row indexing" ||
             phase == "row matching" || phase == "delayed rows" || phase == "validation" || phase == "native menu" ||
-            phase == "cancel during readiness";
+            phase == "cancel during readiness" || phase == "transfer stack scan" || phase.ends_with(" prefix") || std::ranges::find(callPhases, phase) != callPhases.end();
         const bool cancel = phase == "cancel during readiness";
-        const int copies = size;
+        const int copies = phase == "destination count scan" ? 1 : size;
         for (int i = 0; i < copies; ++i) {
             RE::TESObjectREFR* source = player;
             auto* destination = banks[Container::Notes].get();
             RE::TESBoundObject* item{};
-            if (phase == "row matching") item = &ring;
-            else if (phase == "soul gem recovery") item = &gem;
+            if ((phase.ends_with(" prefix") || phase.ends_with(" stack scan") || phase == "archive listing scan") && !objects.empty()) item = objects.front().get();
+            else if (phase == "row matching") item = &ring;
+            else if (phase == "soul gem recovery" || phase == "soul gem scan") item = &gem;
             else {
                 if (phase == "distinct soul gems") objects.push_back(std::make_unique<RE::TESSoulGem>(22000 + i));
                 else objects.push_back(std::make_unique<RE::TESBoundObject>(22000 + i, false, equipment));
@@ -115,8 +125,8 @@ int main() {
                 item->categories = equipment ? ItemCategory::Armor | ItemCategory::Jewelry : ToMask(ItemCategory::Note);
             }
             if (equipment) destination = phase == "protected capture" || cancel ? player : banks[Container::Armor].get();
-            if (phase == "native bulk") source = banks[Container::Maps].get();
-            if (phase == "soul gem recovery" || phase == "distinct soul gems") {
+            if (phase == "native bulk" || phase == "archive listing scan") source = banks[Container::Maps].get();
+            if (phase == "soul gem recovery" || phase == "soul gem scan" || phase == "distinct soul gems") {
                 source = banks[Container::Crafting].get(); destination = banks[Container::Soulgem].get();
             }
             auto value = put(source, item, destination, "copy " + std::to_string(i));
@@ -124,13 +134,20 @@ int main() {
             if (phase == "protected capture") value.first->hotkey = true;
             remember(value, item);
         }
+        if (phase == "destination count scan") {
+            auto* item = objects.front().get();
+            auto* destination = banks[Container::Notes].get();
+            for (int i = 0; i < size; ++i)
+                remember(put(destination, item, destination, "stored copy " + std::to_string(i)), item);
+        }
         ProbeClock::tick = {};
         const std::string cost = phase == "protected capture" ? "capture" :
             phase == "delayed rows" || cancel ? "row indexing" : phase == "distinct soul gems" ? "soul gem recovery" : phase;
         FrameProbe::Reset(cost);
+        FrameProbe::nativeDelay = delay;
         int shownFrame = -1, frame = 0;
-        if (phase == "delayed rows" || cancel) FrameProbe::afterShow = [&] {
-            shownFrame = frame;
+        if (phase == "delayed rows" || cancel || phase == "native recovery refresh") FrameProbe::afterShow = [&] {
+            if (phase != "native recovery refresh") shownFrame = frame;
             auto* menu = static_cast<RE::InventoryMenu*>(ui->menu);
             for (auto* row : menu->list.items) row->obj.kind = RE::GFxValue::Undefined;
         };
@@ -156,7 +173,12 @@ int main() {
             pump();
         }
         FrameProbe::Observe();
+        if (!idle()) std::cerr << "Quick Transfer did not complete: phase=" << phase << " size=" << size
+            << " entry=" << entry << " traversal_units=" << FrameProbe::units << " max_gap_ms=" << FrameProbe::maxGap << '\n';
+        if (!idle() && PlayerEquipment::pending) std::cerr << "Inspection cursor: row=" << PlayerEquipment::pending->rowCursor
+            << " extra=" << PlayerEquipment::pending->extraCursor << " phase=" << static_cast<int>(PlayerEquipment::pending->phase) << '\n';
         assert(idle() && !ui->menu && RE::input == input && RE::PlayerControls::GetSingleton()->blockPlayerInput == blocked);
+        assert(!InventoryPreview::active);
         RE::InputEvent button; assert(!SKSEMenuFramework::block(&button));
         assert(FrameProbe::confirmations == (cancel ? 0 : 1));
         if (entry == 2) assert(completed == !cancel);
@@ -180,14 +202,24 @@ int main() {
             assert(matches == 1);
         }
         const bool opaque = phase.starts_with("native ");
-        if (FrameProbe::opaqueCharged) assert(FrameProbe::units == 1 && FrameProbe::maxGap >= 250 && FrameProbe::worstPhase == phase);
+        if (FrameProbe::opaqueCharged) {
+            assert(FrameProbe::units == 1);
+            if (delay) assert(FrameProbe::maxGap >= delay && FrameProbe::worstPhase == phase);
+            else assert(FrameProbe::maxGap <= 50);
+        }
         else if (!opaque) {
             if (!FrameProbe::units) std::cerr << "Unexercised phase " << phase << " size=" << size << " entry=" << entry << '\n';
             assert(FrameProbe::units > 0);
         }
+        if (std::ranges::find(callPhases, phase) != callPhases.end()) {
+            assert(FrameProbe::opaqueCharged && FrameProbe::drawsBeforeOpaque > 0);
+            assert(FrameProbe::draws > FrameProbe::drawsBeforeOpaque);
+        }
         const bool passed = (opaque && FrameProbe::opaqueCharged) || FrameProbe::maxGap <= 50;
         std::cout << "{\"entry\":" << entry << ",\"phase\":\"" << phase << "\",\"size\":" << size
+            << ",\"injected_delay_ms\":" << (opaque ? delay : 0) << ",\"draws_before_call\":" << FrameProbe::drawsBeforeOpaque
             << ",\"copies\":" << copies << ",\"units\":" << FrameProbe::units << ",\"draws\":" << FrameProbe::draws
+            << ",\"destination_copies\":" << (phase == "destination count scan" ? size : 0)
             << ",\"max_gap_ms\":" << FrameProbe::maxGap << ",\"worst_phase\":\"" << FrameProbe::worstPhase
             << "\",\"opaque_control\":" << (opaque ? "true" : "false")
             << ",\"opaque_call_observed\":" << (FrameProbe::opaqueCharged ? "true" : "false")
@@ -198,5 +230,6 @@ int main() {
         }
         std::cout << "]}\n";
         FrameProbe::enabled = false; FrameProbe::afterShow = {};
+        RE::InventoryMenu::grouped = false;
     }
 }

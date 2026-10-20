@@ -163,7 +163,7 @@ int main(){
     auto& ring=rings[0];
     resetTransfer();player->Put(&ring,3);player->Put(&rings[1],7);
     RE::TESObjectREFR::inventoryCopies=0;
-    assert(InventoryStacks::Count(player,&ring)==3 && RE::TESObjectREFR::inventoryCopies==1);
+    assert(InventoryStacks::Count(player,&ring)==3 && RE::TESObjectREFR::inventoryCopies==0);
     RE::TESObjectREFR::inventoryCopies=0;
     const auto selectedStacks=InventoryStacks::Read(player,{},&ring);
     assert(selectedStacks.size()==1 && selectedStacks.front().item==&ring && selectedStacks.front().count==3);
