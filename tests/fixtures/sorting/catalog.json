@@ -687,11 +687,13 @@
     "kind": "item",
     "categories": [
       "Remains",
+      "Construction",
       "Smithing"
     ],
     "vaults": [
       "Smithing",
-      "Remains"
+      "Remains",
+      "Construction"
     ]
   },
   "dragon-scales": {
@@ -699,11 +701,13 @@
     "kind": "item",
     "categories": [
       "Remains",
+      "Construction",
       "Smithing"
     ],
     "vaults": [
       "Smithing",
-      "Remains"
+      "Remains",
+      "Construction"
     ]
   },
   "mammoth-tusk": {
@@ -723,11 +727,13 @@
     "kind": "item",
     "categories": [
       "Remains",
+      "Construction",
       "Smithing"
     ],
     "vaults": [
       "Smithing",
-      "Remains"
+      "Remains",
+      "Construction"
     ]
   },
   "troll-skull": {
@@ -735,11 +741,13 @@
     "kind": "item",
     "categories": [
       "Remains",
+      "Construction",
       "Smithing"
     ],
     "vaults": [
       "Smithing",
-      "Remains"
+      "Remains",
+      "Construction"
     ]
   },
   "human-skull": {
@@ -747,11 +755,13 @@
     "kind": "item",
     "categories": [
       "Remains",
+      "Construction",
       "Smithing"
     ],
     "vaults": [
       "Smithing",
-      "Remains"
+      "Remains",
+      "Construction"
     ]
   },
   "carved-skull": {
@@ -771,11 +781,13 @@
     "kind": "item",
     "categories": [
       "Remains",
+      "Construction",
       "Smithing"
     ],
     "vaults": [
       "Smithing",
-      "Remains"
+      "Remains",
+      "Construction"
     ]
   },
   "necromancer-bone": {

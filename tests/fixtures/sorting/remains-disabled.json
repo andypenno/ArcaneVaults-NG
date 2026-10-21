@@ -3,10 +3,24 @@
   "name": "remains-disabled",
   "description": "Other Smithing switches cannot bypass a disabled Remains leaf.",
   "settings": {
-    "GSC_OffloadRemains": false
+    "GSC_OffloadRemains": false,
+    "GSC_OffloadConstruction": false
   },
   "inventories": {
     "player": [
+      {"id": "shared-dragon-bone", "base": "dragon-bone", "count": 5, "after": {"player": 5}},
+      {"id": "shared-dragon-scales", "base": "dragon-scales", "count": 5, "after": {"player": 5}},
+      {"id": "shared-horker-tusk", "base": "horker-tusk", "count": 5, "after": {"player": 5}},
+      {"id": "shared-troll-skull", "base": "troll-skull", "count": 5, "after": {"player": 5}},
+      {"id": "shared-human-skull", "base": "human-skull", "count": 5, "after": {"player": 5}},
+      {
+        "id": "carried-goat-horns",
+        "base": "goat-horns",
+        "count": 5,
+        "after": {
+          "player": 5
+        }
+      },
       {
         "id": "carried-bones",
         "base": "dragon-bone",

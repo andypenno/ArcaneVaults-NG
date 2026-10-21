@@ -10,8 +10,10 @@ class RemainsTests(unittest.TestCase):
         expected |= {('dragonborn.esm', 0x20DCF), ('hearthfires.esm', 0x303F)}
         actual = {identity for identity, categories in defaults.items() if 'Remains' in categories}
         self.assertEqual(actual, expected)
+        construction = expected - {('skyrim.esm', 0x3AD6C), ('dragonborn.esm', 0x20DCF)}
         for identity in expected:
-            self.assertEqual(defaults[identity], ['Remains'])
+            categories = ['Remains', 'Construction'] if identity in construction else ['Remains']
+            self.assertEqual(defaults[identity], categories)
         for value in (0x319E3, 0x319E5):
             self.assertEqual(defaults[('skyrim.esm', value)], ['Junk'])
         for value in (0x3AD52, 0x3AD70, 0x34CDD):

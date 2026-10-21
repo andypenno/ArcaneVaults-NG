@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "name": "remains-construction-overlap",
+  "description": "Goat horns sort through either enabled category and retain protected copies.",
+  "settings": {
+    "GSC_OffloadRemains": false,
+    "GSC_OffloadConstruction": true
+  },
+  "inventories": {
+    "player": [
+      {"id": "shared-dragon-bone", "base": "dragon-bone", "count": 5, "after": {"Smithing": 5}},
+      {"id": "shared-dragon-scales", "base": "dragon-scales", "count": 5, "after": {"Smithing": 5}},
+      {"id": "shared-horker-tusk", "base": "horker-tusk", "count": 5, "after": {"Smithing": 5}},
+      {"id": "shared-troll-skull", "base": "troll-skull", "count": 5, "after": {"Smithing": 5}},
+      {"id": "shared-human-skull", "base": "human-skull", "count": 5, "after": {"Smithing": 5}},
+      {"id": "spare-goat-horns", "base": "goat-horns", "count": 12, "after": {"Smithing": 12}},
+      {"id": "favorite-goat-horns", "base": "goat-horns", "count": 1, "favorite": true, "after": {"player": 1}}
+    ]
+  },
+  "no_transfers": false
+}

@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 
 from performance.bench_crafting_loans import FILES, MAIN, ROOT, body, build_program, common_source
+from support.data import overrides
+from support.sorting import enum_names
 
 
 CHECK = r'''
@@ -13,7 +15,7 @@ int main(){
  auto* stores=Stores::GetSingleton();auto* u=Utility::GetSingleton();auto* player=RE::PlayerCharacter::GetSingleton();
  auto* settings=Settings::GetSingleton();auto* loan=CraftingLoanState::GetSingleton();
  std::map<Container,std::unique_ptr<RE::TESObjectREFR>> banks;
- for(auto kind:{Container::Smithing,Container::Remains,Container::Junk,Container::Alchemy,Container::Food,
+ for(auto kind:{Container::Smithing,Container::Remains,Container::Construction,Container::Junk,Container::Alchemy,Container::Food,
      Container::Soulgem,Container::EmptySoulgems,Container::FilledSoulgems,Container::EnchantedItems}){
   banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));u->containers[kind]=banks[kind].get();
  }
@@ -73,6 +75,36 @@ int main(){
   }
   ++cases;
  }
+ for(const auto& [id,categories]:std::array{OVERLAP_RECORDS}){
+ RE::TESBoundObject material;material.id=id;material.categories=categories|ToMask(ItemCategory::Smithing);
+ auto* construction=banks[Container::Construction].get();
+ for(int limit:{1,7,9999}){
+  loan->Reset();player->rows.clear();consumed.rows.clear();
+  for(auto& [kind,bank]:banks){(void)kind;bank->rows.clear();bank->limit=limit;bank->refuse=false;bank->changes.bulkLimit=9999;bank->changes.bulkRefuse=false;}
+  smith->Put(&material,0,12,&owner,"shared remains");
+  stores->OpenBookArchive(Container::Remains,Container::Smithing,ItemCategory::Remains,&source);
+  assert(count(archive,&material)==12 && count(smith,&material)==0);stores->onClose(&source);
+  stores->SmithConstructMenu(&source);
+  assert(stores->opened==Container::Construction && count(construction,&material)==12 && count(archive,&material)==0);
+  stores->onClose(&source);assert(count(smith,&material)==12 && count(construction,&material)==0);
+  stores->ShowSmithMenu(&source);
+  auto option=std::ranges::find_if(stores->options,[](auto& value){return value.text=="Vault.Construction Vault.Vault";});
+  assert(option!=stores->options.end());auto action=option->action;action();
+  assert(count(construction,&material)==12 && count(smith,&material)==0);stores->onClose(&source);
+  settings->GSC_CraftingLoan=true;settings->GSC_AllCraftingMaterials=false;u->bench=BenchType::Smithing;
+  for(int visit=0;visit<2;++visit){
+   loan->EnterCrafting(&source);assert(count(player,&material)==12-visit);
+   const auto stacks=InventoryStacks::Read(player,{},&material);assert(!stacks.empty());
+   assert(InventoryStacks::Move({player,&material,stacks.front().extra,1},&consumed)==1);
+   loan->ExitCrafting();assert(count(player,&material)==0 && count(smith,&material)==11-visit);
+   assert(count(smith,&material)+count(&consumed,&material)==12);
+  }
+  stores->OpenBookArchive(Container::Remains,Container::Smithing,ItemCategory::Remains,&source);
+  assert(count(archive,&material)==10);stores->onClose(&source);
+  for(const auto& stack:InventoryStacks::Read(smith,{},&material))assert(stack.extra && stack.extra->owner==&owner);
+  ++cases;
+ }
+ }
  std::cout<<"{\"passed\":true,\"cases\":"<<cases<<"}\n";
 }
 '''
@@ -91,14 +123,21 @@ def main():
     start = common.index('    void AllToStore(Container from,')
     end = common.index('\n    }', start) + 6
     common = common[:start] + '    void AllToStore(Container,Container);\n' + common[end:]
-    common = common.replace('struct Stores {', 'struct Stores {void ConsolidateBooks(){}void ConsolidatePotions(){}void BookMenu(RE::TESObjectREFR*){}void NotesMenu(RE::TESObjectREFR*){}void SmithMenu(RE::TESObjectREFR*);void ShowSmithMenu(RE::TESObjectREFR*);void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);')
+    common = common.replace('struct Stores {', 'struct Stores {void ConsolidateBooks(){}void ConsolidatePotions(){}void BookMenu(RE::TESObjectREFR*){}void NotesMenu(RE::TESObjectREFR*){}void SmithMenu(RE::TESObjectREFR*);void ShowSmithMenu(RE::TESObjectREFR*);void SmithConstructMenu(RE::TESObjectREFR*);void ShowSmithConstructMenu(RE::TESObjectREFR*);void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);')
     common = common.replace('namespace std {', 'namespace std {inline string format(const char*,const char* a,const char* b){return string(a)+" "+b;}')
     extra = ''.join(body(sources['src/Stores.cpp'], 'void Stores::' + name + '(')
-                    for name in ('AllToStore', 'OpenBookArchive', 'SmithMenu', 'ShowSmithMenu'))
+                    for name in ('AllToStore', 'OpenBookArchive', 'SmithMenu', 'ShowSmithMenu', 'SmithConstructMenu', 'ShowSmithConstructMenu'))
+    defaults = overrides((ROOT / 'ini/ArcaneVaultOverrides.ini').read_text(), set(enum_names('ItemCategory')))
+    identities = [('hearthfires.esm', 0x303F), *(('skyrim.esm', value) for value in (0x3ADA4, 0x3ADA3, 0x3AD68, 0x319E4, 0xAF5FD))]
+    records = []
+    for identity in identities:
+        categories = '|'.join(f'ToMask(ItemCategory::{category})' for category in defaults[identity])
+        records.append(f'std::pair{{0x{identity[1]:X}u,{categories}}}')
+    checks = CHECK.replace('OVERLAP_RECORDS', ','.join(records))
     with tempfile.TemporaryDirectory(prefix='av-remains-') as directory:
         root = Path(directory)
         (root / 'common.hpp').write_text('#pragma once\n' + common)
-        (root / 'check.cpp').write_text(program[:-len(MAIN)] + extra + CHECK)
+        (root / 'check.cpp').write_text(program[:-len(MAIN)] + extra + checks)
         files = [str(root / 'check.cpp')]
         for name in ('InventoryStacks', 'Soulgems'):
             module = root / f'{name}.cpp'
