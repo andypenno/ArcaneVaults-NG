@@ -71,7 +71,7 @@ struct Tasks {
 Tasks* GetTaskInterface() { static Tasks tasks;return &tasks; }
 }
 struct Settings {
-    bool GSC_LearnDepositOverrides=false,fail=false;
+    bool GSC_LearnDepositOverrides=false,GSC_AllowAutomaticLearning=false,fail=false;
     std::unordered_map<unsigned,CategoryMask> overrides,disk;
     static Settings* GetSingleton() { static Settings s;return &s; }
     static std::optional<std::string> MakeFormIdentifier(RE::TESBoundObject* item) { return item->stable?std::optional<std::string>{"plugin|id"}:std::nullopt; }
@@ -176,6 +176,44 @@ int main() {
 
     open(Container::Junk);send(a);tasks->Run();menu->Answer(true);
     assert(s->overrides[a.id]==ToMask(ItemCategory::Junk) && s->disk==s->overrides);
+
+    s->GSC_AllowAutomaticLearning=true;
+    const auto automaticPrompts=menu->prompts;
+    for(bool enabled:{false,true}) {
+        s->GSC_LearnDepositOverrides=enabled;s->overrides.clear();s->disk.clear();
+        open(Container::Alchemy);
+        send(gem);send(dynamic);send(matched);send(a,0);
+        events->Send({0x14,bank.id,999,1});
+        events->Send({0x22,bank.id,a.id,1});events->Send({0x14,0x99,a.id,1});
+        send(a,3);DepositLearning::RecordAutomaticTransfer(&player,&bank,&a,3);
+        tasks->Run();assert(s->overrides.empty() && menu->prompts==automaticPrompts);
+        send(a);send(a);send(b);tasks->Run();
+        assert(menu->prompts==automaticPrompts && menu->options.empty());
+        if(enabled) assert(s->overrides[a.id]==ToMask(ItemCategory::Alchemy) && s->overrides[b.id]==ToMask(ItemCategory::Alchemy) && s->disk==s->overrides);
+        else assert(s->overrides.empty() && s->disk.empty());
+    }
+    for(auto kind:{Container::None,Container::Master,Container::Sort,Container::Ignore,Container::Trade,Container::Valuables,Container::FilledSoulgems,Container::EmptySoulgems,Container::StolenItems,Container::EnchantedItems}) {
+        s->overrides.clear();s->disk.clear();open(kind);send(a);tasks->Run();
+        assert(s->overrides.empty() && menu->prompts==automaticPrompts);
+    }
+    s->overrides[a.id]=ToMask(ItemCategory::Book);s->disk=s->overrides;s->fail=true;
+    const auto errors=RE::SendHUDMessage::errors;
+    open(Container::Remains);send(a);send(a);send(b);send(b);tasks->Run();
+    assert(s->overrides.at(a.id)==ToMask(ItemCategory::Book) && !s->overrides.contains(b.id));
+    assert(s->disk==s->overrides && RE::SendHUDMessage::errors==errors+2 && menu->prompts==automaticPrompts);
+    s->fail=false;open(Container::Keys);send(a);DepositLearning::MenuClosed();tasks->Run();
+    assert(s->overrides.at(a.id)==ToMask(ItemCategory::Book));
+    open(Container::Keys);send(a);DepositLearning::Reset();tasks->Run();
+    assert(s->overrides.at(a.id)==ToMask(ItemCategory::Book));
+    open(Container::Keys);send(a);RE::TESObjectREFR::target=&player;tasks->Run();
+    assert(s->overrides.at(a.id)==ToMask(ItemCategory::Book));RE::TESObjectREFR::target=&bank;
+    open(Container::Keys);send(a);s->GSC_LearnDepositOverrides=false;tasks->Run();
+    assert(s->overrides.at(a.id)==ToMask(ItemCategory::Book));
+    s->GSC_LearnDepositOverrides=true;s->GSC_AllowAutomaticLearning=false;
+    open(Container::Keys);send(a);send(b);tasks->Run();assert(menu->prompts==automaticPrompts+1);
+    s->GSC_AllowAutomaticLearning=true;menu->Answer(false);
+    assert(s->overrides.at(a.id)==ToMask(ItemCategory::Book) && s->overrides.at(b.id)==ToMask(ItemCategory::Keys));
+    assert(menu->prompts==automaticPrompts+1 && menu->options.empty() && s->disk==s->overrides);
 
 }
 '''

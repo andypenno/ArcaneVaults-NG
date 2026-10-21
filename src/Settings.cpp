@@ -54,6 +54,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_AllCraftingMaterials, "General", "AllCraftingMaterials");
 	option(settings.GSC_ReturnIgnoredItems, "General", "ReturnIgnoredItems");
 	option(settings.GSC_LearnDepositOverrides, "General", "LearnDepositOverrides");
+	option(settings.GSC_AllowAutomaticLearning, "General", "AllowAutomaticLearning");
 	option(settings.GSC_AllowRemovingStolenTags, "General", "AllowRemovingStolenTags");
 	option(settings.GSC_AssignOnlyOwn, "General", "AssignOnlyOwn");
 	option(settings.GSC_AssignSpell, "General", "AssignSpell");

@@ -44,6 +44,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `ScrollKeepAmount` | 3 | Manual Scroll Keep N and Take Up To N target per base record |
 | `AllowRemovingStolenTags` | false | Enable the Stolen Items menu and confirmed ownership clearing |
 | `LearnDepositOverrides` | false | Offer classification overrides for mismatched manual deposits |
+| `AllowAutomaticLearning` | false | Learn without confirmation when deposit learning is enabled |
 | `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
@@ -72,6 +73,8 @@ Options exposes Allow Removing Stolen Tags, persisted as `[General] AllowRemovin
 ## Learning from deposits
 
 Options' Learn Overrides From Deposits is disabled by default. [DepositLearning.cpp](../src/DepositLearning.cpp) observes player deposits while an eligible storage container is open. Only classification mismatches prompt. Accepting replaces that base record's global user override; declining leaves its classification unchanged. Both leave deposited copies in place. A declined record is not offered again during that container visit. Prompts queue without overlapping, and close/load/new-game invalidates pending decisions. Save failures restore the previous in-memory override and show an error.
+
+Allow Automatic Learning appears below the learning option while learning is enabled and defaults off. Turning it on learns eligible mismatched manual deposits without confirmation, with the same exclusions, persistence and save-failure rollback. `[General] AllowAutomaticLearning=true` has no effect while `LearnDepositOverrides=false`. An already displayed prompt still requires an answer; subsequent pending deposits use the current automatic-learning setting.
 
 Parent vaults learn Alchemy, Armor, Weapon, Smithing, Food, or Concoction without choosing a subtype. Category archives learn their named category. Notes learns Note. Junk learns Junk; Personal learns Personal; Gear learns Gear; Instruments learns Instrument. Soulgem learns Soulgem for ordinary items; physical soul gems retain their dedicated classification unless explicitly overridden to Ignore. Health Potions, Magicka Potions and Stamina Potions learn HealthPotion, MagickaPotion and StaminaPotion. Enchanted Items, Valuables, filled/empty soul-gem storage, Trade, Sort, Ignore, and Arcane Vault cannot teach a single persistent category. Physical soul gems and forms without stable plugin identifiers never prompt, even in eligible destinations. Soul state remains per copy.
 

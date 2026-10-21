@@ -81,24 +81,28 @@ namespace {
 
     void ShowNext();
 
+    void Learn(RE::TESBoundObject* item, ItemCategory proposed) {
+        if (!Mismatch(item)) return;
+        auto* settings = Settings::GetSingleton();
+        const auto formID = item->GetFormID();
+        const auto& overrides = settings->GetUserOverrides();
+        const auto found = overrides.find(formID);
+        const std::optional<CategoryMask> previous = found == overrides.end() ?
+            std::nullopt : std::optional<CategoryMask>{found->second};
+        settings->SetUserOverride(item, ToMask(proposed));
+        if (!settings->SaveUserOverrides()) {
+            if (previous) settings->SetUserOverride(item, *previous);
+            else settings->RemoveUserOverride(formID);
+            RE::SendHUDMessage::ShowHUDMessage(AVTranslation::Translate("Learning.SaveFailed"));
+        }
+    }
+
     void Answer(std::uint64_t session, std::uint64_t ticket, RE::FormID formID, ItemCategory proposed, bool accept) {
         if (ticket != dialog) return;
         showing = false;
         if (accept && Active(session)) {
             auto* item = RE::TESForm::LookupByID<RE::TESBoundObject>(formID);
-            auto* settings = Settings::GetSingleton();
-            if (Mismatch(item)) {
-                const auto& overrides = settings->GetUserOverrides();
-                const auto found = overrides.find(formID);
-                const std::optional<CategoryMask> previous = found == overrides.end() ?
-                    std::nullopt : std::optional<CategoryMask>{found->second};
-                settings->SetUserOverride(item, ToMask(proposed));
-                if (!settings->SaveUserOverrides()) {
-                    if (previous) settings->SetUserOverride(item, *previous);
-                    else settings->RemoveUserOverride(formID);
-                    RE::SendHUDMessage::ShowHUDMessage(AVTranslation::Translate("Learning.SaveFailed"));
-                }
-            }
+            Learn(item, proposed);
         }
         ShowNext();
     }
@@ -112,6 +116,10 @@ namespace {
             auto* item = RE::TESForm::LookupByID<RE::TESBoundObject>(id);
             if (!Mismatch(item)) continue;
             const auto proposed = category;
+            if (Settings::GetSingleton()->GSC_AllowAutomaticLearning) {
+                Learn(item, proposed);
+                continue;
+            }
             const auto ticket = ++dialog;
             const auto* name = item->GetName();
             auto proposedName = FormatCategories(ToMask(proposed));

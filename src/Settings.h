@@ -18,6 +18,7 @@ public:
 	bool GSC_AllCraftingMaterials{ false };
 	bool GSC_ReturnIgnoredItems{ true };
 	bool GSC_LearnDepositOverrides{ false };
+	bool GSC_AllowAutomaticLearning{ false };
 	bool GSC_AllowRemovingStolenTags{ false };
 	bool GSC_AssignOnlyOwn{ true };
 	bool GSC_AssignSpell{ true };

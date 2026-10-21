@@ -152,6 +152,7 @@
 	"Vault.SpellTomes": "Spell Tomes",
 	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition",
 	"Options.LearnDepositOverrides": "Learn Overrides From Deposits",
+	"Options.AllowAutomaticLearning": "Allow Automatic Learning",
 	"Learning.Confirm": "Always sort {0} into {1}?\nRemove this override in the SKSE Overrides menu.",
 	"Learning.No": "No",
 	"Learning.Yes": "Yes",

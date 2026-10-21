@@ -72,6 +72,9 @@ namespace AVUI {
 			changeOption = true;
 		if (Checkbox(Translate("Options.LearnDepositOverrides"), &setting->GSC_LearnDepositOverrides))
 			changeOption = true;
+		if (setting->GSC_LearnDepositOverrides &&
+			Checkbox(Translate("Options.AllowAutomaticLearning"), &setting->GSC_AllowAutomaticLearning))
+			changeOption = true;
 		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
 			changeOption = true;
 			utility->ConfigurationSpells();

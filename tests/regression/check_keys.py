@@ -621,6 +621,7 @@ int main() {
     assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
 assert(!options.contains({"General", "EnchantedItemsLoan"}));
     assert(options.contains({"General", "AllCraftingMaterials"}));
+    assert(options.at({"General", "AllowAutomaticLearning"}) == 0);
     assert(!settings->GSC_AllCraftingMaterials);
     assert(options.at({"General", "LockpickKeepAmount"}) == 25);
     assert(options.at({"Offload", "Gear"}) == 0);

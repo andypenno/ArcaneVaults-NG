@@ -79,6 +79,7 @@ bool toggleSpells = false;
 bool toggleNotes = false;
 bool toggleGear = false;
 bool toggleLearning = false;
+bool toggleAutomaticLearning = false;
 bool toggleStolenTags = false;
 bool toggleSelectedAmmo = false;
 bool toggleAllMaterials = false;
@@ -119,6 +120,7 @@ bool Checkbox(const char* label, bool* value) {
     if (toggleSelectedAmmo && value == &Settings::GetSingleton()->GSC_KeepSelectedAmmunition) { *value = !*value; return true; }
     if (toggleStolenTags && value == &Settings::GetSingleton()->GSC_AllowRemovingStolenTags) { *value = !*value; return true; }
     if (toggleLearning && value == &Settings::GetSingleton()->GSC_LearnDepositOverrides) { *value = !*value; return true; }
+    if (toggleAutomaticLearning && value == &Settings::GetSingleton()->GSC_AllowAutomaticLearning) { *value = !*value; return true; }
     if (toggleGear && value == &Settings::GetSingleton()->GSC_OffloadGear) { *value = !*value; return true; }
     if (toggleNotes && value == &Settings::GetSingleton()->GSC_OffloadNotes) { *value = !*value; return true; }
     if (value == &Settings::GetSingleton()->GSC_OffloadBooks) { *value = !*value; return true; }
@@ -224,6 +226,17 @@ int main() {
     assert(!settings->GSC_LearnDepositOverrides);inputs.clear();ids.clear();toggleLearning=true;
     const auto beforeLearning=settings->saves;RenderOptions();assert(settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+1);
     ids.clear();RenderOptions();assert(!settings->GSC_LearnDepositOverrides && settings->saves==beforeLearning+2);
+
+    toggleLearning=false;toggleSelectedAmmo=false;toggleAutomaticLearning=true;
+    ids.clear();shownControls.clear();const auto beforeAutomatic=settings->saves;
+    assert(!settings->GSC_AllowAutomaticLearning);RenderOptions();
+    assert(!settings->GSC_AllowAutomaticLearning && settings->saves==beforeAutomatic);
+    assert(std::ranges::find(shownControls,"Options.AllowAutomaticLearning")==shownControls.end());
+    settings->GSC_LearnDepositOverrides=true;ids.clear();shownControls.clear();RenderOptions();
+    assert(settings->GSC_AllowAutomaticLearning && settings->saves==beforeAutomatic+1);
+    assert(std::ranges::find(shownControls,"Options.AllowAutomaticLearning")!=shownControls.end());
+    ids.clear();RenderOptions();assert(!settings->GSC_AllowAutomaticLearning && settings->saves==beforeAutomatic+2);
+    settings->GSC_LearnDepositOverrides=false;toggleAutomaticLearning=false;
 
     toggleLearning=false;toggleStolenTags=true;ids.clear();assert(!settings->GSC_AllowRemovingStolenTags);
     const auto beforeStolenTags=settings->saves;RenderOptions();assert(settings->GSC_AllowRemovingStolenTags && settings->saves==beforeStolenTags+1);
