@@ -188,6 +188,7 @@ program += r'''
 
 struct Stores {
     void RecoverSawnLogs() {}
+    void ConsolidateRemains() {}
     static Stores* GetSingleton() { static Stores s;return &s; }
     void BeginJunkLoan() {}
     void EndJunkLoan() {}

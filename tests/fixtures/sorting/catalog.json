@@ -681,5 +681,156 @@
       "Notes",
       "Maps"
     ]
+  },
+  "dragon-bone": {
+    "name": "Dragon bone",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "dragon-scales": {
+    "name": "Dragon scales",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "mammoth-tusk": {
+    "name": "Mammoth tusk",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "horker-tusk": {
+    "name": "Horker tusk",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "troll-skull": {
+    "name": "Troll skull",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "human-skull": {
+    "name": "Skull",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "carved-skull": {
+    "name": "Carved skull",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "goat-horns": {
+    "name": "Goat horns",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "necromancer-bone": {
+    "name": "Modded necromancer arm bone",
+    "kind": "item",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "trophy-head": {
+    "name": "Modded wearable monster head",
+    "kind": "armor",
+    "categories": [
+      "Remains",
+      "Smithing"
+    ],
+    "vaults": [
+      "Smithing",
+      "Remains"
+    ]
+  },
+  "junk-trophy": {
+    "name": "Monster head overridden to Junk",
+    "kind": "item",
+    "categories": [
+      "Junk"
+    ],
+    "vaults": [
+      "Junk"
+    ]
+  },
+  "ignored-remains": {
+    "name": "Bone overridden to Ignore",
+    "kind": "item",
+    "categories": [
+      "Ignore"
+    ],
+    "vaults": [
+      "Junk"
+    ]
+  },
+  "bone-meal": {
+    "name": "Bone meal",
+    "kind": "item",
+    "categories": [
+      "Alchemy",
+      "Ingredient"
+    ],
+    "vaults": [
+      "Alchemy"
+    ]
   }
 }

@@ -47,7 +47,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `ReturnIgnoredItems` | true | Sort returns ignored items to the player; false allows normal sorting and Junk fallback |
 | `SalePercentage` | 30 | Trade pays this percentage of inventory item value; integer 1..100 |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults include `Notes`, `Personal`, and `Gear` alongside `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `Remains`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults include `Notes`, `Personal`, and `Gear` alongside `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
 Quantities also exposes Alchemy Keep Amount and Scroll Keep Amount. They affect manual vault actions; Quick Transfer retains its existing deposit-all policy for enabled Alchemy and Scroll categories.
 
@@ -130,4 +130,6 @@ Notes has its own Quick Transfer checkbox, persisted as `[Offload] Notes=false` 
 
 Keep Selected Ammunition is an Options checkbox, persisted as `[General] KeepSelectedAmmunition`; a missing key defaults to false. Ammunition Keep Amount remains on Quantities. The toggle controls Quick Transfer and the ammunition vault Keep N and Take Up To N actions; [storage.md](storage.md) defines both modes and protections.
 
-Junk is an explicit override category. `[Offload] Junk=true` enables protected Quick Transfer of declared Junk only; disabling it leaves those items carried. Bundled defaults cover burned/ruined books, quills, inkwells, troll skulls, bloody rags, miscellaneous cutlery, wooden/Dwemer plates and glazed amphoras. User overrides take precedence.
+Junk is an explicit override category. `[Offload] Junk=true` enables protected Quick Transfer of declared Junk only; disabling it leaves those items carried. Bundled defaults cover burned/ruined books, quills, inkwells, bloody rags, miscellaneous cutlery, wooden/Dwemer plates and glazed amphoras. User overrides take precedence.
+
+`Remains` is a Smithing subtype, available in the override editor, INI files and deposit learning. Defaults cover dragon bones/scales, mammoth/horker tusks, troll/human skulls, Dragonborn carved skulls and Hearthfire goat horns. Pelts, hides and leather retain their existing classification; alchemy ingredients are unchanged. Explicit user Junk overrides must be removed or changed to Remains to adopt the new defaults. `[Offload] Remains=true` enables protected deposits; disabling it cannot be bypassed by the broad Smithing fallback. Archive consolidation and recovery of stored stock still run when this player-deposit toggle is off.

@@ -327,6 +327,7 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Tanning, RE::FormID(0xDAB), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->SmithTanMenu(a_source); }); 
     AddContainer(dataHandler, Container::Construction, RE::FormID(0xDA9), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->SmithConstructMenu(a_source); });
     AddContainer(dataHandler, Container::Gemstone, RE::FormID(0xDA2), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->GemstoneMenu(a_source); });
+    AddContainer(dataHandler, Container::Remains, RE::FormID(0xDF2), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Remains, Container::Smithing, ItemCategory::Remains, source); });
 
     // Alchemy
     AddContainer(dataHandler, Container::Alchemy, RE::FormID(0xD94), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->AlchemyMenu(a_source); }); 

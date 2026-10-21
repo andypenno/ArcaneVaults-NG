@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
         Container::Potion, Container::Poison, Container::Restorative, Container::HealthPotions,
         Container::MagickaPotions, Container::StaminaPotions, Container::Gear, Container::Instruments,
         Container::Soulgem, Container::EmptySoulgems, Container::FilledSoulgems, Container::Smithing,
-        Container::Crafting, Container::Smelting, Container::Construction, Container::Tanning, Container::Gemstone,
+        Container::Crafting, Container::Smelting, Container::Construction, Container::Tanning, Container::Gemstone, Container::Remains,
         Container::Sort, Container::Keys, Container::Junk, Container::Personal, Container::Treasure,
         Container::Ammunition, Container::Food, Container::Alchemy}) {
         banks[kind] = std::make_unique<RE::TESObjectREFR>(19000 + static_cast<unsigned>(kind));
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         "delayed rows", "validation", "candidate enumeration", "job expansion", "soul gem recovery", "distinct soul gems",
         "native inventory", "native menu", "native bulk", "cancel during readiness",
         "capture prefix", "validation prefix", "row prefix", "transfer stack scan", "misc stack scan", "soul gem scan",
-        "destination count scan", "archive listing scan"};
+        "destination count scan", "archive listing scan", "remains recovery", "remains archive"};
     const std::vector<std::string> callPhases{"native capture read", "native validation read", "native transfer read",
         "native row member", "native menu population", "native recovery refresh", "native menu close", "native item removal"};
     auto scenarios = phases;
@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
             RE::TESObjectREFR* source = player;
             auto* destination = banks[Container::Notes].get();
             RE::TESBoundObject* item{};
-            if ((phase.ends_with(" prefix") || phase.ends_with(" stack scan") || phase == "archive listing scan") && !objects.empty()) item = objects.front().get();
+            if ((phase.ends_with(" prefix") || phase.ends_with(" stack scan") || phase == "archive listing scan" || phase.starts_with("remains ")) && !objects.empty()) item = objects.front().get();
             else if (phase == "row matching") item = &ring;
             else if (phase == "soul gem recovery" || phase == "soul gem scan") item = &gem;
             else {
@@ -126,6 +126,11 @@ int main(int argc, char** argv) {
             }
             if (equipment) destination = phase == "protected capture" || cancel ? player : banks[Container::Armor].get();
             if (phase == "native bulk" || phase == "archive listing scan") source = banks[Container::Maps].get();
+            if (phase.starts_with("remains ")) {
+                item->categories = ItemCategory::Remains | ItemCategory::Smithing;
+                source = banks[phase == "remains recovery" ? Container::Junk : Container::Remains].get();
+                destination = banks[Container::Smithing].get();
+            }
             if (phase == "soul gem recovery" || phase == "soul gem scan" || phase == "distinct soul gems") {
                 source = banks[Container::Crafting].get(); destination = banks[Container::Soulgem].get();
             }

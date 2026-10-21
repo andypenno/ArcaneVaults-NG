@@ -56,7 +56,8 @@ enum class Container : std::uint8_t {
     MagickaPotions,
     StaminaPotions,
     EnchantedItems,
-    QuickTransfer
+    QuickTransfer,
+    Remains
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -112,7 +113,8 @@ enum class ItemCategory : std::uint8_t {
     MagickaPotion,
     StaminaPotion,
     Junk,
-    Ignore
+    Ignore,
+    Remains
 };
 
 enum class ContainerGroup {
@@ -145,6 +147,7 @@ enum class ContainerGroup {
     case Container::Restorative:  return "Vault.Restoritive";
     case Container::Scroll:       return "Vault.Scroll";
     case Container::Smithing:     return "Vault.Smithing";
+    case Container::Remains:      return "Vault.Remains";
     case Container::Construction: return "Vault.Construction";
     case Container::Crafting:     return "Vault.Crafting";
     case Container::Smelting:     return "Vault.Smelting";
@@ -181,13 +184,14 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 49> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 50> categoryNames{{
     { "Ignore", ItemCategory::Ignore },
     { "Junk", ItemCategory::Junk },
     { "Alchemy", ItemCategory::Alchemy },
     { "Armor", ItemCategory::Armor },
     { "Weapon", ItemCategory::Weapon },
     { "Smithing", ItemCategory::Smithing },
+    { "Remains", ItemCategory::Remains },
     { "Food", ItemCategory::Food },
     { "Concoction", ItemCategory::Concoction },
     { "Restorative", ItemCategory::Restorative },

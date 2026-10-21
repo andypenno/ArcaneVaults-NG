@@ -22,11 +22,7 @@
 namespace {
     int MoveItems(RE::TESObjectREFR* source, RE::TESObjectREFR* destination, RE::TESBoundObject* item, int count) {
         if (!source || !destination || source == destination || !item || count <= 0) return 0;
-        const auto countItems = [source, item] {
-            const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
-            const auto found = counts.find(item);
-            return found == counts.end() ? 0 : (std::max)(0, found->second);
-        };
+        const auto countItems = [source, item] { return InventoryStacks::Count(source, item); };
         int available = countItems();
         int moved{};
         while (count > 0 && available > 0) {
@@ -357,11 +353,11 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
     auto* destination = utility->GetContainer(a_destination);
     if (!source || !destination) return;
 
-    const auto inventory = source->GetInventory([](RE::TESBoundObject& item) {
+    const auto inventory = InventoryStacks::Counts(source, [](RE::TESBoundObject& item) {
         return !OffloadBatch::current || OffloadBatch::current->item == &item;
     });
-    for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
+    for (const auto& [item, count] : inventory) {
+        if (!item || count <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         const auto categories = ClassifyItem(item);
         if (a_source == Container::Sort &&
@@ -384,7 +380,7 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
                 if (!stack->extra && favoriteCopies) stack = InventoryStacks::Materialize(*stack);
                 if (!stack || !InventoryStacks::Move(*stack, destination)) break;
             }
-        } else MoveItems(source, destination, item, data.first);
+        } else MoveItems(source, destination, item, count);
     }
 }
 
@@ -650,6 +646,9 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
     });
     auto* settings = Settings::GetSingleton();
 
+    all(Container::Remains, Container::Smithing);
+    recover(ItemCategory::Remains, Container::Junk, Container::Smithing);
+
     if (settings->GSC_OffloadJunk)
         deposit(ItemCategory::Junk, Container::Junk, 0, 0, true);
 
@@ -665,7 +664,7 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         all(Container::FilledSoulgems, Container::Soulgem);
         all(Container::EmptySoulgems, Container::Soulgem);
         for (auto from : {Container::Smithing, Container::Crafting, Container::Smelting,
-            Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort}) {
+            Container::Construction, Container::Tanning, Container::Gemstone, Container::Remains, Container::Sort}) {
             auto* source = Utility::GetSingleton()->GetContainer(from);
             if (!source) continue;
             const auto handle = source->GetHandle();
@@ -720,6 +719,7 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
     if (settings->GSC_OffloadGemstone) deposit(ItemCategory::Gemstone, Container::Smithing, 0, 0, true);
     if (settings->GSC_OffloadSmelting) deposit(ItemCategory::Smelting, Container::Smithing, 0, 0, true);
     if (settings->GSC_OffloadTanning) deposit(ItemCategory::Tanning, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadRemains) deposit(ItemCategory::Remains, Container::Smithing, 0, 0, true);
 
     // Concoction
     if (settings->GSC_OffloadPotion) deposit(ItemCategory::Potion, Container::Concoction, 0, 0, true);
@@ -745,8 +745,8 @@ void Stores::OffloadItemsNow(std::function<void()> complete) {
         deposit(ItemCategory::Armor, Container::Armor, 0, 0, true, ItemCategory::Clothing | ItemCategory::HeavyArmor | ItemCategory::LightArmor | ItemCategory::Jewelry);
     if (settings->GSC_OffloadArchery || settings->GSC_OffloadOneHand || settings->GSC_OffloadTwoHand || settings->GSC_OffloadStaffHand)
         deposit(ItemCategory::Weapon, Container::Weapon, 0, 0, true, ItemCategory::Archery | ItemCategory::OneHand | ItemCategory::TwoHand | ItemCategory::Staff);
-    if (settings->GSC_OffloadCrafting || settings->GSC_OffloadConstruction || settings->GSC_OffloadGemstone || settings->GSC_OffloadSmelting || settings->GSC_OffloadTanning)
-        deposit(ItemCategory::Smithing, Container::Smithing, 0, 0, true, ItemCategory::Crafting | ItemCategory::Construction | ItemCategory::Gemstone | ItemCategory::Smelting | ItemCategory::Tanning | ItemCategory::PreciousIngot);
+    if (settings->GSC_OffloadCrafting || settings->GSC_OffloadConstruction || settings->GSC_OffloadGemstone || settings->GSC_OffloadSmelting || settings->GSC_OffloadTanning || settings->GSC_OffloadRemains)
+        deposit(ItemCategory::Smithing, Container::Smithing, 0, 0, true, ItemCategory::Crafting | ItemCategory::Construction | ItemCategory::Gemstone | ItemCategory::Smelting | ItemCategory::Tanning | ItemCategory::PreciousIngot | ItemCategory::Remains);
     if (settings->GSC_OffloadCookedFood || settings->GSC_OffloadRawFood)
         deposit(ItemCategory::Food, Container::Food, 0, 0, true, ItemCategory::CookedFood | ItemCategory::RawFood);
     if (settings->GSC_OffloadPotion || settings->GSC_OffloadPoison)
@@ -1392,6 +1392,7 @@ void Stores::SmithMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidateRemains();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
@@ -1451,7 +1452,13 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
             });
     }});
 
+    options.push_back({std::format("{} {}", Translate("Vault.Remains"), Translate("Vault.Vault")), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::Remains, Container::Smithing, ItemCategory::Remains, source.get(), true);
+    }});
+
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
+        AllToStore(Container::Remains, Container::Smithing);
         AllToStore(Container::Construction, Container::Smithing);
         AllToStore(Container::Crafting, Container::Smithing);
         AllToStore(Container::Smelting, Container::Smithing);
@@ -2415,7 +2422,7 @@ void Stores::RecoverSawnLogs() {
     if (!logs || !player || !HasCategory(ClassifyItem(logs), ItemCategory::Ignore)) return;
     auto* utility = Utility::GetSingleton();
     for (auto kind : {Container::Smithing, Container::Construction, Container::Crafting,
-        Container::Smelting, Container::Tanning, Container::Gemstone, Container::Sort, Container::Junk}) {
+        Container::Smelting, Container::Tanning, Container::Gemstone, Container::Remains, Container::Sort, Container::Junk}) {
         auto* source = utility->GetContainer(kind);
         if (!source || source == player) continue;
         for (;;) {
@@ -2501,6 +2508,11 @@ void Stores::EndJunkLoan() {
     ResetJunkLoan();
 }
 
+void Stores::ConsolidateRemains() {
+    AllToStore(Container::Remains, Container::Smithing);
+    StoreToStore(ItemCategory::Remains, Container::Junk, Container::Smithing);
+}
+
 void Stores::ConsolidateBooks() {
     AllToStore(Container::SpellTomes, Container::Book);
     AllToStore(Container::SkillBooks, Container::Book);
@@ -2514,7 +2526,8 @@ void Stores::ConsolidateBooks() {
 void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,
     RE::TESObjectREFR* a_source, bool a_returnToParent) {
     if (!a_source) return;
-    ConsolidateBooks();
+    if (a_parent == Container::Smithing) ConsolidateRemains();
+    else ConsolidateBooks();
     if (a_parent == Container::Concoction) ConsolidatePotions();
     AllToStore(a_archive, a_parent);
     StoreToStore(a_category, a_parent, a_archive);
@@ -2523,6 +2536,7 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
             AllToStore(a_archive, a_parent);
             if (a_returnToParent) {
                 if (a_parent == Container::Book) BookMenu(source);
+                else if (a_parent == Container::Smithing) SmithMenu(source);
                 else NotesMenu(source);
             } else CloseStoreObject(source);
         });

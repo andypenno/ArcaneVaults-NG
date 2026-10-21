@@ -9,6 +9,11 @@ namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 
 int main() {
+    assert(ParseCategories("Remains") == ToMask(ItemCategory::Remains));
+    assert(FormatCategories(ToMask(ItemCategory::Remains)) == "Remains");
+    assert(ExpandCategories(ParseCategories("Remains")) == (ItemCategory::Remains | ItemCategory::Smithing));
+    assert(ExpandCategories(ParseCategories("Remains, Ignore")) == ToMask(ItemCategory::Ignore));
+    assert(ContainerTranslationKey(Container::Remains) == "Vault.Remains");
     assert(ParseCategories("Ignore") == ToMask(ItemCategory::Ignore));
     assert(FormatCategories(ToMask(ItemCategory::Ignore)) == "Ignore");
     assert(ExpandCategories(ParseCategories("Ignore, Smithing")) == ToMask(ItemCategory::Ignore));
@@ -23,7 +28,7 @@ int main() {
         assert(category != ItemCategory::None && static_cast<unsigned>(category) < 64);
     }
     assert(ContainerTranslationKey(Container::None).empty());
-    for (unsigned id = 1; id <= static_cast<unsigned>(Container::QuickTransfer); ++id) {
+    for (unsigned id = 1; id <= static_cast<unsigned>(Container::Remains); ++id) {
         const auto key = ContainerTranslationKey(static_cast<Container>(id));
         assert(!key.empty());
         assert(id == static_cast<unsigned>(Container::Ignore) ? key == "Ignore" : key.starts_with("Vault."));

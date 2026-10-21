@@ -152,7 +152,7 @@ int main() {
         auto assignments = group==ContainerGroup::Vault ? utility->GetVaultChoices() : utility->GetArchiveChoices();
         const auto expected=std::count_if(utility->containerMap.begin(),utility->containerMap.end(),[&](const auto& entry){return entry.second.container && entry.second.a_group==group;});
         assert(assignments.size()==static_cast<std::size_t>(expected));
-        if(group==ContainerGroup::Archive)assert(assignments.size()==32);
+        if(group==ContainerGroup::Archive)assert(assignments.size()==33);
         auto browse=[&]{if(group==ContainerGroup::Vault)stores->ShowVaultsMenu(source.get());else stores->ShowVaultArchivesMenu(source.get());};
         for (const auto& choice : assignments) assert(!choice.action);
         source->alive=true;stores->closed=false;browse();
@@ -203,7 +203,7 @@ int main() {
     state->Begin(source, {}, "Empty", [&]{ ++cancellations; });
     assert(!state->Complete(99) && cancellations == 1);
     utility->containerMap[Container::Crafting].container = nullptr;
-    assert(utility->GetArchiveChoices().size() == 31);
+    assert(utility->GetArchiveChoices().size() == 32);
 }
 '''
 root_menu = body("src/Stores.cpp", "void Stores::ShowVaultMenu(")

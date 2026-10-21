@@ -71,7 +71,7 @@ def instrument(common, program, soul):
         ('assert(payload && !payload->updateObj);++ItemList::refreshes;', 'if(FrameProbe::enabled && FrameProbe::target=="native recovery refresh"){assert(ui->menu && ui->menu->uiMovie && !ui->menu->uiMovie->visible);}FrameProbe::Opaque("native recovery refresh");assert(payload && !payload->updateObj);++ItemList::refreshes;'),
         ('ui->menu->Release();ui->menu=nullptr;', 'FrameProbe::Opaque("native menu close");ui->menu->Release();ui->menu=nullptr;'),
         ('assert(!inspectionOpen);++removeCalls;', 'FrameProbe::Opaque("native item removal");assert(!inspectionOpen);++removeCalls;'),
-        ('for(auto& x:row.extras)e->lists.push_back(x.get());', 'for(auto& x:row.extras){if(FrameProbe::scope=="transfer" && id!=0x14){FrameProbe::Unit("destination count scan");}if(FrameProbe::scope=="archive listing"){FrameProbe::Unit("archive listing scan");}e->lists.push_back(x.get());}'),
+        ('for(auto& x:row.extras)e->lists.push_back(x.get());', 'for(auto& x:row.extras){FrameProbe::Unit("remains recovery");FrameProbe::Unit("remains archive");if(FrameProbe::scope=="transfer" && id!=0x14){FrameProbe::Unit("destination count scan");}if(FrameProbe::scope=="archive listing"){FrameProbe::Unit("archive listing scan");}e->lists.push_back(x.get());}'),
     ]:
         common = replace_once(common, old, new)
     paced = '        void CaptureStep(const std::shared_ptr<Request>& request) {' in program
@@ -82,11 +82,13 @@ def instrument(common, program, soul):
     if '    std::map<RE::TESBoundObject*, int> Counts(' in program:
         boundary = '        if (changes && changes->entryList) for (const auto* entry : *changes->entryList) {'
         program = replace_once(program, boundary, boundary +
+            'FrameProbe::Unit("remains recovery");FrameProbe::Unit("remains archive");'
             'if(FrameProbe::scope=="transfer" && source->GetFormID()!=0x14)FrameProbe::Unit("destination count scan");'
             'if(FrameProbe::scope=="archive listing")FrameProbe::Unit("archive listing scan");')
         lookup = '        if (changes && changes->entryList) for (auto* entry : *changes->entryList) {'
         if lookup in program:
             program = replace_once(program, lookup, lookup +
+                'FrameProbe::Unit("remains recovery");FrameProbe::Unit("remains archive");'
                 'if(FrameProbe::scope=="transfer" && source->GetFormID()!=0x14)FrameProbe::Unit("destination count scan");')
     scopes = [
         ('        void CaptureStep(const std::shared_ptr<Request>& request) {', 'capture'),

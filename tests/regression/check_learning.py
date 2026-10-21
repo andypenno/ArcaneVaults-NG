@@ -153,6 +153,11 @@ int main() {
     open(Container::Instruments);send(a);tasks->Run();menu->Answer(true);
     assert(s->overrides[a.id]==ToMask(ItemCategory::Instrument) && s->disk==s->overrides);
     assert(ClassifyItem(&a)==(ItemCategory::Gear|ItemCategory::Instrument));
+    open(Container::Remains);send(a);tasks->Run();menu->Answer(true);
+    assert(s->overrides[a.id]==ToMask(ItemCategory::Remains) && s->disk==s->overrides);
+    assert(ClassifyItem(&a)==(ItemCategory::Remains|ItemCategory::Smithing));
+    s->RemoveUserOverride(a.id);assert(ClassifyItem(&a)==a.natural);
+    s->overrides[a.id]=ToMask(ItemCategory::Instrument);
     const auto gearPrompts=menu->prompts;
     open(Container::Gear);send(a);send(gem);send(dynamic);tasks->Run();assert(menu->prompts==gearPrompts);
     for(auto [kind,cat]:std::array{std::pair{Container::HealthPotions,ItemCategory::HealthPotion},

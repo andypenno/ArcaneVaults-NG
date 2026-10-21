@@ -43,6 +43,7 @@ public:
 	bool GSC_OffloadGemstone{ true };
 	bool GSC_OffloadSmelting{ true };
 	bool GSC_OffloadTanning{ true };
+	bool GSC_OffloadRemains{ true };
 	bool GSC_OffloadPotion{ false };
 	bool GSC_OffloadPoison{ false };
 	bool GSC_OffloadCookedFood{ false };

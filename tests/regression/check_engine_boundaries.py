@@ -32,6 +32,7 @@ common=common.replace("bool bulkRefuse=false,lastKeepOwnership=false;", "bool bu
 common=common.replace("if(bulkRefuse)return;", "if(bulkRefuse)return;if(queueBulk){queueBulk=false;nativeTasks.emplace_back([=,this]{RemoveAllItems(owner,target,stealing,keepOwnership,false);});return;}")
 common=common.replace("struct Settings {", "struct Settings {bool GSC_AllCraftingMaterials=false;bool GSC_CraftingLoan=true;")
 common=common.replace("struct Utility {", "struct Utility {BenchType bench=BenchType::Enchanting;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;}")
+common=common.replace("void ConsolidateRemains();", "void ConsolidateRemains(){}")
 common=common.replace("struct Stores {", "struct Stores {int materialReturns=0;void BeginJunkLoan(){}void EndJunkLoan(){++materialReturns;}void ResetJunkLoan(){}void AllToPlayer(Container){}void StoreToPlayer(ItemCategory,Container){}")
 common=common.replace("bool savedBlocked=false;", "int capacity=100;bool rejectQueueHide=false;bool savedBlocked=false;")
 common=common.replace("assert(name==InventoryMenu::MENU_NAME);commands.push_back(type);", "assert(name==InventoryMenu::MENU_NAME);if((type==UI_MESSAGE_TYPE::kHide && rejectQueueHide) || commands.size()>=static_cast<std::size_t>(capacity)){delete static_cast<InventoryUpdateData*>(data);return;}commands.push_back(type);")

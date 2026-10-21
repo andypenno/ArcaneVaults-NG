@@ -285,6 +285,7 @@ public:
         loanFurniture_ = a_furniture->GetHandle();
         materialsLoan_ = materials;
         allMaterialsLoan_ = settings->GSC_AllCraftingMaterials;
+        stores->ConsolidateRemains();
         if (allMaterialsLoan_) {
             Soulgems::BeginLoan(true, true);
             stores->AllToPlayer(Container::Smithing);

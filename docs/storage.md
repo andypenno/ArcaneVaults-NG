@@ -53,7 +53,7 @@ Most archive actions temporarily move matching items from their parent vault int
 
 | Parent | Archives |
 | --- | --- |
-| Smithing | Crafting, Smelting, Tanning, Construction, Gemstone |
+| Smithing | Crafting, Smelting, Tanning, Construction, Gemstone, Remains |
 | Alchemy | Reagent, labeled Spice in storage UI |
 | Concoction | Potion, Poison, Restorative, HealthPotions, MagickaPotions, StaminaPotions |
 | Food | CookedFood, RawFood |
@@ -61,6 +61,8 @@ Most archive actions temporarily move matching items from their parent vault int
 | Weapon | Archery, OneHand, TwoHand, Staff |
 
 Direct Archery archive access pools bows/crossbows from Weapon and arrows/bolts from Ammunition. Closing returns ammunition to its own vault before returning the remainder to Weapon. Failed ammunition returns leave the archive contents in place for a later direct visit. The Weapon menu and its Archery shortcut retain their existing weapon-only behavior.
+
+Remains gathers its Smithing subtype and returns everything to Smithing on close. Smithing menu access and crafting entry also recover effective Remains items from Junk; user Junk and Ignore overrides remain authoritative. Crafting entry performs this recovery before the generic Junk loan at every supported station. Quicksort uses queued per-item recovery, including archive leftovers, and its shared count-only transfer reads avoid copying physical-stack descriptors. Refused transfers remain in their source for a later visit.
 
 Parent menus consolidate their own child archives; the scrolling vault browser invokes those registered menu actions. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
 
@@ -167,6 +169,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Sort | `0xDB9` | Special | `SortingMenu` |
 | Smithing | `0xDA7` | Vault | `SmithMenu` |
 | Crafting | `0xDA8` | Archive | `SmithCraftMenu` |
+| Remains | `0xDF2` | Archive | `OpenBookArchive` with Smithing parent |
 | Smelting | `0xDAA` | Archive | `SmithSmeltMenu` |
 | Tanning | `0xDAB` | Archive | `SmithTanMenu` |
 | Construction | `0xDA9` | Archive | `SmithConstructMenu` |

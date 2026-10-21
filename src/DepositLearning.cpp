@@ -48,6 +48,7 @@ namespace {
         case Container::Crafting: return ItemCategory::Crafting;
         case Container::Smelting: return ItemCategory::Smelting;
         case Container::Tanning: return ItemCategory::Tanning;
+        case Container::Remains: return ItemCategory::Remains;
         case Container::Treasure: return ItemCategory::Treasure;
         case Container::Weapon: return ItemCategory::Weapon;
         case Container::Archery: return ItemCategory::Archery;

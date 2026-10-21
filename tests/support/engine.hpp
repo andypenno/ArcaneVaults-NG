@@ -426,6 +426,7 @@ namespace DepositLearning {inline int moved=0;inline void RecordAutomaticTransfe
 inline const char* Translate(const char* text){return text;}
 namespace AVTranslation {inline const char* Translate(const char* text){return text;} }
 struct Stores {
+    void ConsolidateRemains();
     void RecoverSawnLogs() {}
     struct MenuOption {std::string text;std::function<void()> action;};
     std::vector<MenuOption> options;int cancel=-1;bool closed=false;Container opened=Container::None;

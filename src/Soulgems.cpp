@@ -180,7 +180,7 @@ namespace Soulgems {
         auto* utility = Utility::GetSingleton();
         auto* bank = utility->GetContainer(Container::Soulgem);
         for (auto kind : {Container::Smithing, Container::Crafting, Container::Smelting,
-            Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort}) {
+            Container::Construction, Container::Tanning, Container::Gemstone, Container::Remains, Container::Sort}) {
             MoveAll(utility->GetContainer(kind), bank, [kind, &a_sortExcluded](auto* gem) {
                 auto* settings = Settings::GetSingleton();
                 return kind != Container::Sort || (!HasCategory(ClassifyItem(gem), ItemCategory::Ignore) && !a_sortExcluded.contains(gem->GetFormID()) &&

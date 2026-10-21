@@ -88,6 +88,7 @@ public:
     void BookMenu(RE::TESObjectREFR* a_source);
     void NotesMenu(RE::TESObjectREFR* a_source);
     void ConsolidateBooks();
+    void ConsolidateRemains();
     void ConsolidatePotions();
     void EnchantedItemsMenu(RE::TESObjectREFR* a_source);
     void OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,

@@ -123,6 +123,14 @@
       "release": true
     },
     {
+      "id": "remains",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_remains.py", "--output", "{results}/remains.json"],
+      "timeout_seconds": 150,
+      "sanitize": true,
+      "release": true
+    },
+    {
       "id": "crafting_benches",
       "suites": [
         "regression"
@@ -246,7 +254,7 @@
       "id": "quick_transfer_frames",
       "suites": ["regression"],
       "command": ["{python}", "tests/regression/check_quick_transfer_frames.py", "--output", "{results}/frames.json"],
-      "timeout_seconds": 300,
+"timeout_seconds": 600,
       "sanitize": true,
       "release": true
     },

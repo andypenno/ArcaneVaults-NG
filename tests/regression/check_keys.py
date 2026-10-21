@@ -33,7 +33,7 @@ store_to_store = source[start:source.index("\n}\n", start) + 3]
 start = source.index("void Stores::SortItems(")
 sort_items = source[start:source.index("\n}\n", start) + 3]
 extra_methods = ""
-for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "FoodSaltMenu", "ShowFoodSaltMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "ShowWeaponArcheryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "FoodSaltMenu", "ShowFoodSaltMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "ShowWeaponArcheryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidateRemains", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
     start = source.index("void Stores::" + name + "(")
     extra_methods += source[start:source.index("\n}\n", start) + 3]
 start = source.index("bool Stores::ReturnSortFavorites(")
@@ -347,7 +347,7 @@ program += r'''
 namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
 
 namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }
-namespace InventoryStacks {struct Prepared;}
+namespace InventoryStacks {struct Prepared;int Count(RE::TESObjectREFR*,RE::TESBoundObject*);}
 namespace Soulgems {
     bool PrepareDeposit(RE::TESBoundObject*,InventoryStacks::Prepared&);
     bool PrepareTransfer(RE::TESObjectREFR*,RE::TESBoundObject*,InventoryStacks::Prepared&);
@@ -408,6 +408,8 @@ void OffloadItems(){OffloadItemsNow();}
     void ShowKeysMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);
     void ConsolidateBooks();
+    void ConsolidateRemains();
+    void SmithMenu(RE::TESObjectREFR*) { closed=false; }
     void ConsolidatePotions();
     void NotesMenu(RE::TESObjectREFR*);
     void ShowNotesMenu(RE::TESObjectREFR*);
@@ -1741,10 +1743,10 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
-assert validate_esp(ROOT, generate_esp(working)) == 115
+assert validate_esp(ROOT, generate_esp(working)) == 117
 nodes = list(walk(working["records"]))
-assert len([n for n in nodes if n["type"] == "CONT"]) == 53
-for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4,0xDE6,0xDE8,0xDEA,0xDEC,0xDEF)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3,0xDE5,0xDE7,0xDE9,0xDEB,0xDEE)]]:
+assert len([n for n in nodes if n["type"] == "CONT"]) == 54
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4,0xDE6,0xDE8,0xDEA,0xDEC,0xDEF,0xDF2)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3,0xDE5,0xDE7,0xDE9,0xDEB,0xDEE,0xDF1)]]:
     changed = copy.deepcopy(working)
     node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
     if flag:
@@ -1772,6 +1774,6 @@ print("PASS: direct Archery ammunition gather/return, withdrawals, deposits and 
 
 assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}
 
-assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Junk")} >= {0xE3CB7,0xCE70B,0xE4897,0x4C3C8,0x4C3C6,0x319E4,0xCC84D,0xAEBF3,0xAEBF7}
+assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Junk")} >= {0xE3CB7,0xCE70B,0xE4897,0x4C3C8,0x4C3C6,0xCC84D,0xAEBF3,0xAEBF7}
 
 assert "Skyrim.esm|0x0D0756 = Treasure" in (ROOT/"ini/ArcaneVaultOverrides.ini").read_text()

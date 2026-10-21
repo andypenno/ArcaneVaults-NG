@@ -86,6 +86,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadGemstone, "Offload", "Gemstone");
 	option(settings.GSC_OffloadSmelting, "Offload", "Smelting");
 	option(settings.GSC_OffloadTanning, "Offload", "Tanning");
+	option(settings.GSC_OffloadRemains, "Offload", "Remains");
 	option(settings.GSC_OffloadPotion, "Offload", "Potion");
 	option(settings.GSC_OffloadPoison, "Offload", "Poison");
 	option(settings.GSC_OffloadCookedFood, "Offload", "CookedFood");

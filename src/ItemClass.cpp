@@ -115,6 +115,7 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
         ItemCategory::Tanning |
         ItemCategory::Construction |
         ItemCategory::Gemstone |
+        ItemCategory::Remains |
         ItemCategory::PreciousIngot;
 
     if (HasAnyCategory(categories, smithingTypes))

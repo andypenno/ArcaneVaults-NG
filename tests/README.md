@@ -53,6 +53,8 @@ The opaque native controls pair zero cost with one indivisible 250 simulated ms 
 
 `inventory-preview` compiles the production preview hooks against native callback/vtable boundaries. It checks suppression of owned preview loads and rendering, callback re-registration, ordinary-menu behaviour, message revisions and restoration after cancellation. Whole-interaction frame cases also require suppression to end. The fake inventory-change view mirrors the authoritative fixture rows; its synchronization work is fixture bookkeeping, not a Skyrim timing model.
 
+`remains` exercises production archive gather/close, Smithing navigation, selective Junk recovery, partial/refused transfers and repeated crafting sessions across all station policies. Default records and exclusions have unit checks; representative sorting fixtures include a disabled Remains toggle and 1,000 bones/trophies with an equipped copy. Frame phases `remains recovery` and `remains archive` charge descriptor copies and scalar count visits while stock returns from Junk or an interrupted archive. These remain simulated costs, not Skyrim timings.
+
 ## Static installer data
 
 The static-data suite validates duplicate JSON keys before dictionary construction, JSON syntax/types, required translations, placeholders, empty values and blank lines. It accounts for container translation keys and literal alternatives; keys without source references require an explicit retained-key reason. New dynamically assembled key families need an explicit contract before enabling them.

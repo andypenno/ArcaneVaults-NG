@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "remains-large-1000",
+  "description": "A thousand same-base remains and wearable trophy copies retain metadata and the equipped trophy.",
+  "settings": {},
+  "inventories": {
+    "player": [
+      {
+        "id": "bone",
+        "base": "dragon-bone",
+        "count": 1,
+        "copies": 600,
+        "owner": "Museum",
+        "after": {
+          "Smithing": 1
+        }
+      },
+      {
+        "id": "necromancer",
+        "base": "necromancer-bone",
+        "count": 1,
+        "copies": 310,
+        "after": {
+          "Smithing": 1
+        }
+      },
+      {
+        "id": "trophy",
+        "base": "trophy-head",
+        "count": 1,
+        "copies": 89,
+        "name": "Hunted trophy",
+        "after": {
+          "Smithing": 1
+        }
+      },
+      {
+        "id": "worn-trophy",
+        "base": "trophy-head",
+        "count": 1,
+        "worn": true,
+        "favorite": true,
+        "after": {
+          "player": 1
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

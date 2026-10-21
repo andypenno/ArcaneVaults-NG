@@ -40,7 +40,7 @@ def common_source():
     text=text.replace("struct Utility {", "struct Utility { BenchType bench=BenchType::None;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;} bool isSmithing(RE::FormID)const{return true;}")
     text=text.replace("struct Settings {", "struct Settings { bool GSC_CraftingLoan=true,GSC_ReturnIgnoredItems=true,GSC_AllCraftingMaterials=false;")
     text=text.replace("return ToMask(item->armor?ItemCategory::Jewelry:ItemCategory::Weapon);", "return item->categories;")
-    text=text.replace("struct Stores {", "struct Stores { std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();} void AllToPlayer(Container);void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = {});")
+    text=text.replace("struct Stores {", "struct Stores { std::unordered_set<RE::FormID> sortFavorites_;void StoreToStore(ItemCategory,Container,Container);std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();} void AllToPlayer(Container);void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = {});")
     text += "\n#include <utility>\n#include <iostream>\n#include \"src/Soulgems.h\"\nnamespace PlayerEquipment { inline const Snapshot* Current(){return nullptr;} }\n"
     return text
 
@@ -51,7 +51,7 @@ int main(int argc,char** argv){
  const int types=scenario==0?size:1,mainCount=scenario==0?3:size,otherCount=scenario==0?2:size;
  auto* player=RE::PlayerCharacter::GetSingleton();auto* utility=Utility::GetSingleton();auto* stores=Stores::GetSingleton();
  std::map<Container,std::unique_ptr<RE::TESObjectREFR>> banks;
- for(auto kind:{Container::Alchemy,Container::Smithing,Container::Food,Container::Weapon,Container::Armor,Container::Junk,Container::EnchantedItems,Container::Soulgem,Container::EmptySoulgems,Container::FilledSoulgems}){
+ for(auto kind:{Container::Alchemy,Container::Smithing,Container::Remains,Container::Food,Container::Weapon,Container::Armor,Container::Junk,Container::EnchantedItems,Container::Soulgem,Container::EmptySoulgems,Container::FilledSoulgems}){
   banks[kind]=std::make_unique<RE::TESObjectREFR>(9000+static_cast<unsigned>(kind));utility->containers[kind]=banks[kind].get();
  }
  RE::TESObjectREFR furniture{8000};std::array<RE::EnchantmentItem,3> customEnchantments;RE::TESForm owner{7000,false};
@@ -142,6 +142,9 @@ def build_program(sources):
     methods=body(stores,signature,"\n    }")+"\n"
     for name in ("PlayerToStore","StoreToPlayer","AllToPlayer","BeginJunkLoan","EndJunkLoan"):
         methods+=body(stores,"void Stores::"+name+"(")
+    if "void Stores::ConsolidateRemains(" in stores:
+        for name in ("StoreToStore", "ConsolidateRemains"):
+            methods+=body(stores,"void Stores::"+name+"(")
     events=sources["src/Events.cpp"]
     loan=events[events.index("class CraftingLoanState {"):events.index("class FurnitureActivation {")]
     return '#include "common.hpp"\n'+methods+loan+MAIN

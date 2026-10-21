@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "remains-disabled",
+  "description": "Other Smithing switches cannot bypass a disabled Remains leaf.",
+  "settings": {
+    "GSC_OffloadRemains": false
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "carried-bones",
+        "base": "dragon-bone",
+        "count": 5,
+        "after": {
+          "player": 5
+        }
+      },
+      {
+        "id": "carried-mod-bones",
+        "base": "necromancer-bone",
+        "count": 3,
+        "after": {
+          "player": 3
+        }
+      }
+    ]
+  },
+  "no_transfers": true
+}

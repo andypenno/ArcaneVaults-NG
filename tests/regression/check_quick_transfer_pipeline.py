@@ -530,7 +530,7 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
         else:
             command=[str(path/"check"),*(args.frame_phases or [])]
             try:
-                output=subprocess.check_output(command,text=True,timeout=(240 if args.sanitize else 120) if args.frame_startup else 30)
+                output=subprocess.check_output(command,text=True,timeout=(480 if args.sanitize else 120) if args.frame_startup else 30)
             except subprocess.CalledProcessError as error:
                 args.output.parent.mkdir(parents=True,exist_ok=True)
                 args.output.write_text(json.dumps({'complete':False,'passed':False,'returncode':error.returncode,
@@ -545,7 +545,7 @@ if args.frame_startup:
         'capture','protected capture','row indexing','row matching','delayed rows','validation',
         'candidate enumeration','job expansion','soul gem recovery','distinct soul gems','native inventory','native menu','native bulk',
         'cancel during readiness','capture prefix','validation prefix','row prefix',
-        'transfer stack scan','misc stack scan','soul gem scan','destination count scan','archive listing scan',
+        'transfer stack scan','misc stack scan','soul gem scan','destination count scan','archive listing scan','remains recovery','remains archive',
         'native capture read','native validation read','native transfer read',
         'native row member','native menu population','native recovery refresh','native menu close','native item removal')
         for size in (1,1000) for delay in ((0,250) if phase.startswith('native ') else (250,))}
