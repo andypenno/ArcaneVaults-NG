@@ -1,6 +1,6 @@
 # Tests
 
-Run from the repository root with Python 3 and a C++20 compiler available as `g++`/`c++`. Native fixtures need the pinned header dependencies already in the checkout. The ESP editor check needs the documented .NET 10 SDK on PATH or in its existing tool directory (override with AV_DOTNET). Windows release builds also need the documented Wine/MSVC container and Caprica. No CI configuration is included.
+Run from the repository root with Python 3 and a C++20 compiler available as `g++`/`c++`. Native fixtures need the pinned header dependencies already in the checkout. The ESP editor check needs the documented .NET 10 SDK on PATH or in its existing tool directory (override with AV_DOTNET). Windows release builds also need the documented Wine/MSVC container and Caprica. [GitHub Actions](../docs/ci.md) provisions these tools and invokes the same full release checks.
 
 ```bash
 python3 tests/run.py --list

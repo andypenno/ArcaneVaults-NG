@@ -9,6 +9,7 @@ These notes are for agents changing the project. They describe the source and re
 | Configure, build, install, or change dependencies | [Build and dependencies](build.md) |
 | Account for every release file and source input | [Release files and source inputs](distribution.md) |
 | Produce a complete ZIP or import a new upstream release | [Complete release build](release-build.md) |
+| Run automated GitHub builds and download verified artifacts | [GitHub Actions](ci.md) |
 | Build on Linux through Wine | [Wine build on Linux](wine-build.md) |
 | Edit companion ESP records through code on Linux | [Scripted ESP editing](esp-editing.md) |
 | Understand startup, hooks, events, and menu control | [Runtime architecture](architecture.md) |
@@ -46,7 +47,7 @@ Paths below are relative to the repository root. Headers hold declarations and s
 | [release/ArcaneVaults-LinkedStorage.json](../release/ArcaneVaults-LinkedStorage.json), [release/upstream](../release/upstream) | Working ESP definition and imported upstream baseline |
 | [scripts/Source](../scripts/Source), [scripts/Imports](../scripts/Imports), [assets/skyui-lib](../assets/skyui-lib) | Papyrus source/interfaces and pinned distributed UI movies |
 
-The root [README.md](../README.md) only names the project. The committed `tests/` runner compiles production modules and retained regression fixtures. CI is not configured. The ESP and release tools have runnable checks in their respective guides. Dependency repositories contain their own tooling; that is not the plugin's verification setup.
+The root [README.md](../README.md) only names the project. The committed `tests/` runner compiles production modules and retained regression fixtures. [GitHub Actions](ci.md) runs the full release verification. The ESP and release tools have runnable checks in their respective guides. Dependency repositories contain their own tooling; that is not the plugin's verification setup.
 
 ## Evidence boundary
 

@@ -12,7 +12,7 @@ python3 tests/run.py --suite regression integration --sanitize
 python3 tools/release/build_release.py
 ```
 
-The release command runs the mandatory test profile, compiles the Windows DLL and inventory test executable, runs its JSON scenarios through Wine, archives the candidate, tests that exact ZIP and atomically promotes it. A normal compile remains available for iteration. CI is not configured.
+The release command runs the mandatory test profile, compiles the Windows DLL and inventory test executable, runs its JSON scenarios through Wine, archives the candidate, tests that exact ZIP and atomically promotes it. A normal compile remains available for iteration. [GitHub Actions](ci.md) invokes this same command after provisioning an isolated Wine/MSVC toolchain.
 
 | Output | Location |
 | --- | --- |

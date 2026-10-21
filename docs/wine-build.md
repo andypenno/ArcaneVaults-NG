@@ -2,6 +2,8 @@
 
 This builds the Windows x64 DLL with MSVC running through Wine and native Linux xmake. The host needs x86_64 Linux and working rootless Podman. The commands use an Ubuntu container, so the host distribution and home directory do not affect the tool paths. Skyrim is not needed for compilation.
 
+[GitHub Actions](ci.md) automates this setup through `tools/ci/bootstrap_wine.py`. The manual steps below remain available for the established local container.
+
 ## Tool versions
 
 | Component | Validated version |
@@ -140,4 +142,4 @@ The FXC [regression check](../tests/integration/shaders.py) asserts return code 
 
 The release DLL build and the documented configure/build/install block passed with SE and AE enabled and VR disabled. PE inspection confirmed Windows x64 and `SKSEPlugin_Load`, `SKSEPlugin_Query`, and `SKSEPlugin_Version`. The staged DLL matches the build output byte for byte, and the tracked lockfile retains its original bytes. A fresh locked-recipe clone and patch application passed; running the toolchain adapter twice passed its assertions.
 
-The fresh bootstrap recipe is edited, not verified from an empty tool directory. It consolidates the commands and versions used to establish the working environment. This environment cannot verify Skyrim loading or gameplay. Use the [complete release build](release-build.md) to generate the mod ZIP after setting up this toolchain.
+The automated [CI bootstrap](ci.md) has been exercised from empty tool directories, including MSVC compilation/execution and shader checks. The manual blocks above remain a separate source-derived recipe. This environment cannot verify Skyrim loading or gameplay. Use the [complete release build](release-build.md) to generate the mod ZIP after setting up this toolchain.
