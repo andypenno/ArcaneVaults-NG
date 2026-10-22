@@ -9,6 +9,7 @@ These notes are for agents changing the project. They describe the source and re
 | Configure, build, install, or change dependencies | [Build and dependencies](build.md) |
 | Account for every release file and source input | [Release files and source inputs](distribution.md) |
 | Produce a complete ZIP or import a new upstream release | [Complete release build](release-build.md) |
+| Run automated GitHub builds and download verified artifacts | [GitHub Actions](ci.md) |
 | Build on Linux through Wine | [Wine build on Linux](wine-build.md) |
 | Edit companion ESP records through code on Linux | [Scripted ESP editing](esp-editing.md) |
 | Understand startup, hooks, events, and menu control | [Runtime architecture](architecture.md) |
@@ -27,6 +28,8 @@ Paths below are relative to the repository root. Headers hold declarations and s
 | [src/Utility.cpp](../src/Utility.cpp), [src/Utility.h](../src/Utility.h) | Companion form registry, recipe caches, assignment eligibility, bench detection, configuration spells |
 | [src/ItemClass.cpp](../src/ItemClass.cpp), [src/ItemClass.h](../src/ItemClass.h) | Container/category enums, bit masks, category text, classification |
 | [src/Stores.cpp](../src/Stores.cpp), [src/Stores.h](../src/Stores.h) | Shared transfer operations, message boxes, animation polling, storage menu actions |
+| [src/TransferFeedback.cpp](../src/TransferFeedback.cpp), [src/TransferFeedback.h](../src/TransferFeedback.h) | Optional sorting panel, pulsing sigil and render barrier |
+| [src/PlayerEquipment.cpp](../src/PlayerEquipment.cpp), [src/InventoryStacks.cpp](../src/InventoryStacks.cpp) | UI-managed equipment inspection, physical-stack validation and metadata-preserving transfers |
 | [src/Events.cpp](../src/Events.cpp), [src/Events.h](../src/Events.h) | Engine hooks, container-close callbacks, crafting loans, hotkey events |
 | [src/RedirectManager.cpp](../src/RedirectManager.cpp), [src/RedirectManager.h](../src/RedirectManager.h) | Source-to-destination map and linked-container activation blocking |
 | [src/ContainerMenu.cpp](../src/ContainerMenu.cpp), [src/ContainerMenu.h](../src/ContainerMenu.h) | SkyUILib destination selection and selection state |
@@ -39,12 +42,12 @@ Paths below are relative to the repository root. Headers hold declarations and s
 | [include/HelperFunctions.h](../include/HelperFunctions.h) | Inline engine/ImGui keyboard, mouse, and gamepad code conversion |
 | [ini/ArcaneVaultOverrides.ini](../ini/ArcaneVaultOverrides.ini), [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) | Bundled classification data and English strings |
 | [.gitignore](../.gitignore) | Excludes build output, local xmake/editor state, archives, and compilation databases |
-| [tools/esp/Program.cs](../tools/esp/Program.cs), [tools/esp/check.py](../tools/esp/check.py) | Mutagen CLI and independent ESP edit/reopen check |
-| [tools/release](../tools/release), [release/inputs.json](../release/inputs.json) | Source import, ESP generation, PEX validation, and release assembly |
+| [tools/esp/Program.cs](../tools/esp/Program.cs), [tests/integration/esp_editor.py](../tests/integration/esp_editor.py) | Mutagen CLI and independent ESP edit/reopen check |
+| [tests](../tests), [tools/release](../tools/release), [release/inputs.json](../release/inputs.json) | Source import, ESP generation, PEX validation, and release assembly |
 | [release/ArcaneVaults-LinkedStorage.json](../release/ArcaneVaults-LinkedStorage.json), [release/upstream](../release/upstream) | Working ESP definition and imported upstream baseline |
 | [scripts/Source](../scripts/Source), [scripts/Imports](../scripts/Imports), [assets/skyui-lib](../assets/skyui-lib) | Papyrus source/interfaces and pinned distributed UI movies |
 
-The root [README.md](../README.md) only names the project. The C++ plugin has no test target or CI configuration. The ESP and release tools have runnable checks in their respective guides. Dependency repositories contain their own tooling; that is not the plugin's verification setup.
+The root [README.md](../README.md) only names the project. The committed `tests/` runner compiles production modules and retained regression fixtures. [GitHub Actions](ci.md) runs the full release verification. The ESP and release tools have runnable checks in their respective guides. Dependency repositories contain their own tooling; that is not the plugin's verification setup.
 
 ## Evidence boundary
 

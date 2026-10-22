@@ -2,6 +2,8 @@
 
 This builds the Windows x64 DLL with MSVC running through Wine and native Linux xmake. The host needs x86_64 Linux and working rootless Podman. The commands use an Ubuntu container, so the host distribution and home directory do not affect the tool paths. Skyrim is not needed for compilation.
 
+[GitHub Actions](ci.md) automates this setup through `tools/ci/bootstrap_wine.py`. The manual steps below remain available for the established local container.
+
 ## Tool versions
 
 | Component | Validated version |
@@ -118,7 +120,7 @@ os.environ["XSE_TES5_MODS_PATH"] = "/work/staging"
 lock = Path("/repo/xmake-requires.lock")
 original = lock.read_bytes()
 try:
-    subprocess.run(["xmake", "f", "-p", "windows", "-a", "x64", "-m", "release", "--toolchain=msvc", "--sdk=/work/msvc", "--mrc=/work/msvc/bin/x64/rc.exe", "--skyrim_se=y", "--skyrim_ae=y", "--skyrim_vr=n", "-y"], check=True)
+    subprocess.run(["xmake", "f", "-p", "windows", "-a", "x64", "-m", "release", "--toolchain=msvc", "--sdk=/work/msvc", "--mrc=/work/msvc/bin/x64/rc.exe", "--skyrim_se=y", "--skyrim_ae=y", "--skyrim_vr=n", "-o", ".build", "-y"], check=True)
     subprocess.run(["xmake", "build", "-j4", "ArcaneVaults-NG"], check=True)
     subprocess.run(["xmake", "install", "ArcaneVaults-NG"], check=True)
 finally:
@@ -127,17 +129,17 @@ finally:
     finally:
         lock.write_bytes(original)
 '
-podman exec "$AV_CONTAINER" python3 /repo/docs/wine/check-shaders.py
+podman exec "$AV_CONTAINER" python3 /repo/tests/integration/shaders.py
 ```
 
 `XMAKE_ROOT=y` permits xmake to run as root inside the rootless container. The Python block sets `XSE_TES5_MODS_PATH` only to the disposable staging directory; xmake 3.0.1 does not accept an `--installdir` configuration flag. Four xmake jobs are separate from MSVC's internal thread count. Reduce `-j4` to `-j1` on a machine with insufficient resources; keep the `/cgthreads1` adapter.
 
-The DLL belongs under `build/windows/x64/release/` in the host checkout. The installed copy is `/work/staging/ArcaneVaults-NG/SKSE/Plugins/ArcaneVaults-NG.dll`, beneath the host tool directory. Inspect the resulting file with `file` and `objdump -p`, including its SKSE exports. Stop the dedicated environment with `podman stop "$AV_CONTAINER"`; starting it again preserves the tools and caches. To retain a build log, redirect the build block's output to a file under `$AV_WORK`.
+The DLL belongs under `.build/windows/x64/release/` in the host checkout. The installed copy is `/work/staging/ArcaneVaults-NG/SKSE/Plugins/ArcaneVaults-NG.dll`, beneath the host tool directory. Inspect the resulting file with `file` and `objdump -p`, including its SKSE exports. Stop the dedicated environment with `podman stop "$AV_CONTAINER"`; starting it again preserves the tools and caches. To retain a build log, redirect the build block's output to a file under `$AV_WORK`.
 
 ## Verification boundary
 
-The FXC [regression check](wine/check-shaders.py) asserts return code 0 for a valid shader and 1 for an invalid shader. The dependency shader build generated the 187 expected headers. `InputMap.cpp` passed with one internal thread, failed again with eight, then passed again with one.
+The FXC [regression check](../tests/integration/shaders.py) asserts return code 0 for a valid shader and 1 for an invalid shader. The dependency shader build generated the 187 expected headers. `InputMap.cpp` passed with one internal thread, failed again with eight, then passed again with one.
 
 The release DLL build and the documented configure/build/install block passed with SE and AE enabled and VR disabled. PE inspection confirmed Windows x64 and `SKSEPlugin_Load`, `SKSEPlugin_Query`, and `SKSEPlugin_Version`. The staged DLL matches the build output byte for byte, and the tracked lockfile retains its original bytes. A fresh locked-recipe clone and patch application passed; running the toolchain adapter twice passed its assertions.
 
-The fresh bootstrap recipe is edited, not verified from an empty tool directory. It consolidates the commands and versions used to establish the working environment. This environment cannot verify Skyrim loading or gameplay. Use the [complete release build](release-build.md) to generate the mod ZIP after setting up this toolchain.
+The automated [CI bootstrap](ci.md) has been exercised from empty tool directories, including MSVC compilation/execution and shader checks. The manual blocks above remain a separate source-derived recipe. This environment cannot verify Skyrim loading or gameplay. Use the [complete release build](release-build.md) to generate the mod ZIP after setting up this toolchain.

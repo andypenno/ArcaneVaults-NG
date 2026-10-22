@@ -1,23 +1,30 @@
 # Complete release build
 
-[build_release.py](../tools/release/build_release.py) produces `build/releases/ArcaneVaults-NG.zip` with the same 10 file paths as the Arcane Vaults 1.2 sample. Its inputs are repository files and pinned tool dependencies. A normal build neither reads Downloads nor opens an upstream release ZIP.
+[build_release.py](../tools/release/build_release.py) produces `build/ArcaneVaults-NG.zip` after verifying a candidate in `build/history/`. The package paths are declared in the manifest. Its inputs are repository files and pinned tool dependencies. A normal build neither reads Downloads nor opens an upstream release ZIP.
 
 Set up the [Wine/MSVC environment](wine-build.md) first. It must mount this checkout at `/repo` and its tools directory at `/work`. The release script checks these mounts and starts an existing stopped container. Python 3 and Podman are needed on the host. Caprica 0.3.0 is downloaded once from its official release and cached under `/work/release-tools`; the archive and executable hashes are pinned in [release/inputs.json](../release/inputs.json).
 
 From the repository root:
 
 ```bash
+python3 tests/run.py --suite unit static-data
+python3 tests/run.py --suite regression integration --sanitize
 python3 tools/release/build_release.py
-python3 tools/release/check.py
-python3 tools/release/check_redirects.py
-python3 tools/release/check_keys.py
-python3 tools/release/check_soulgems.py
-python3 tools/release/check_trade.py
 ```
 
-Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
+The release command runs the mandatory test profile, compiles the Windows DLL and inventory test executable, runs its JSON scenarios through Wine, archives the candidate, tests that exact ZIP and atomically promotes it. A normal compile remains available for iteration. [GitHub Actions](ci.md) invokes this same command after provisioning an isolated Wine/MSVC toolchain.
 
-The release command disables xmake's C++ compiler cache for MSVC through Wine. After an invalid-object linker failure, remove the affected object and dependency file before retrying; disabling the cache does not replace an existing object by itself. Keep failed-build logs separate from the next run's `build.log`.
+| Output | Location |
+| --- | --- |
+| Single verified ZIP | `build/ArcaneVaults-NG.zip` |
+| Immutable candidate ZIPs | `build/history/<UTC-date>-<commit>[-dirty]/ArcaneVaults-NG.zip` |
+| Release log, hashes and gate reports | `results/releases/<same-run-id>/` |
+| Test logs and raw measurements | `results/tests/<run-id>/` |
+| Compiler intermediates and DLL | `.build/` |
+
+Use `--container NAME` if the Wine container has a different name. Logs and reports never go inside the ZIP or the ZIP history. Failed tests or compilation leave the previous verified ZIP intact. A candidate that fails final checks remains in history with the failure log in results. Dirty builds record the source fingerprint and dirty state; game acceptance is separate from automated verification.
+
+The release command disables xmake's C++ compiler cache for MSVC through Wine and restores the tracked lockfile after configuration. It clears game/mod auto-install environment variables and configures `.build` explicitly. After an invalid-object linker failure, move the affected object and dependency file to the trash before retrying; disabling the cache does not replace an existing object by itself.
 
 ## Inputs and staging
 
@@ -30,7 +37,7 @@ The release command disables xmake's C++ compiler cache for MSVC through Wine. A
 | INI and translation JSON | Copy the repository's `ini/` files |
 | UI | Copy the vendored movies under [assets/skyui-lib](../assets/skyui-lib), checking their pinned upstream hashes |
 
-The script stages into a fresh temporary directory. It checks the exact path population declared in `release/inputs.json`, rejects missing, extra, or empty files, validates the assets, creates the ZIP, and reopens it for validation. Only then does it replace the previous generated artifact. Temporary staging is removed on success or failure. Compilation or validation failure exits nonzero and leaves the prior ZIP unchanged. The caller must respect the exit status rather than treating an old ZIP as a successful new build.
+The script stages into a fresh temporary directory under the release results directory. It checks the exact path population declared in `release/inputs.json`, rejects missing, extra, or empty files, validates the assets, creates the ZIP, and reopens it for validation. It archives the candidate, runs packaging tests and only then replaces the single verified ZIP. Temporary staging is removed on success or failure. Compilation or validation failure exits nonzero and leaves the prior ZIP unchanged. The caller must respect the exit status rather than treating an old ZIP as a successful new build.
 
 ZIP entries have sorted paths, fixed timestamps, and fixed file permissions. PEX header timestamps, source paths, usernames, and machine names are normalized. With the documented toolchain, two separate DLL builds after enabling `/Brepro` produced identical bytes. The other nine package files matched across three complete release runs. The regression check repackaged the final files twice and matched the produced ZIP byte-for-byte. Byte-for-byte builds on a different toolchain or compression-library version have not been established; use the pinned toolchain and recorded hashes to compare outputs.
 
@@ -60,11 +67,6 @@ Caprica 0.3.0 emits the Skyrim object-size field in little endian and omits the 
 
 The build validates Windows x64 PE format and the actual SKSE export table, ESP registry IDs, persistent non-respawning storage, container links, header counts/allocation, spell-effect script properties, and PEX native signatures. It executes the compiled dispatcher in a small bytecode check for `SpellType` 0, 1, and an unmatched value. The standalone check retains the upstream SHA/round-trip checks and validates the working ESP against the current registry. It also exercises compressed-record edits, compiler-size correction, deterministic ZIP bytes, and missing/extra-file rejection.
 
-`check_keys.py` needs a native C++20 compiler. It extracts the real transfer, Sort, Quick Transfer, Gold/ammunition/miscellaneous classification branches, Valuables menu callbacks, INI option mapping, and INI reader and runs them with inventory/settings stubs. It checks Keys duplicate retention, ammunition and Septim reserves, Valuables gathering/return and manual deposits, precious ingot crafting categories, protected entries, category selection, repeat deposits, large stacks, existing count requests, Quick Transfer defaults/modes, reserve input validation, and generated ESP persistence/respawn flags. It does not run Skyrim's inventory engine or write game settings files.
+The committed [test guide](../tests/README.md) describes suite selection, fixture data, prerequisites, performance baselines and reports. The [coverage inventory](../tests/COVERAGE.md) records production paths and remaining engine-only verification. Packaging tests exercise invalid records, compressed ESP round-trips, PEX correction/dispatch, static installer data, exact manifest contents and deterministic archive assembly.
 
-`check_redirects.py` compiles the actual manager, identifier code, INI persistence, and SKSE callbacks with stubs. It covers unloaded sources, dynamic save isolation, both persistence modes, changed load order, global precedence, linked activator blocking, and malformed records.
-`check_soulgems.py` compiles the actual soul gem module and crafting-loan session with inventory stubs. It exercises mixed extra-data stacks, explicit zero souls, metadata-preserving moves, reserves, archive consolidation, protected/unique gems, recipe eligibility, reusable form changes, consumed gems, uncertain leftovers, and a setting changed during a loan. It models null-list removal preferring an explicit stack. These checks do not substitute for Skyrim inventory-engine testing.
-
-`check_trade.py` compiles the actual sale and menu code with inventory stubs. It covers copy counts, variant prices, aggregate rounding, confirmation/cancellation, protected entries, failed and partial removal, repeat sale, and payment limits. Skyrim must verify engine-derived prices and item removal.
-
-The package root corresponds to Skyrim's `Data` directory. It has no enclosing `Data` or project-name directory. Runtime prerequisites such as SKSE, Address Library, and SKSE Menu Framework remain external game dependencies described in [build.md](build.md). No Skyrim launch or gameplay scenario is verified by these artifact checks.
+The package root corresponds to Skyrim's `Data` directory. Runtime prerequisites such as SKSE, Address Library and SKSE Menu Framework remain external game dependencies. Passing automated checks does not establish Skyrim loading or gameplay; follow the [game acceptance checklist](../tests/game/README.md).
