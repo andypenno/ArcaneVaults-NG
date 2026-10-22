@@ -126,6 +126,7 @@ enum class ContainerGroup {
 [[nodiscard]] constexpr std::string_view ContainerTranslationKey(Container a_container) noexcept {
     switch (a_container) {
     case Container::Master:       return "Vault.Arcane";
+    case Container::QuickTransfer: return "Vault.QuickTransfer";
     case Container::Sort:         return "Vault.Conduit";
     case Container::Alchemy:      return "Vault.Alchemy";
     case Container::Armor:        return "Vault.Armor";

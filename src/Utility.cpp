@@ -20,7 +20,8 @@ void Utility::AddContainer(RE::TESDataHandler* a_data, Container a_name, RE::For
     const auto translationKey = ContainerTranslationKey(a_name);
     auto* baseContainer = container->GetBaseObject() ? container->GetBaseObject()->As<RE::TESObjectCONT>() : nullptr;
     if (baseContainer && !translationKey.empty()) {
-        const auto translatedName = std::format("{} {}", Translate(std::string(translationKey)), Translate("Vault.Vault"));
+        const auto translatedName = a_name == Container::QuickTransfer ? std::string(Translate("Vault.QuickTransfer")) : std::format("{} {}", Translate(std::string(translationKey)),
+            Translate("Vault.Vault"));
         baseContainer->SetFullName(translatedName.c_str());
     }
 
@@ -32,6 +33,12 @@ RE::TESObjectREFR* Utility::GetContainer(Container name) {
     return it != containerMap.end() ? it->second.container : nullptr;
 }
 
+Container Utility::GetContainerKind(RE::FormID formID) const {
+    for (const auto& [kind, entry] : containerMap)
+        if (entry.container && entry.container->GetFormID() == formID) return kind;
+    return Container::None;
+}
+
 bool Utility::RunContainerAction(const RE::TESObjectREFR* container, RE::TESObjectREFR* source) const {
     if (!container || !source) return false;
 
@@ -39,7 +46,7 @@ bool Utility::RunContainerAction(const RE::TESObjectREFR* container, RE::TESObje
         if (entry.container && entry.container->GetFormID() == container->GetFormID() && entry.action) {
             Stores::GetSingleton()->ResetNavigation();
             auto* player = RE::PlayerCharacter::GetSingleton();
-            if ((name == Container::Master || name == Container::Sort) && player && player->IsSneaking())
+            if ((name == Container::Master || name == Container::Sort || name == Container::QuickTransfer) && player && player->IsSneaking())
                 Stores::GetSingleton()->IgnoreMenu(source);
             else
                 entry.action(source);
@@ -77,6 +84,32 @@ std::vector<Utility::ContainerChoice> Utility::GetVaultChoices(RE::TESObjectREFR
 
 std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices(RE::TESObjectREFR* source) const {
     return GetGroupedChoices(ContainerGroup::Archive, source);
+}
+
+std::vector<Utility::ContainerChoice> Utility::GetGroupedChoices(ContainerGroup group, RE::TESObjectREFR* source) const {
+    std::vector<ContainerChoice> choices;
+    choices.reserve(containerMap.size());
+
+    for (const auto& [name, entry] : containerMap) {
+        if (!entry.container || entry.a_group != group) continue;
+        ContainerChoice choice{
+            .name = entry.container->GetDisplayFullName(),
+            .formID = entry.container->GetFormID()
+        };
+        if (source && entry.action) {
+            const auto handle = source->GetHandle();
+            choice.action = [handle, action = entry.action] {
+                if (auto source = handle.get()) action(source.get());
+            };
+        }
+        if (!source || choice.action) choices.push_back(std::move(choice));
+    }
+
+    std::ranges::sort(choices, [](const ContainerChoice& lhs, const ContainerChoice& rhs) {
+        return lhs.name < rhs.name;
+    });
+
+    return choices;
 }
 
 bool Utility::PlayerOwnsCurrentCell() {
@@ -280,6 +313,9 @@ void Utility::LoadAllForms() {
 void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Ignore, RE::FormID(0xDD3), ContainerGroup::Special);
 
+    AddContainer(dataHandler, Container::QuickTransfer, RE::FormID(0xDEF), ContainerGroup::Special,
+        [](RE::TESObjectREFR*) { Stores::GetSingleton()->OffloadItems(); });
+
     // Sorting Chest
     AddContainer(dataHandler, Container::Master, RE::FormID(0xD93), ContainerGroup::Special, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->VaultMenu(a_source); }); 
     AddContainer(dataHandler, Container::Sort, RE::FormID(0xDB9), ContainerGroup::Special, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->SortingMenu(a_source); }); 
@@ -328,14 +364,16 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Clothing, RE::FormID(0xD96), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ArmorClothingMenu(a_source); });
 
     // Books and Scrolls
-    AddContainer(dataHandler, Container::Maps, RE::FormID(0xDDD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Maps, Container::Notes, ItemCategory::Map, source); });
+    AddContainer(dataHandler, Container::Book, RE::FormID(0xD9A), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->BookMenu(a_source); });
     AddContainer(dataHandler, Container::Notes, RE::FormID(0xDD5), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->NotesMenu(source); });
     AddContainer(dataHandler, Container::SpellTomes, RE::FormID(0xDD7), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SpellTomes, Container::Book, ItemCategory::SpellTome, source); });
     AddContainer(dataHandler, Container::SkillBooks, RE::FormID(0xDD9), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SkillBooks, Container::Book, ItemCategory::SkillBook, source); });
     AddContainer(dataHandler, Container::Recipes, RE::FormID(0xDDB), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Recipes, Container::Notes, ItemCategory::Recipe, source); });
-    AddContainer(dataHandler, Container::Book, RE::FormID(0xD9A), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->BookMenu(a_source); });
+    AddContainer(dataHandler, Container::Maps, RE::FormID(0xDDD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Maps, Container::Notes, ItemCategory::Map, source); });
     AddContainer(dataHandler, Container::Scroll, RE::FormID(0xD9B), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ScrollMenu(a_source); });
     
+    AddContainer(dataHandler, Container::StolenItems, RE::FormID(0xDDF), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->StolenItemsMenu(source); });
+
     // Misc
     AddContainer(dataHandler, Container::Ammunition, RE::FormID(0xDC7), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->AmmunitionMenu(a_source); });
     AddContainer(dataHandler, Container::Keys, RE::FormID(0xDC5), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->KeysMenu(a_source); });
@@ -346,11 +384,10 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Personal, RE::FormID(0xDA1), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PersonalMenu(a_source); });
     AddContainer(dataHandler, Container::Gear, RE::FormID(0xDE2), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->GearMenu(source); });
     AddContainer(dataHandler, Container::Instruments, RE::FormID(0xDE4), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Instruments, Container::Gear, ItemCategory::Instrument, source); });
-    AddContainer(dataHandler, Container::StolenItems, RE::FormID(0xDDF), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->StolenItemsMenu(source); });
-    AddContainer(dataHandler, Container::EnchantedItems, RE::FormID(0xDEC), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->EnchantedItemsMenu(source); });
     AddContainer(dataHandler, Container::HealthPotions, RE::FormID(0xDE6), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::HealthPotions, Container::Concoction, ItemCategory::HealthPotion, source); });
     AddContainer(dataHandler, Container::MagickaPotions, RE::FormID(0xDE8), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::MagickaPotions, Container::Concoction, ItemCategory::MagickaPotion, source); });
     AddContainer(dataHandler, Container::StaminaPotions, RE::FormID(0xDEA), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::StaminaPotions, Container::Concoction, ItemCategory::StaminaPotion, source); });
+    AddContainer(dataHandler, Container::EnchantedItems, RE::FormID(0xDEC), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->EnchantedItemsMenu(source); });
 }
 
 void Utility::CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandler) {
@@ -422,36 +459,4 @@ void Utility::CacheSkillBooks(RE::TESDataHandler* dataHandler) {
         if (book && book->TeachesSkill() && !book->TeachesSpell())
             SkillBookMap.insert(book->GetFormID());
     }
-}
-
-std::vector<Utility::ContainerChoice> Utility::GetGroupedChoices(ContainerGroup group, RE::TESObjectREFR* source) const {
-    std::vector<ContainerChoice> choices;
-    choices.reserve(containerMap.size());
-
-    for (const auto& [name, entry] : containerMap) {
-        if (!entry.container || entry.a_group != group) continue;
-        ContainerChoice choice{
-            .name = entry.container->GetDisplayFullName(),
-            .formID = entry.container->GetFormID()
-        };
-        if (source && entry.action) {
-            const auto handle = source->GetHandle();
-            choice.action = [handle, action = entry.action] {
-                if (auto source = handle.get()) action(source.get());
-            };
-        }
-        if (!source || choice.action) choices.push_back(std::move(choice));
-    }
-
-    std::ranges::sort(choices, [](const ContainerChoice& lhs, const ContainerChoice& rhs) {
-        return lhs.name < rhs.name;
-    });
-
-    return choices;
-}
-
-Container Utility::GetContainerKind(RE::FormID formID) const {
-    for (const auto& [kind, entry] : containerMap)
-        if (entry.container && entry.container->GetFormID() == formID) return kind;
-    return Container::None;
 }

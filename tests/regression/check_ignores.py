@@ -149,6 +149,11 @@ int main() {
     RE::TESObjectREFR picker{10}, source{11}, master{12}, sorter{13}, trade{14};
     auto* u=Utility::GetSingleton(); auto* stores=Stores::GetSingleton(); int actions=0;
     u->containerMap={{Container::Ignore,{&picker,{}}},{Container::Master,{&master,[&](auto*){++actions;}}},{Container::Sort,{&sorter,[&](auto*){++actions;}}},{Container::Trade,{&trade,[&](auto*){++actions;}}}};
+    RE::TESObjectREFR quickTransfer{123};
+    u->containerMap[Container::QuickTransfer]={&quickTransfer,[&](auto*){++actions;}};
+    player->sneak=false;assert(u->RunContainerAction(&quickTransfer,&source) && actions==1);
+    player->sneak=true;assert(u->RunContainerAction(&quickTransfer,&source) && actions==1 && AVEvents::target==&picker);
+    auto quickClose=AVEvents::close;quickClose();actions=0;
     player->sneak=false; assert(u->RunContainerAction(&master,&source) && actions==1);
     player->sneak=true; assert(u->RunContainerAction(&master,&source) && actions==1 && AVEvents::target==&picker);
     picker.inventory[&key]={25000,42}; auto close=AVEvents::close; close();
