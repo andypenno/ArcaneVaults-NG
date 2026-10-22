@@ -74,6 +74,9 @@ namespace AVUI {
 		if (Checkbox(Translate("Options.KeepSelectedAmmunition"), &setting->GSC_KeepSelectedAmmunition))
 			changeOption = true;
 
+		if (Checkbox(Translate("Options.AllowRemovingStolenTags"), &setting->GSC_AllowRemovingStolenTags))
+			changeOption = true;
+
 		int salePercentage = setting->GSC_SalePercentage;
 		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
 			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);

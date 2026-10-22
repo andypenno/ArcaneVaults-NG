@@ -96,6 +96,7 @@ public:
     void WeaponStaffMenu(RE::TESObjectREFR* a_source);
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
+    void StolenItemsMenu(RE::TESObjectREFR* a_source);
     void TradeMenu(RE::TESObjectREFR* a_source);
     void GearMenu(RE::TESObjectREFR* a_source);
     void JunkMenu(RE::TESObjectREFR* a_source);
@@ -145,6 +146,8 @@ private:
     void ShowWeaponStaffMenu(RE::TESObjectREFR* a_source);
     void ShowGemstoneMenu(RE::TESObjectREFR* a_source);
     void ShowTreasureMenu(RE::TESObjectREFR* a_source);
+    void OpenStolenItems(RE::TESObjectREFR* a_source);
+    void ShowStolenItemsMenu(RE::TESObjectREFR* a_source);
     void ShowTradeMenu(RE::TESObjectREFR* a_source);
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
     void ShowKeysMenu(RE::TESObjectREFR* a_source);

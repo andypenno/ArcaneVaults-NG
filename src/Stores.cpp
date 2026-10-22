@@ -2,6 +2,7 @@
 #include "Stores.h"
 #include "Soulgems.h"
 #include "Trade.h"
+#include "StolenItems.h"
 #include "Events.h"
 #include "ContainerMenu.h"
 #include "RedirectManager.h"
@@ -2086,4 +2087,44 @@ void Stores::ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup gro
             SKSE::GetTaskInterface()->AddTask(back);
         });
     queue->AddMessage(ContainerListMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+}
+
+void Stores::StolenItemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) {
+        if (Settings::GetSingleton()->GSC_AllowRemovingStolenTags) ShowStolenItemsMenu(source);
+        else OpenStolenItems(source);
+    });
+}
+
+void Stores::OpenStolenItems(RE::TESObjectREFR* a_source) {
+    if (!a_source || !Utility::GetSingleton()->GetContainer(Container::StolenItems)) return;
+    if (!StolenItems::Gather()) RE::SendHUDMessage::ShowHUDMessage(Translate("Stolen.TransferFailed"));
+    OpenStorageMenu(Container::StolenItems, a_source, [this](RE::TESObjectREFR* source) {
+        if (!StolenItems::Return()) RE::SendHUDMessage::ShowHUDMessage(Translate("Stolen.TransferFailed"));
+        if (Settings::GetSingleton()->GSC_AllowRemovingStolenTags) ShowStolenItemsMenu(source);
+        else if (returnToVault_) returnToVault_();
+        else CloseStoreObject(source);
+    });
+}
+
+void Stores::ShowStolenItemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source || !Utility::GetSingleton()->GetContainer(Container::StolenItems)) return;
+    if (!StolenItems::Recover()) RE::SendHUDMessage::ShowHUDMessage(Translate("Stolen.TransferFailed"));
+    const auto handle = a_source->GetHandle();
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.Open"), [this, handle] {
+        if (auto source = handle.get()) OpenStolenItems(source.get());
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, handle] {
+        if (auto source = handle.get()) CloseStoreObject(source.get());
+    }});
+    if (returnToVault_) options.push_back({Translate("Vault.Back"), returnToVault_});
+    options.push_back({Translate("Stolen.RemoveAllTags"), [this, handle] {
+        StolenItems::ConfirmClear([this, handle] {
+            if (auto source = handle.get()) StolenItemsMenu(source.get());
+        });
+    }});
+    const auto title = std::format("{} {}", Translate("Vault.StolenItems"), Translate("Vault.Vault"));
+    ShowDynamicMessageBox(title, std::move(options), 1);
 }

@@ -106,3 +106,5 @@ The Quantities settings page edits ammunition, Septim, empty soul gem, Alchemy a
 Notes has an independent Quick Transfer checkbox, disabled by default. Recipe overrides imply Note; SpellTome and SkillBook imply Book. Books and Notes Withdraw Up To 1 only supplies missing base records.
 
 Gear Quick Transfer defaults off. `LockpickKeepAmount` defaults to 25 and appears on Quantities. Its integer validation rejects negative, malformed and overflowing values. Gear quicksorting retains this reserve and excludes lockpicks from the subsequent general Gear deposit.
+
+Allow Removing Stolen Tags defaults off. Enabling it adds the explicit clearing action to Stolen Items. Confirmations recheck the option and load generation before changing ownership.

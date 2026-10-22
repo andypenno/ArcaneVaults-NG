@@ -172,6 +172,7 @@ enum class ContainerGroup {
     case Container::Maps:        return "Vault.Maps";
     case Container::Gear:        return "Vault.Gear";
     case Container::Instruments: return "Vault.Instruments";
+    case Container::StolenItems: return "Vault.StolenItems";
     case Container::None:         return {};
     default: return {};
     }

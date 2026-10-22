@@ -162,5 +162,13 @@
 	"Vault.KeepLockpicks": "Keep {0} Lockpicks",
 	"Vault.TakeLockpicks": "Take Up To {0} Lockpicks",
 	"Options.LockpickKeepAmount": "Lockpick Keep Amount",
-	"Vault.Archives": "Archives"
+	"Vault.Archives": "Archives",
+	"Vault.StolenItems": "Stolen Items",
+	"Options.AllowRemovingStolenTags": "Allow Removing Stolen Tags",
+	"Learning.No": "No",
+	"Learning.Yes": "Yes",
+	"Stolen.RemoveAllTags": "Remove All Stolen Tags",
+	"Stolen.Confirm": "Remove stolen tags from all stolen copies stored in your vaults? Their other properties and counts will remain unchanged.",
+	"Stolen.Cleared": "Stolen tags removed. Items returned to their vaults.",
+	"Stolen.TransferFailed": "Some items could not be transferred. Remaining archive items are kept for recovery."
 }
