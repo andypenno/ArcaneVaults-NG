@@ -63,8 +63,9 @@ struct TESObjectREFR {
     Handle GetHandle(){return {this};}
     int removeLimit=INT_MAX,removeCalls=0;bool rejectMove=false;
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
-    auto GetInventory() const { return inventory; }
-    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&){return true;}) const {std::map<TESBoundObject*,int> counts;for(const auto& [item,data]:inventory)if(item && filter(*item))counts[item]=data.first;return counts;}
+    mutable int countReads=0, inventoryRows=0;
+    auto GetInventory(std::function<bool(TESBoundObject&)> filter = [](auto&){return true;}) const {decltype(inventory) result;for(const auto& [item,data]:inventory)if(item && filter(*item)){result[item]=data;++inventoryRows;}return result;}
+    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&){return true;}) const {++countReads;std::map<TESBoundObject*,int> counts;for(const auto& [item,data]:inventory)if(item && filter(*item))counts[item]=data.first;return counts;}
     void RemoveItem(TESBoundObject* item, int count, ITEM_REMOVE_REASON, void*, TESObjectREFR* destination) {
         assert(count > 0 && count <= inventory.at(item).first);
         ++removeCalls;if(rejectMove)return;count=std::min(count,removeLimit);
@@ -149,7 +150,7 @@ program += "struct Settings {\n" + settings_fields + r'''
 '''
 start=settings.index("template <class T>\nvoid Settings::get_value(")
 program += settings[start:settings.index("\n}\n",start)+3]
-move_start=source.index("    void MoveItems(")
+move_start=source.index("    int MoveItems(")
 program+=source[move_start:source.index("\n    }",move_start)+6]
 start=source.index("void Stores::StoreToPlayer(")
 store_to_player=source[start:source.index("\n}\n",start)+3]
@@ -453,8 +454,8 @@ int main() {
 
     player->inventory.clear();utility->junk.inventory.clear();utility->custom.clear();RE::TESBoundObject loanItem{ItemCategory::Junk},protectedLoan{ItemCategory::Junk};
     put(&loanItem,3);utility->junk.inventory[&loanItem]=entry(20);utility->junk.inventory[&protectedLoan]={4,std::make_shared<RE::InventoryEntryData>(false,true,false)};
-    stores.BeginJunkLoan();assert(player->inventory[&loanItem].first==23 && utility->junk.inventory[&loanItem].first==0 && utility->junk.inventory[&protectedLoan].first==4);
-    player->inventory[&loanItem].first-=5;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==3 && utility->junk.inventory[&loanItem].first==15 && stores.junkLoan_.empty());
+    utility->junk.countReads=0;stores.BeginJunkLoan();assert(utility->junk.countReads==2);assert(player->inventory[&loanItem].first==23 && utility->junk.inventory[&loanItem].first==0 && utility->junk.inventory[&protectedLoan].first==4);
+    put(&protectedLoan,6);player->inventoryRows=0;player->inventory[&loanItem].first-=5;stores.EndJunkLoan();assert(player->inventoryRows==1 && player->inventory[&protectedLoan].first==6);assert(player->inventory[&loanItem].first==3 && utility->junk.inventory[&loanItem].first==15 && stores.junkLoan_.empty());
     stores.BeginJunkLoan();player->rejectMove=true;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18 && utility->junk.inventory[&loanItem].first==0);player->rejectMove=false;
     stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18);
 

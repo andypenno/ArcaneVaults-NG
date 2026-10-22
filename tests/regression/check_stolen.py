@@ -18,8 +18,8 @@ struct Stores {
 namespace AVTranslation {inline const char* Translate(const char* key){return key;}}
 '''
 stores_source=(ROOT / "src/Stores.cpp").read_text()
-a=stores_source.index("    void MoveItems(")
-common += stores_source[a:stores_source.index("\n    }",a)+6].replace("void MoveItems(","inline void MoveItems(",1)
+a=stores_source.index("    int MoveItems(")
+common += stores_source[a:stores_source.index("\n    }",a)+6].replace("int MoveItems(","inline int MoveItems(",1)
 a=stores_source.index("void Stores::AllToStore(")
 common += stores_source[a:stores_source.index("\n}\n",a)+3].replace("void Stores::AllToStore(","inline void Stores::AllToStore(",1)
 program=r'''#include "common.hpp"

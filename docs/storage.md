@@ -191,3 +191,5 @@ Health, Magicka and Stamina potion archives classify positive, non-hostile value
 Armor and Weapon Open actions consolidate all four child archives before opening the parent. Their Unclassified actions retain the separate filtered view. Closing the combined parent returns to its menu.
 
 Crafting loans include stored Junk through a per-base ledger. Lending records the carried count and the amount actually borrowed. Return caps at the unconsumed borrowed amount above the prior carried count. Quest, favourite, worn and native-equipped records remain protected. Refused returns stay carried.
+
+Junk lending records the shared mover's actual moved count without rereading the source. Junk and soul-gem returns request inventory entries only for their loaned base records. Soul-gem scans filter out unrelated base records before building entry data.

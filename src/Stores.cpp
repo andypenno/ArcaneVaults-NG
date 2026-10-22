@@ -15,21 +15,24 @@
 #include <thread>
 
 namespace {
-    void MoveItems(RE::TESObjectREFR* source, RE::TESObjectREFR* destination, RE::TESBoundObject* item, int count) {
-        if (!source || !destination || source == destination || !item || count <= 0) return;
+    int MoveItems(RE::TESObjectREFR* source, RE::TESObjectREFR* destination, RE::TESBoundObject* item, int count) {
+        if (!source || !destination || source == destination || !item || count <= 0) return 0;
         const auto countItems = [source, item] {
             const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
             const auto found = counts.find(item);
             return found == counts.end() ? 0 : (std::max)(0, found->second);
         };
         int available = countItems();
+        int moved{};
         while (count > 0 && available > 0) {
             source->RemoveItem(item, (std::min)(count, available), RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
             const int after = countItems();
-            if (after >= available) return;
+            if (after >= available) return moved;
+            moved += available - after;
             count -= (std::min)(count, available - after);
             available = after;
         }
+        return moved;
     }
 
     std::unordered_set<RE::FormID> SelectedAmmunition(RE::PlayerCharacter* player) {
@@ -2185,11 +2188,7 @@ void Stores::BeginJunkLoan() {
         const auto existing = carried.find(item);
         const int before = existing == carried.end() ? 0 : (std::max)(0, existing->second);
         const int count = (std::min)(data.first, (std::numeric_limits<int>::max)() - before);
-        MoveItems(source, player, item, count);
-        const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
-        const auto remaining = counts.find(item);
-        const int after = remaining == counts.end() ? 0 : (std::max)(0, remaining->second);
-        const int borrowed = (std::max)(0, data.first - after);
+        const int borrowed = MoveItems(source, player, item, count);
         if (borrowed > 0) junkLoan_[item->GetFormID()] = {before, borrowed};
     }
 }
@@ -2200,7 +2199,7 @@ void Stores::EndJunkLoan() {
     if (!destination || !player) { ResetJunkLoan(); return; }
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
-    for (const auto& [item, data] : player->GetInventory()) {
+    for (const auto& [item, data] : player->GetInventory([this](RE::TESBoundObject& item) { return junkLoan_.contains(item.GetFormID()); })) {
         if (!item || !data.second || data.first <= 0) continue;
         const auto loan = junkLoan_.find(item->GetFormID());
         if (loan == junkLoan_.end()) continue;

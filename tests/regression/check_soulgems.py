@@ -76,6 +76,7 @@ struct TESObjectREFR {
     using Inventory = std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>>;
     Inventory inventory;
     inline static std::vector<std::unique_ptr<ExtraDataList>> extras;
+    template<class Filter> Inventory GetInventory(Filter filter) const {Inventory result;for(const auto& [item,data]:inventory)if(item && filter(*item))result[item]=data;return result;}
     Inventory GetInventory() const { return inventory; }
     void Put(TESBoundObject* item,int count,std::optional<SOUL_LEVEL> soul={},std::string owner={},bool explicitStack=false) {
         auto& data=inventory[item];data.first+=count;
