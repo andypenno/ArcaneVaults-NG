@@ -401,7 +401,7 @@ int main() {
     }
 
 
-    player->inventory.clear();utility->custom.clear();RE::TESObjectREFR books,notes,spellArchive,skillArchive,recipeArchive,legacyScroll;
+    player->inventory.clear();chest.inventory.clear();utility->custom.clear();RE::TESObjectREFR books,notes,spellArchive,skillArchive,recipeArchive,legacyScroll;
     utility->custom={{Container::Book,&books},{Container::Notes,&notes},{Container::SpellTomes,&spellArchive},{Container::SkillBooks,&skillArchive},{Container::Recipes,&recipeArchive},{Container::Scroll,&legacyScroll}};
     RE::TESBoundObject plainBook{ItemCategory::Book},spellBook{ItemCategory::SpellTome,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Book)},skillBook{ItemCategory::SkillBook,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Book)},recipe{ItemCategory::Recipe,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Note)},note{ItemCategory::Note};
     spellArchive.inventory[&spellBook]=entry(2);skillArchive.inventory[&skillBook]=entry(3);recipeArchive.inventory[&recipe]=entry(4);legacyScroll.inventory[&note]=entry(5);books.inventory[&note]=entry(6);
@@ -412,6 +412,14 @@ int main() {
     put(&plainBook,3);books.inventory[&plainBook]=entry(10);stores.BookMenu(&activationSource);click(1);assert(player->inventory[&plainBook].first==3);
     player->inventory[&plainBook].first=0;click(1);assert(player->inventory[&plainBook].first==1);click(1);assert(player->inventory[&plainBook].first==1);
     settings->GSC_OffloadNotes=true;put(&note,12);stores.OffloadItems();assert(player->inventory[&note].first==0 && notes.inventory[&note].first==23);
+    utility->custom.clear();
+
+
+    player->inventory.clear();chest.inventory.clear();RE::TESObjectREFR mapArchive;utility->custom[Container::Notes]=&notes;utility->custom[Container::Maps]=&mapArchive;
+    RE::TESBoundObject fishingMap{ItemCategory::Map,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Note)};
+    notes.inventory[&fishingMap]=entry(8);stores.NotesMenu(&activationSource);click(3);
+    assert(stores.opened==Container::Maps && mapArchive.inventory[&fishingMap].first==8 && notes.inventory[&fishingMap].first==0);
+    stores.onClose();assert(notes.inventory[&fishingMap].first==8 && mapArchive.inventory[&fishingMap].first==0);
     utility->custom.clear();
 
 }
@@ -507,6 +515,8 @@ for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAcces
 item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")]
+expand_start=item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")
+program += item_source[expand_start:item_source.index("CategoryMask ClassifyItem(",expand_start)]
 program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;auto* utility=Utility::GetSingleton();\n"
 gold_start=item_source.index("    if (a_item->IsGold())")
 program += item_source[gold_start:item_source.index("    if (a_item->IsKey())",gold_start)]
@@ -519,6 +529,7 @@ start=item_source.index("    // Books, Scrolls, and Spell Tomes")
 program += item_source[start:item_source.index("\n    return categories;",start)]
 program += "return categories; }\nint main() {\n"
 program += r'''
+    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Map)),ItemCategory::Note));
     RE::TESBoundObject nativeBook{ItemCategory::None};nativeBook.nativeBook=true;nativeBook.book.id=0x12345;
     assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));nativeBook.book.skill=true;
     RE::TESDataHandler data;data.books={&nativeBook.book,nullptr};Utility::GetSingleton()->CacheSkillBooks(&data);nativeBook.book.skill=false;
@@ -568,3 +579,8 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-jewelry-check-") as tempora
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 print("PASS: native armor slot and keyword Jewelry classification")
+
+map_lines=[line for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.strip().endswith("= Map")]
+assert len(map_lines)==21
+assert {int(line.split("|0x")[1].split()[0],16) for line in map_lines if line.startswith("ccBGSSSE001-Fish.esm|")} == set(range(0x70CCC,0x70CD4))
+print("PASS: official treasure and Fishing map defaults")

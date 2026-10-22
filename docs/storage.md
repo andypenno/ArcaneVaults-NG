@@ -173,3 +173,5 @@ Sort first returns ignored records when Return Ignored Items is enabled. Its cat
 Direct Archery access gathers ammunition alongside bows. On close, it returns ammunition to its vault before returning weapons. A refused ammunition return leaves the archive intact so those copies cannot fall into the Weapon vault.
 
 Books and Notes menus link directly to Spell Tomes, Skill Books and Recipes. Archives return their contents to the parent before navigation resumes. Consolidation also migrates old Book and Note records from Scroll storage. Skill-book identities are cached from loaded forms before reading can consume their teaching data. Native note flags and a case-insensitive `note` mesh-path match identify notes.
+
+Maps is a Notes archive at reference `0xDDD`. Bundled Map overrides cover 13 official treasure maps and 8 Fishing maps. Map implies Note, and archive close returns maps to Notes. Additional maps can use Map overrides.

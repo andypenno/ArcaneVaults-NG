@@ -358,6 +358,7 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Clothing, RE::FormID(0xD96), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ArmorClothingMenu(a_source); });
 
     // Books and Scrolls
+    AddContainer(dataHandler, Container::Maps, RE::FormID(0xDDD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Maps, Container::Notes, ItemCategory::Map, source); });
     AddContainer(dataHandler, Container::Notes, RE::FormID(0xDD5), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->NotesMenu(source); });
     AddContainer(dataHandler, Container::SpellTomes, RE::FormID(0xDD7), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SpellTomes, Container::Book, ItemCategory::SpellTome, source); });
     AddContainer(dataHandler, Container::SkillBooks, RE::FormID(0xDD9), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SkillBooks, Container::Book, ItemCategory::SkillBook, source); });

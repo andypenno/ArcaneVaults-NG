@@ -2111,6 +2111,7 @@ void Stores::ConsolidateBooks() {
     AllToStore(Container::SpellTomes, Container::Book);
     AllToStore(Container::SkillBooks, Container::Book);
     AllToStore(Container::Recipes, Container::Notes);
+    AllToStore(Container::Maps, Container::Notes);
     StoreToStore(ItemCategory::Note, Container::Scroll, Container::Notes);
     StoreToStore(ItemCategory::Book, Container::Scroll, Container::Book);
     StoreToStore(ItemCategory::Note, Container::Book, Container::Notes);
@@ -2155,6 +2156,10 @@ void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
     options.push_back({Translate("Vault.Recipes"), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
             OpenBookArchive(Container::Recipes, Container::Notes, ItemCategory::Recipe, source.get(), true);
+    }});
+    options.push_back({Translate("Vault.Maps"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::Maps, Container::Notes, ItemCategory::Map, source.get(), true);
     }});
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
         if (auto source = sourceHandle.get())

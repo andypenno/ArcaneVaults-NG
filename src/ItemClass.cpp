@@ -137,7 +137,7 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
 
     if (HasAnyCategory(categories, ItemCategory::SpellTome | ItemCategory::SkillBook))
         categories |= ItemCategory::Book;
-    if (HasCategory(categories, ItemCategory::Recipe))
+    if (HasAnyCategory(categories, ItemCategory::Recipe | ItemCategory::Map))
         categories |= ItemCategory::Note;
 
     return categories;
