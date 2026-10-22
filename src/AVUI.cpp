@@ -175,6 +175,8 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (Checkbox(Translate("Vault.Junk"), &setting->GSC_OffloadJunk))
+                changeOption = true;
 			if (Checkbox(Translate("Vault.Septims"), &setting->GSC_OffloadGold))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Ammunition"), &setting->GSC_OffloadAmmunition))

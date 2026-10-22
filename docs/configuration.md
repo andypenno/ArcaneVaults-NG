@@ -35,7 +35,7 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `GoldKeepAmount` | 5000 | Retain this many carried Septims; zero deposits all eligible Gold |
 | `SoulgemKeepAmount` | 25 | Retain this many empty soul gems per base record; filled gems have no reserve |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults include Junk. Other enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `Soulgems`, `Ammunition`, `Gold`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
 Options exposes Ammunition Keep Amount as a nonnegative integer control. Quick Transfer only exposes an Ammunition enable checkbox under More. `[Offload] Ammunition=true` enables ammunition deposits using the same reserve as the vault Keep N action. Missing values default to enabled and 100. The amount applies per ammunition base record, not to the combined arrow/bolt count.
 
@@ -95,3 +95,5 @@ Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ign
 The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
 
 With Keep Selected Ammunition enabled, Keep N retains N selected copies and deposits unselected ammunition. Quest records remain protected. Withdraw Up To N tops up selected records only. With it disabled, reserves apply to all ammunition records and the ordinary favourite, worn, and current-ammunition protections apply.
+
+The Junk category supports classification overrides. Quick Transfer deposits explicitly classified Junk when its checkbox is enabled. It leaves unclassified player items carried. Sort sends unmatched deposits to Junk after category routing and ignored-item recovery.

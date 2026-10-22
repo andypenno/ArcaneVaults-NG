@@ -16,9 +16,9 @@ The category helpers iterate inventory snapshots and use `MoveItems` to call `Re
 
 `PlayerToStore` also evaluates Skyrim's standard `GetEquipped` condition for matching items. It resolves the current function on each transfer so mod-installed condition hooks are respected. A successful nonzero result protects the whole base-item stack, as native worn flags already do. Missing or failed condition evaluation leaves the existing quest, favourite, and worn checks in force. Mods keeping worn state private without exposing native flags or this condition cannot be detected through these checks.
 
-`SortItems` first recovers physical soul gems into the Soulgem Vault, then drains the Sort container in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+`SortItems` first recovers physical soul gems into the Soulgem Vault, then drains the Sort container in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; the final fallback moves unmatched items to Junk unless the Ignore policy retains them. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
-`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
+`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
 
 ## Vaults and archives
 
@@ -150,6 +150,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
+| Junk | `0xDCF` | Vault | `JunkMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
 
 ## Ignore picker

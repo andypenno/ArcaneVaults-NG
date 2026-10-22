@@ -343,6 +343,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 void Stores::SortItems() {
     ReturnIgnoredItems();
     Soulgems::Recover();
+    StoreToStore(ItemCategory::Junk, Container::Sort, Container::Junk);
     StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     // Sort all items in the sorting container
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
@@ -357,11 +358,15 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Armor, Container::Sort, Container::Armor);
     StoreToStore(ItemCategory::Weapon, Container::Sort, Container::Weapon);
     StoreToStore(ItemCategory::Concoction, Container::Sort, Container::Concoction);
+    AllToStore(Container::Sort, Container::Junk);
     RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
 }
 
 void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadJunk)
+        PlayerToStore(ItemCategory::Junk, Container::Junk, 0, 0, true);
 
     if (settings->GSC_OffloadSoulgems) {
         PlayerToStore(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
@@ -592,6 +597,10 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
 
     options.push_back({Translate("Vault.Treasure"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) TreasureMenu(source.get());
+    }});
+
+    options.push_back({Translate("Vault.Junk"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) JunkMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Personal"), [this, sourceHandle] {
@@ -1993,4 +2002,13 @@ void Stores::TakeAmmunition() {
         const int held = existing == carried.end() ? 0 : (std::max)(0, existing->second);
         MoveItems(chest, player, item, (std::min)(data.first, (std::max)(0, target - held)));
     }
+}
+
+void Stores::JunkMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) {
+        OpenStorageMenu(Container::Junk, source, [this](RE::TESObjectREFR* closed) {
+            if (closed) CloseStoreObject(closed);
+        });
+    });
 }

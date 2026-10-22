@@ -42,6 +42,7 @@ public:
 	bool GSC_OffloadSoulgems{ true };
 	int GSC_SoulgemKeepAmount{ 25 };
 	bool GSC_OffloadTreasure{ false };
+	bool GSC_OffloadJunk{ true };
 	int GSC_GoldKeepAmount{ 5000 };
 	bool GSC_OffloadGold{ true };
 	int GSC_AmmunitionKeepAmount{ 100 };

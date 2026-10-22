@@ -80,6 +80,7 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadCookedFood, "Offload", "CookedFood");
 	option(settings.GSC_OffloadRawFood, "Offload", "RawFood");
 	option(settings.GSC_OffloadSoulgems, "Offload", "Soulgems");
+	option(settings.GSC_OffloadJunk, "Offload", "Junk");
 	option(settings.GSC_OffloadTreasure, "Offload", "Treasure");
 	option(settings.GSC_OffloadGold, "Offload", "Gold");
 	option(settings.GSC_OffloadAmmunition, "Offload", "Ammunition");

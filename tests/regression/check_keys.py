@@ -50,7 +50,9 @@ struct Handle {
     struct Pointer { TESObjectREFR* object; explicit operator bool()const{return object;} TESObjectREFR* get()const{return object;} };
     Pointer get()const{return {object};}
 };
+struct InventoryChanges {void RemoveAllItems(TESObjectREFR*,TESObjectREFR*,bool,bool,bool);};
 struct TESObjectREFR {
+    InventoryChanges changes;InventoryChanges* GetInventoryChanges(){return &changes;}
     Handle GetHandle(){return {this};}
     int removeLimit=INT_MAX,removeCalls=0;bool rejectMove=false;
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
@@ -64,6 +66,7 @@ struct TESObjectREFR {
         if (!destination->inventory[item].second) destination->inventory[item].second=std::make_shared<InventoryEntryData>();
     }
 };
+void InventoryChanges::RemoveAllItems(TESObjectREFR* source,TESObjectREFR* target,bool,bool,bool){for(auto [item,data]:source->GetInventory())if(item && data.first>0)source->RemoveItem(item,data.first,ITEM_REMOVE_REASON::kStoreInContainer,nullptr,target);}
 struct PlayerCharacter : TESObjectREFR {
     TESBoundObject* currentAmmo=nullptr;
     TESBoundObject* GetCurrentAmmo() const {return currentAmmo;}
@@ -88,10 +91,10 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
-    RE::TESObjectREFR chest,inbox,ammunition,archery;
+    RE::TESObjectREFR chest,inbox,ammunition,archery,junk;
     std::map<Container,RE::TESObjectREFR*> custom;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
-    RE::TESObjectREFR* GetContainer(Container container) { if(custom.contains(container))return custom[container]; return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : &chest; }
+    RE::TESObjectREFR* GetContainer(Container container) { if(custom.contains(container))return custom[container]; return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : container==Container::Junk ? &junk : &chest; }
 };
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
@@ -104,6 +107,7 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     std::vector<MenuOption> options;Container opened=Container::None;
     void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
     void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
+    void JunkMenu(RE::TESObjectREFR*);
     void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
     void CloseStoreObject(RE::TESObjectREFR*) {}
     void OpenStorageMenu(Container container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){opened=container;onClose=[source,close]{close(source);};}
@@ -140,15 +144,14 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
 program += source[start:source.index("\n}\n",start)+3]
-program += r'''void Stores::AllToStore(Container from,Container to){
-    auto* source=Utility::GetSingleton()->GetContainer(from);auto* target=Utility::GetSingleton()->GetContainer(to);
-    for(auto [item,data]:source->GetInventory())if(item && data.first>0)MoveItems(source,target,item,data.first);
-}'''
+start=source.index("void Stores::AllToStore(")
+program += source[start:source.index("\n}\n",start)+3]
+
 program += method + store_to_player + offload + store_to_store + sort_items + ini_options
 program += r'''
 int main() {
@@ -358,6 +361,19 @@ int main() {
     settings->ignored.insert(&gold);stores.OffloadItems();assert(player->inventory[&gold].first==12200);settings->ignored.clear();stores.OffloadItems();assert(player->inventory[&gold].first==5000 && treasury.inventory[&gold].first==7200);
     for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.exists=true;ini.text=text;settings->get_value(ini,reserve,"General","GoldKeepAmount");assert(reserve==5000);}
     utility->custom.clear();
+    player->inventory.clear();auto& junk=utility->junk;auto& junkInbox=utility->inbox;junk.inventory.clear();junkInbox.inventory.clear();
+    RE::TESBoundObject explicitJunk{ItemCategory::Junk,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing)},unmatchedJunk{ItemCategory::None};
+    put(&explicitJunk,5);put(&unmatchedJunk,7);settings->GSC_OffloadJunk=true;stores.OffloadItems();
+    assert(player->inventory[&explicitJunk].first==0 && junk.inventory[&explicitJunk].first==5 && player->inventory[&unmatchedJunk].first==7);
+    settings->GSC_OffloadJunk=false;put(&explicitJunk,4);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);
+    settings->GSC_OffloadJunk=true;settings->ignored.insert(&explicitJunk);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);settings->ignored.clear();
+    junkInbox.inventory[&explicitJunk]=entry(9);junkInbox.inventory[&unmatchedJunk]=entry(8);stores.SortItems();
+    assert(junk.inventory[&explicitJunk].first==14 && junk.inventory[&unmatchedJunk].first==8 && junkInbox.inventory[&unmatchedJunk].first==0);
+    settings->GSC_ReturnIgnoredItems=true;settings->ignored.insert(&unmatchedJunk);junkInbox.inventory[&unmatchedJunk]=entry(3);junkInbox.rejectMove=true;stores.SortItems();
+    assert(junkInbox.inventory[&unmatchedJunk].first==3 && junk.inventory[&unmatchedJunk].first==8);
+    junkInbox.rejectMove=false;stores.SortItems();assert(junkInbox.inventory[&unmatchedJunk].first==0 && player->inventory[&unmatchedJunk].first==10);
+    settings->ignored.clear();stores.JunkMenu(&activationSource);assert(stores.opened==Container::Junk);stores.onClose();
+
 
 }
 '''
