@@ -16,3 +16,7 @@ view/
 # files
 *.zip
 compile_commands.json
+
+# Test reports and Python bytecode
+/results/
+__pycache__/

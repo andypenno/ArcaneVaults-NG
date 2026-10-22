@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "id": "unit",
+      "suites": [
+        "unit"
+      ],
+      "command": [
+        "{python}",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/unit",
+        "-v"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    }
+  ]
+}
