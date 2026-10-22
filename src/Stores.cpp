@@ -284,7 +284,7 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
     StoreToStore(ItemCategory::Food, Container::Sort, Container::Food);
-    StoreToStore(ItemCategory::Ingredient, Container::Sort, Container::Alchemy);
+    StoreToStore(ItemCategory::Alchemy, Container::Sort, Container::Alchemy);
     StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     StoreToStore(ItemCategory::Scroll, Container::Sort, Container::Scroll);
     StoreToStore(ItemCategory::Book, Container::Sort, Container::Book);
@@ -683,7 +683,7 @@ void Stores::ShowAlchemyMenu(RE::TESObjectREFR* a_source) {
     std::vector<MenuOption> options;
 
     options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::Ingredient, Container::Alchemy);
+        PlayerToStore(ItemCategory::Alchemy, Container::Alchemy);
         RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
         if (auto source = sourceHandle.get()) AlchemyMenu(source.get());
     }});

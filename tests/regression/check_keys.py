@@ -31,7 +31,7 @@ namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
-struct TESBoundObject { ItemCategory category; };
+struct TESBoundObject { ItemCategory category; CategoryMask extraMask=0; };
 struct InventoryEntryData {
     bool quest = false, favorite = false, worn = false;
     bool IsQuestObject() const { return quest; }
@@ -72,14 +72,14 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
-    RE::TESObjectREFR chest;
+    RE::TESObjectREFR chest,inbox;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
-    RE::TESObjectREFR* GetContainer(Container container) { return container == Container::None ? nullptr : &chest; }
+    RE::TESObjectREFR* GetContainer(Container container) { return container == Container::None ? nullptr : container==Container::Sort ? &inbox : &chest; }
 };
-CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return CategoryMask{1} << static_cast<unsigned>(item->category); }
+CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
-struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0); void OffloadItems(); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
+struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
@@ -90,7 +90,11 @@ move_start=source.index("    void MoveItems(")
 program+=source[move_start:source.index("\n    }",move_start)+6]
 start=source.index("void Stores::StoreToPlayer(")
 store_to_player=source[start:source.index("\n}\n",start)+3]
-program += method + store_to_player + offload + ini_options
+start=source.index("void Stores::StoreToStore(")
+store_to_store=source[start:source.index("\n}\n",start)+3]
+start=source.index("void Stores::SortItems(")
+sort_items=source[start:source.index("\n}\n",start)+3]
+program += method + store_to_player + offload + store_to_store + sort_items + ini_options
 program += r'''
 int main() {
     static_assert(static_cast<unsigned>(Container::Staff) == 32);
@@ -214,6 +218,16 @@ int main() {
     RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
     stores.PlayerToStore(ItemCategory::Scroll,Container::Book);
     assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
+    player->inventory.clear();chest.inventory.clear();auto& inbox=Utility::GetSingleton()->inbox;
+    std::array<RE::TESBoundObject,3> ingredients{{{ItemCategory::Ingredient,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)},
+        {ItemCategory::Reagent,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)},
+        {ItemCategory::Catalyst,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)}}};
+    for(auto& item:ingredients)put(&item,5);
+    stores.PlayerToStore(ItemCategory::Alchemy,Container::Alchemy);
+    for(auto& item:ingredients){assert(player->inventory[&item].first==0 && chest.inventory[&item].first==5);inbox.inventory[&item]={7,std::make_shared<RE::InventoryEntryData>()};}
+    stores.SortItems();
+    for(auto& item:ingredients)assert(inbox.inventory[&item].first==0 && chest.inventory[&item].first==12);
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
