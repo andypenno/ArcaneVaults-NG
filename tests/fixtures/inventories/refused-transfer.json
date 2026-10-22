@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "refused-transfer",
+  "bases": [
+    "ingot"
+  ],
+  "inventories": {
+    "player": [
+      {
+        "base": "ingot",
+        "id": "iron",
+        "count": 1000
+      }
+    ],
+    "vault": []
+  },
+  "actions": [
+    {
+      "from": "player",
+      "to": "vault",
+      "base": "ingot",
+      "refuse": true
+    }
+  ],
+  "expected": {
+    "player": {
+      "iron": 1000
+    },
+    "vault": {}
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "name": "same-base-worn-and-spare",
+  "bases": [
+    "ring"
+  ],
+  "inventories": {
+    "player": [
+      {
+        "base": "ring",
+        "id": "worn",
+        "count": 1,
+        "worn": true,
+        "enchantment": "fire"
+      },
+      {
+        "base": "ring",
+        "id": "spare",
+        "count": 1,
+        "enchantment": "frost"
+      }
+    ],
+    "vault": []
+  },
+  "actions": [
+    {
+      "from": "player",
+      "to": "vault",
+      "base": "ring"
+    }
+  ],
+  "expected": {
+    "player": {
+      "worn": 1
+    },
+    "vault": {
+      "spare": 1
+    }
+  }
+}

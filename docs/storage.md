@@ -177,3 +177,5 @@ Books and Notes menus link directly to Spell Tomes, Skill Books and Recipes. Arc
 Maps is a Notes archive at reference `0xDDD`. Bundled Map overrides cover 13 official treasure maps and 8 Fishing maps. Map implies Note, and archive close returns maps to Notes. Additional maps can use Map overrides.
 
 Gear holds lockpicks, carryable lights and Instrument overrides. Lockpick and Instrument imply Gear. The Instruments archive uses the shared archive gather/return helper. Gear Keep and Withdraw Up To use the lockpick reserve without transferring unrelated Gear records. Sorting and Quick Transfer consolidate Instruments first.
+
+`InventoryStacks` provides physical extra-list reads, bounded cursors and validated moves for archive consumers. Reads reject duplicate lists, nonpositive counts and explicit totals above the aggregate. Prepared cursors invalidate on relevant inventory/equipment events. Moves preserve the selected extra list and verify source and destination counts; materialization caps each native ExtraCount to its signed 16-bit range.

@@ -69,3 +69,5 @@ Choose checks relevant to the change and record runtime, load order, starting in
 | Configuration/translation | Save/reload options, test hotkeys/spells, check missing/malformed data according to the intended contract, and confirm container names |
 
 Logging uses `SKSE::log` through the `logger` alias. The entry point does not explicitly configure a file sink/path, so inspect the active runtime's logging setup rather than inventing a plugin log filename.
+
+`tests/integration/inventory.py` compiles the complete `InventoryStacks.cpp` against engine boundaries and runs committed inventory scenarios. It checks metadata, matching enchanted bases, protected instances, partial/refused moves, count deltas and invalidated cursors. It does not run Skyrim.

@@ -109,6 +109,19 @@
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "inventory-scenarios",
+      "suites": [
+        "integration"
+      ],
+      "command": [
+        "{python}",
+        "tests/integration/inventory.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
     }
   ]
 }

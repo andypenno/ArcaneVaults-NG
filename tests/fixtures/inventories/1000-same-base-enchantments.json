@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "name": "1000-same-base-enchantments",
+  "bases": [
+    "ring"
+  ],
+  "inventories": {
+    "player": [],
+    "vault": []
+  },
+  "generators": [
+    {
+      "inventory": "player",
+      "expected_inventory": "vault",
+      "base": "ring",
+      "prefix": "variant-",
+      "copies": 1000,
+      "count": 1
+    }
+  ],
+  "actions": [
+    {
+      "from": "player",
+      "to": "vault",
+      "base": "ring",
+      "limit": 1
+    }
+  ],
+  "expected": {
+    "player": {},
+    "vault": {}
+  }
+}
