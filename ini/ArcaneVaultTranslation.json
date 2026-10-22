@@ -156,5 +156,10 @@
 	"Vault.SpellTomes": "Spell Tomes",
 	"Vault.SkillBooks": "Skill Books",
 	"Vault.Recipes": "Recipes",
-	"Vault.Maps": "Maps"
+	"Vault.Maps": "Maps",
+	"Vault.Gear": "Gear",
+	"Vault.Instruments": "Instruments",
+	"Vault.KeepLockpicks": "Keep {0} Lockpicks",
+	"Vault.TakeLockpicks": "Take Up To {0} Lockpicks",
+	"Options.LockpickKeepAmount": "Lockpick Keep Amount"
 }

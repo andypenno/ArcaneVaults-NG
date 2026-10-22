@@ -106,6 +106,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int lockpickKeepAmount = setting->GSC_LockpickKeepAmount;
+		if (InputInt(Translate("Options.LockpickKeepAmount"), &lockpickKeepAmount)) {
+			setting->GSC_LockpickKeepAmount = (std::max)(0, lockpickKeepAmount);
+			changeOption = true;
+		}
+
 		int alchemyKeepAmount = setting->GSC_AlchemyKeepAmount;
 		if (InputInt(Translate("Options.AlchemyKeepAmount"), &alchemyKeepAmount)) {
 			setting->GSC_AlchemyKeepAmount = (std::max)(0, alchemyKeepAmount);
@@ -203,6 +209,8 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (Checkbox(Translate("Vault.Gear"), &setting->GSC_OffloadGear))
+                changeOption = true;
             if (Checkbox(Translate("Vault.Junk"), &setting->GSC_OffloadJunk))
                 changeOption = true;
 			if (Checkbox(Translate("Vault.Septims"), &setting->GSC_OffloadGold))

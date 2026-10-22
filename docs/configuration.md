@@ -104,3 +104,5 @@ The Junk category supports classification overrides. Quick Transfer deposits exp
 The Quantities settings page edits ammunition, Septim, empty soul gem, Alchemy and Scroll reserves. Alchemy defaults to 1 per base record; Scroll defaults to 3. Keep N deposits excess without withdrawing. Withdraw Up To N tops up only the shortfall. Zero targets withdraw nothing. Invalid or overflowing values fall back to their defaults. Sale Percentage remains last on Options.
 
 Notes has an independent Quick Transfer checkbox, disabled by default. Recipe overrides imply Note; SpellTome and SkillBook imply Book. Books and Notes Withdraw Up To 1 only supplies missing base records.
+
+Gear Quick Transfer defaults off. `LockpickKeepAmount` defaults to 25 and appears on Quantities. Its integer validation rejects negative, malformed and overflowing values. Gear quicksorting retains this reserve and excludes lockpicks from the subsequent general Gear deposit.

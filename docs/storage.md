@@ -175,3 +175,5 @@ Direct Archery access gathers ammunition alongside bows. On close, it returns am
 Books and Notes menus link directly to Spell Tomes, Skill Books and Recipes. Archives return their contents to the parent before navigation resumes. Consolidation also migrates old Book and Note records from Scroll storage. Skill-book identities are cached from loaded forms before reading can consume their teaching data. Native note flags and a case-insensitive `note` mesh-path match identify notes.
 
 Maps is a Notes archive at reference `0xDDD`. Bundled Map overrides cover 13 official treasure maps and 8 Fishing maps. Map implies Note, and archive close returns maps to Notes. Additional maps can use Map overrides.
+
+Gear holds lockpicks, carryable lights and Instrument overrides. Lockpick and Instrument imply Gear. The Instruments archive uses the shared archive gather/return helper. Gear Keep and Withdraw Up To use the lockpick reserve without transferring unrelated Gear records. Sorting and Quick Transfer consolidate Instruments first.

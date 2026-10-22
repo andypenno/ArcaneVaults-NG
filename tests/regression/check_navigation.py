@@ -87,6 +87,7 @@ struct Stores {
     bool archiveCleaned = false;
     void ResetNavigation();
     void IgnoreMenu(RE::TESObjectREFR*) {}
+    void GearMenu(RE::TESObjectREFR*) {}
     void ShowDynamicMessageBox(std::string_view, std::vector<MenuOption>, std::int32_t = -1);
     void CloseStoreObject(RE::TESObjectREFR*, AnimationCallback = {});
     void ShowVaultDetail3Menu(RE::TESObjectREFR*);
@@ -125,17 +126,17 @@ int main() {
     assert(RE::box->buttonText.size() == 2 && RE::box->cancelButtonIndex == 1);
     click(1); assert(!direct.open && !stores->returnToVault_);
     stores->VaultDetail3Menu(&root);
-    assert(RE::box->buttonText.size() == 5 && RE::box->cancelButtonIndex == 4);
+    assert(RE::box->buttonText.size() == 6 && RE::box->cancelButtonIndex == 5);
     click(2);
     assert(RE::box->buttonText.size() == 3 && RE::box->buttonText[2] == "Vault.Back");
     assert(RE::box->cancelButtonIndex == 1);
-    click(2); assert(stores->page3 == 2 && RE::box->buttonText.size() == 5);
+    click(2); assert(stores->page3 == 2 && RE::box->buttonText.size() == 6);
     click(1); assert(stores->archiveCleaned && root.open && stores->page3 == 3);
     stores->ShowDynamicMessageBox("Confirm", {{"Cancel", [] {}}, {"Sell All", [] {}}}, 0);
     assert(RE::box->buttonText.size() == 2 && RE::box->cancelButtonIndex == 0);
     click(0); assert(stores->returnToVault_);
     stores->VaultDetail3Menu(&root);
-    click(4); assert(!root.open && !stores->returnToVault_);
+    click(5); assert(!root.open && !stores->returnToVault_);
 
     stores->VaultDetail3Menu(&root); const int before = stores->page3;
     stores->CloseStoreObject(&root); stores->ResetNavigation(); SKSE::GetTaskInterface()->Flush();

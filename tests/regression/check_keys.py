@@ -102,16 +102,20 @@ struct Utility {
     RE::TESObjectREFR* GetContainer(Container container) { if(custom.contains(container))return custom[container]; return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : container==Container::Junk ? &junk : &chest; }
 };
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
+CategoryMask ToMask(ItemCategory category)noexcept{return category==ItemCategory::None?0:CategoryMask{1}<<static_cast<unsigned>(category);}
+bool HasAnyCategory(CategoryMask mask,CategoryMask wanted)noexcept{return (mask & wanted)!=0;}
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
 namespace Soulgems {void Recover(){} void Deposit(int,bool){}}
 struct MenuOption {std::string text;std::function<void()> action;};
-struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
+struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
     std::function<void()> onClose;
     void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
     std::vector<MenuOption> options;Container opened=Container::None;
     void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
     void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
+    std::function<void()> returnToVault_;
+    void GearMenu(RE::TESObjectREFR*);void ShowGearMenu(RE::TESObjectREFR*);
     void JunkMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);void ShowBookMenu(RE::TESObjectREFR*);void NotesMenu(RE::TESObjectREFR*);void ShowNotesMenu(RE::TESObjectREFR*);
     void ConsolidateBooks();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
@@ -128,7 +132,7 @@ program += r'''struct CSimpleIniA {
     bool GetBoolValue(const char*,const char*,bool fallback){return fallback;}
     const char* GetValue(const char*,const char*,const char*){return text.c_str();}
 };
-namespace std {template<class... T> string format(const char*,T...){return "";}}
+namespace std {template<class... T> string format(const char*,T...){return "";}template<class T> int make_format_args(T value){return value;}inline string vformat(const char*,int){return "";}}
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
@@ -153,7 +157,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -422,6 +426,17 @@ int main() {
     stores.onClose();assert(notes.inventory[&fishingMap].first==8 && mapArchive.inventory[&fishingMap].first==0);
     utility->custom.clear();
 
+
+    player->inventory.clear();chest.inventory.clear();RE::TESObjectREFR gear,instruments;utility->custom={{Container::Gear,&gear},{Container::Instruments,&instruments}};
+    RE::TESBoundObject picks{ItemCategory::Lockpick,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Gear)},instrument{ItemCategory::Instrument,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Gear)},equipment{ItemCategory::Gear};
+    put(&picks,100);put(&equipment,7);put(&instrument,3);settings->GSC_OffloadGear=true;settings->GSC_LockpickKeepAmount=25;stores.OffloadItems();
+    assert(player->inventory[&picks].first==25 && gear.inventory[&picks].first==75 && player->inventory[&equipment].first==0 && gear.inventory[&equipment].first==7 && gear.inventory[&instrument].first==3);
+    stores.OpenBookArchive(Container::Instruments,Container::Gear,ItemCategory::Instrument,&activationSource);
+    assert(stores.opened==Container::Instruments && instruments.inventory[&instrument].first==3 && gear.inventory[&equipment].first==7);stores.onClose();assert(gear.inventory[&instrument].first==3);
+    stores.GearMenu(&activationSource);assert(stores.options.size()==4);put(&picks,60);click(2);assert(player->inventory[&picks].first==25);player->inventory[&picks].first=0;click(3);assert(player->inventory[&picks].first==25);
+    ini.text="-1";ini.exists=true;settings->get_value(ini,reserve,"General","LockpickKeepAmount");assert(reserve==25);
+    utility->custom.clear();
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -453,6 +468,7 @@ struct TESObjectBOOK {
     bool HasKeywordByEditorID(const char*)const{return recipe;}unsigned GetFormID()const{return id;}
 };
 struct TESDataHandler {std::vector<TESObjectBOOK*> books;template<class T>const auto& GetFormArray(){return books;}};
+struct TESObjectLIGH {bool carryable=true;bool CanBeCarried()const{return carryable;}};
 struct TESObjectMISC {};
 struct TESAmmo {};
 struct ScrollItem {};
@@ -485,6 +501,7 @@ struct TESObjectARMO {
 struct TESBoundObject {
     ItemCategory category;
     unsigned formID=0;unsigned GetFormID()const{return formID;}bool IsGold()const{return formID==0xF;}
+    bool nativeLight=false;TESObjectLIGH light{};
     bool nativeBook=false;TESObjectBOOK book{};
     bool nativeMisc=false;TESObjectMISC misc{};
     bool nativeArmor = false;
@@ -494,7 +511,8 @@ struct TESBoundObject {
     bool nativeScroll = false;
     ScrollItem scroll{};
     template<class T> T* As() {
-        if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
+        if constexpr (std::is_same_v<T, TESObjectLIGH>) return nativeLight ? &light : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return nativeMisc ? &misc : nullptr;
         else if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
         else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
@@ -518,7 +536,7 @@ program += item_source[item_source.index("bool HasCategory("):item_source.index(
 expand_start=item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")
 program += item_source[expand_start:item_source.index("CategoryMask ClassifyItem(",expand_start)]
 program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;auto* utility=Utility::GetSingleton();\n"
-gold_start=item_source.index("    if (a_item->IsGold())")
+gold_start=item_source.index("    if (a_item->GetFormID() == 0xA)")
 program += item_source[gold_start:item_source.index("    if (a_item->IsKey())",gold_start)]
 start=item_source.index("    // Crafting",gold_start)
 program += item_source[start:item_source.index("    // Ingredients",start)]
@@ -540,6 +558,10 @@ program += r'''
     for(auto model:{"Clutter/Books/Note.nif","mods/NOtePaper.NIF"}){nativeBook.book.model=model;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));}
     nativeBook.book.model="clutter/books/book.nif";assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));
     nativeBook.book.note=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));
+    RE::TESBoundObject lockpick{ItemCategory::None},torch{ItemCategory::None};lockpick.formID=0xA;torch.nativeLight=true;
+    assert(HasCategory(ClassifyItem(&lockpick),ItemCategory::Lockpick) && HasCategory(ClassifyItem(&lockpick),ItemCategory::Gear));
+    assert(HasCategory(ClassifyItem(&torch),ItemCategory::Gear));torch.light.carryable=false;assert(!HasCategory(ClassifyItem(&torch),ItemCategory::Gear));
+    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Instrument)),ItemCategory::Gear));
     RE::TESBoundObject nativeGold{ItemCategory::None},nativeIngot{ItemCategory::None};nativeGold.formID=0xF;nativeIngot.formID=0x5AD9E;nativeIngot.nativeMisc=true;
     assert(HasCategory(ClassifyItem(&nativeGold),ItemCategory::Gold));assert(HasCategory(ClassifyItem(&nativeIngot),ItemCategory::PreciousIngot) && HasCategory(ClassifyItem(&nativeIngot),ItemCategory::Smithing));
     RE::TESBoundObject nativeSpellScroll{ItemCategory::None}, ordinary{ItemCategory::None};

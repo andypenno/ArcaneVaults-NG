@@ -173,7 +173,7 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores, CategoryMask a_excluded) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
@@ -194,7 +194,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         if (currentAmmo && item->GetFormID() == currentAmmo->GetFormID()) continue;
 
         const auto categories = ClassifyItem(item);
-        if (!HasCategory(categories, a_category)) continue;
+        if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
 
         // Equipment mods can expose virtual worn items through the standard condition.
         double equipped{};
@@ -343,11 +343,13 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     ConsolidateBooks();
+    AllToStore(Container::Instruments, Container::Gear);
     ReturnIgnoredItems();
     Soulgems::Recover();
     StoreToStore(ItemCategory::Junk, Container::Sort, Container::Junk);
     StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Gear, Container::Sort, Container::Gear);
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
     StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
@@ -367,7 +369,13 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     ConsolidateBooks();
+    AllToStore(Container::Instruments, Container::Gear);
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadGear) {
+        PlayerToStore(ItemCategory::Lockpick, Container::Gear, 0, settings->GSC_LockpickKeepAmount, true);
+        PlayerToStore(ItemCategory::Gear, Container::Gear, 0, 0, true, ToMask(ItemCategory::Lockpick));
+    }
 
     if (settings->GSC_OffloadJunk)
         PlayerToStore(ItemCategory::Junk, Container::Junk, 0, 0, true);
@@ -2043,13 +2051,16 @@ void Stores::ShowVaultDetail3Menu(RE::TESObjectREFR* a_source) {
     options.push_back({Translate("Vault.Trade"), [this, handle] {
         if (auto source = handle.get()) TradeMenu(source.get());
     }});
+    options.push_back({Translate("Vault.Gear"), [this, handle] {
+        if (auto source = handle.get()) GearMenu(source.get());
+    }});
     options.push_back({Translate("Vault.Back"), [this, handle] {
         if (auto source = handle.get()) VaultDetail2Menu(source.get());
     }});
     options.push_back({Translate("Vault.Exit"), [this, handle] {
         if (auto source = handle.get()) CloseStoreObject(source.get());
     }});
-    ShowDynamicMessageBox(Translate("Vault.Arcane"), std::move(options), 4);
+    ShowDynamicMessageBox(Translate("Vault.Arcane"), std::move(options), 5);
 }
 
 void Stores::TradeMenu(RE::TESObjectREFR* a_source) {
@@ -2121,6 +2132,7 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
     RE::TESObjectREFR* a_source, bool a_returnToParent) {
     if (!a_source) return;
     ConsolidateBooks();
+    AllToStore(a_archive, a_parent);
     StoreToStore(a_category, a_parent, a_archive);
     OpenStoreObject(a_source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
         OpenStorageMenu(a_archive, source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
@@ -2171,4 +2183,37 @@ void Stores::ShowNotesMenu(RE::TESObjectREFR* a_source) {
     const auto title = std::format("{} {}", Translate("Vault.Notes"), Translate("Vault.Vault"));
     const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+}
+
+void Stores::GearMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    AllToStore(Container::Instruments, Container::Gear);
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowGearMenu(source); });
+}
+
+void Stores::ShowGearMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    const auto handle = a_source->GetHandle();
+    const int amount = Settings::GetSingleton()->GSC_LockpickKeepAmount;
+    std::vector<MenuOption> options;
+    options.push_back({Translate("Vault.Open"), [this, handle] {
+        if (auto source = handle.get())
+            OpenStorageMenu(Container::Gear, source.get(), [this](RE::TESObjectREFR* closed) { GearMenu(closed); });
+    }});
+    options.push_back({Translate("Vault.Exit"), [this, handle] {
+        if (auto source = handle.get()) CloseStoreObject(source.get());
+    }});
+    if (returnToVault_) options.push_back({Translate("Vault.Back"), returnToVault_});
+    options.push_back({std::vformat(Translate("Vault.KeepLockpicks"), std::make_format_args(amount)), [this, handle] {
+        PlayerToStore(ItemCategory::Lockpick, Container::Gear, 0, Settings::GetSingleton()->GSC_LockpickKeepAmount);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreMostMessage"));
+        if (auto source = handle.get()) GearMenu(source.get());
+    }});
+    options.push_back({std::vformat(Translate("Vault.TakeLockpicks"), std::make_format_args(amount)), [this, handle] {
+        StoreToPlayer(ItemCategory::Lockpick, Container::Gear, 0, Settings::GetSingleton()->GSC_LockpickKeepAmount);
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
+        if (auto source = handle.get()) GearMenu(source.get());
+    }});
+    const auto title = std::format("{} {}", Translate("Vault.Gear"), Translate("Vault.Vault"));
+    ShowDynamicMessageBox(title, std::move(options), 1);
 }
