@@ -10,6 +10,7 @@
 	"Options.Hotkey": "Assignment Hotkey",
 	"Options.WaitKey": "Press a key...",
 	"Options.Reset": "Reset",
+	"Options.AmmunitionKeepAmount": "Ammunition Keep Amount",
 
 	"Override": "Overrides",
 	"Override.Lookup": "Override Lookup",
@@ -71,6 +72,11 @@
 	"Vault.Treasure": "Treasure",
 	"Vault.Personal": "Personal",
 	"Vault.TakeUpToAmount": "Withdraw Up To",
+	"Vault.Ammunition": "Ammunition",
+	"Vault.KeepAmount": "Keep",
+	"Vault.AmmunitionStoreAll": "Store All",
+	"Vault.AmmunitionTakeAll": "Take All",
+	"Vault.AmmunitionOpen": "Open",
 	"Vault.Keys": "Keys",
 	"Vault.KeysStoreAll": "Store All",
 	"Vault.KeysTakeAll": "Take All",
@@ -114,5 +120,6 @@
 	"Ignore.ConfirmClear": "Confirm Clear All",
 	"Ignore.Cancel": "Cancel",
 	"Ignore.SaveFailed": "Ignore list could not be saved. Changes apply until the game closes.",
-	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list."
+	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list.",
+	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition"
 }

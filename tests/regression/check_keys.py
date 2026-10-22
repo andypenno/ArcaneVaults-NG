@@ -19,6 +19,7 @@ program = r'''
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <charconv>
 #include <functional>
 #include <climits>
 #include <optional>
@@ -32,27 +33,38 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+using FormID = unsigned;
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
-struct TESBoundObject { ItemCategory category; CategoryMask extraMask=0; };
+struct TESBoundObject { ItemCategory category; CategoryMask extraMask=0; inline static unsigned nextID=1; unsigned id=nextID++; unsigned GetFormID() const {return id;} };
 struct InventoryEntryData {
     bool quest = false, favorite = false, worn = false;
     bool IsQuestObject() const { return quest; }
     bool IsFavorited() const { return favorite; }
     bool IsWorn() const { return worn; }
 };
+struct TESObjectREFR;
+struct Handle {
+    TESObjectREFR* object;
+    struct Pointer { TESObjectREFR* object; explicit operator bool()const{return object;} TESObjectREFR* get()const{return object;} };
+    Pointer get()const{return {object};}
+};
 struct TESObjectREFR {
+    Handle GetHandle(){return {this};}
     int removeLimit=INT_MAX,removeCalls=0;bool rejectMove=false;
     std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
     auto GetInventory() const { return inventory; }
-    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter) const {std::map<TESBoundObject*,int> counts;for(const auto& [item,data]:inventory)if(item && filter(*item))counts[item]=data.first;return counts;}
+    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&){return true;}) const {std::map<TESBoundObject*,int> counts;for(const auto& [item,data]:inventory)if(item && filter(*item))counts[item]=data.first;return counts;}
     void RemoveItem(TESBoundObject* item, int count, ITEM_REMOVE_REASON, void*, TESObjectREFR* destination) {
         assert(count > 0 && count <= inventory.at(item).first);
         ++removeCalls;if(rejectMove)return;count=std::min(count,removeLimit);
         inventory.at(item).first -= count;
         destination->inventory[item].first += count;
+        if (!destination->inventory[item].second) destination->inventory[item].second=std::make_shared<InventoryEntryData>();
     }
 };
 struct PlayerCharacter : TESObjectREFR {
+    TESBoundObject* currentAmmo=nullptr;
+    TESBoundObject* GetCurrentAmmo() const {return currentAmmo;}
     static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
 };
 struct SCRIPT_FUNCTION {
@@ -74,22 +86,39 @@ struct SCRIPT_FUNCTION {
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
-    RE::TESObjectREFR chest,inbox;
+    RE::TESObjectREFR chest,inbox,ammunition,archery;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
-    RE::TESObjectREFR* GetContainer(Container container) { return container == Container::None ? nullptr : container==Container::Sort ? &inbox : &chest; }
+    RE::TESObjectREFR* GetContainer(Container container) { return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : &chest; }
 };
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
-struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false); void ReturnIgnoredItems(); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
+struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
+    std::function<void()> onClose;
+    void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
+    void CloseStoreObject(RE::TESObjectREFR*) {}
+    void OpenStorageMenu(Container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){onClose=[source,close]{close(source);};}
+    void AllToStore(Container,Container); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
+'''
+program += r'''struct CSimpleIniA {
+    std::string text; bool exists=true;
+    bool KeyExists(const char*,const char*){return exists;}
+    bool GetBoolValue(const char*,const char*,bool fallback){return fallback;}
+    const char* GetValue(const char*,const char*,const char*){return text.c_str();}
+};
+namespace std {template<class T> string format(const char*,T){return "";}}
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
     std::set<RE::TESBoundObject*> ignored;
     bool IsIgnored(RE::TESBoundObject* item) const { return ignored.contains(item); }
+    template<class T> void get_value(CSimpleIniA&,T&,const char*,const char*);
+    template<class T> void set_value(CSimpleIniA& ini,T value,const char*,const char*){ini.text=std::to_string(value);}
     template <class Func> void ForEachINIOption(Settings&, Func&&);
 };
 '''
+start=settings.index("template <class T>\nvoid Settings::get_value(")
+program += settings[start:settings.index("\n}\n",start)+3]
 move_start=source.index("    void MoveItems(")
 program+=source[move_start:source.index("\n    }",move_start)+6]
 start=source.index("void Stores::StoreToPlayer(")
@@ -100,9 +129,21 @@ start=source.index("void Stores::SortItems(")
 sort_items=source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
+start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
+program += source[start:source.index("\n    }",start)+6]
+for name in ["KeepAmmunition", "TakeAmmunition"]:
+    start=source.index("void Stores::"+name+"(")
+    program += source[start:source.index("\n}\n",start)+3]
+start=source.index("void Stores::ShowWeaponArcheryMenu(")
+program += source[start:source.index("\n}\n",start)+3]
+program += r'''void Stores::AllToStore(Container from,Container to){
+    auto* source=Utility::GetSingleton()->GetContainer(from);auto* target=Utility::GetSingleton()->GetContainer(to);
+    for(auto [item,data]:source->GetInventory())if(item && data.first>0)MoveItems(source,target,item,data.first);
+}'''
 program += method + store_to_player + offload + store_to_store + sort_items + ini_options
 program += r'''
 int main() {
+    assert(ContainerTranslationKey(Container::Ammunition)=="Vault.Ammunition");
     static_assert(static_cast<unsigned>(Container::Staff) == 32);
     static_assert(static_cast<unsigned>(ItemCategory::None) == 35);
     static_assert(static_cast<unsigned>(ItemCategory::Keys) < 64);
@@ -241,6 +282,51 @@ int main() {
     stores.SortItems();
     for(auto& item:ingredients)assert(inbox.inventory[&item].first==0 && chest.inventory[&item].first==12);
 
+
+    CSimpleIniA ini;int reserve=100;
+    for(const auto* text:{"0","1","100","2147483647"}){ini.text=text;settings->get_value(ini,reserve,"General","AmmunitionKeepAmount");assert(reserve==std::stoi(text));}
+    for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.text=text;settings->get_value(ini,reserve,"General","AmmunitionKeepAmount");assert(reserve==100);}
+    ini.exists=false;reserve=100;settings->get_value(ini,reserve,"General","AmmunitionKeepAmount");assert(ini.text=="100");
+    player->inventory.clear();chest.inventory.clear();auto& ammoChest=Utility::GetSingleton()->ammunition;
+    RE::TESBoundObject selectedArrows{ItemCategory::Ammunition},selectedBolts{ItemCategory::Ammunition},spareArrows{ItemCategory::Ammunition},questAmmo{ItemCategory::Ammunition},ignoredAmmo{ItemCategory::Ammunition},wornAmmo{ItemCategory::Ammunition},virtualAmmo{ItemCategory::Ammunition};
+    settings->GSC_AmmunitionKeepAmount=100;settings->GSC_KeepSelectedAmmunition=false;
+    player->currentAmmo=&selectedBolts;put(&selectedArrows,250,false,true);put(&selectedBolts,180);put(&spareArrows,160);put(&questAmmo,200,true);put(&ignoredAmmo,225);
+    settings->ignored.insert(&ignoredAmmo);stores.KeepAmmunition(true);
+    assert(player->inventory[&selectedArrows].first==250 && player->inventory[&selectedBolts].first==180 && player->inventory[&spareArrows].first==100);
+    assert(player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
+    settings->GSC_KeepSelectedAmmunition=true;put(&wornAmmo,200,false,false,true);put(&virtualAmmo,220);RE::SCRIPT_FUNCTION::equipped.insert(&virtualAmmo);
+    stores.KeepAmmunition(true);
+    for(auto* item:{&selectedArrows,&selectedBolts,&wornAmmo,&virtualAmmo})assert(player->inventory[item].first==100);
+    assert(player->inventory[&spareArrows].first==0 && player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
+    stores.KeepAmmunition();assert(player->inventory[&ignoredAmmo].first==0 && player->inventory[&questAmmo].first==200);
+    put(&selectedArrows,30,false,true);put(&selectedBolts,140);put(&wornAmmo,20,false,false,true);put(&virtualAmmo,20);
+    ammoChest.inventory[&wornAmmo]={5,std::make_shared<RE::InventoryEntryData>()};ammoChest.inventory[&virtualAmmo]={150,std::make_shared<RE::InventoryEntryData>()};ammoChest.inventory[&spareArrows]={200,std::make_shared<RE::InventoryEntryData>()};
+    stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==100 && player->inventory[&selectedBolts].first==140);
+    assert(player->inventory[&wornAmmo].first==25 && player->inventory[&virtualAmmo].first==100 && player->inventory[&spareArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=false;stores.TakeAmmunition();assert(player->inventory[&spareArrows].first==100);
+    settings->GSC_KeepSelectedAmmunition=true;player->inventory.clear();player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::equipped.clear();
+    stores.TakeAmmunition();assert(player->inventory.empty());put(&spareArrows,60);put(&selectedArrows,60,false,true);stores.KeepAmmunition();
+    assert(player->inventory[&spareArrows].first==0 && player->inventory[&selectedArrows].first==60);
+    player->currentAmmo=&selectedArrows;settings->GSC_AmmunitionKeepAmount=40000;player->inventory.clear();ammoChest.inventory.clear();ammoChest.inventory[&selectedArrows]={50000,std::make_shared<RE::InventoryEntryData>()};
+    ammoChest.removeLimit=9999;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==40000 && ammoChest.inventory[&selectedArrows].first==10000);
+    settings->GSC_AmmunitionKeepAmount=100;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==100 && ammoChest.inventory[&selectedArrows].first==49900);
+    put(&selectedArrows,150,false,true);player->rejectMove=true;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==150);player->rejectMove=false;
+    put(&selectedArrows,20,false,true);ammoChest.rejectMove=true;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==20);ammoChest.rejectMove=false;
+    settings->GSC_OffloadAmmunition=true;put(&selectedArrows,150,false,true);put(&spareArrows,20);stores.OffloadItems();
+    assert(player->inventory[&selectedArrows].first==100 && player->inventory[&spareArrows].first==0);
+    player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::equipped.clear();settings->ignored.clear();
+    player->inventory.clear();ammoChest.inventory.clear();chest.inventory.clear();auto& archery=Utility::GetSingleton()->archery;RE::TESObjectREFR activationSource;
+    RE::TESBoundObject bow{ItemCategory::Archery},manualAmmo{ItemCategory::Ammunition};
+    chest.inventory[&bow]={2,std::make_shared<RE::InventoryEntryData>()};ammoChest.inventory[&selectedArrows]={250,std::make_shared<RE::InventoryEntryData>()};
+    stores.ShowWeaponArcheryMenu(&activationSource);
+    assert(archery.inventory[&bow].first==2 && archery.inventory[&selectedArrows].first==250 && chest.inventory[&bow].first==0);
+    archery.inventory[&manualAmmo]={90,std::make_shared<RE::InventoryEntryData>()};archery.rejectMove=true;stores.onClose();
+    assert(archery.inventory[&selectedArrows].first==250 && archery.inventory[&bow].first==2 && chest.inventory[&selectedArrows].first==0);
+    archery.rejectMove=false;stores.onClose();
+    assert(ammoChest.inventory[&selectedArrows].first==250 && ammoChest.inventory[&manualAmmo].first==90 && chest.inventory[&bow].first==2);
+    assert(archery.inventory[&selectedArrows].first==0 && archery.inventory[&bow].first==0);
+
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -260,6 +346,7 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+struct TESAmmo {};
 struct ScrollItem {};
 struct BIPED_MODEL {
     enum class BipedObjectSlot : unsigned { kHead=1, kHair=2, kBody=4, kHands=8, kAmulet=32, kRing=64, kFeet=128, kShield=512, kCirclet=4096 };
@@ -291,10 +378,13 @@ struct TESBoundObject {
     ItemCategory category;
     bool nativeArmor = false;
     TESObjectARMO armor{};
+    bool nativeAmmo = false;
+    TESAmmo ammo{};
     bool nativeScroll = false;
     ScrollItem scroll{};
     template<class T> T* As() {
-        if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
+        if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
+        else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
         else return nativeArmor ? &armor : nullptr;
     }
 };
@@ -315,6 +405,8 @@ program += item_source[item_source.index("    // Armor and Clothing"):item_sourc
 program += "return categories; }\nint main() {\n"
 program += r'''
     RE::TESBoundObject nativeSpellScroll{ItemCategory::None}, ordinary{ItemCategory::None};
+    RE::TESBoundObject nativeAmmo{ItemCategory::None};nativeAmmo.nativeAmmo=true;
+    assert(HasCategory(ClassifyItem(&nativeAmmo),ItemCategory::Ammunition));
     nativeSpellScroll.nativeScroll = true;
     assert(HasCategory(ClassifyItem(&nativeSpellScroll), ItemCategory::Scroll));
     assert(!HasCategory(ClassifyItem(&ordinary), ItemCategory::Scroll));

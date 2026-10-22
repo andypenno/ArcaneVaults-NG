@@ -6,7 +6,7 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 | Operation | Selection and protection |
 | --- | --- |
-| `PlayerToStore` | Positive inventory counts matching a category; skips quest, favorited, and worn entries; optional keep-one mode retains one per carried base item |
+| `PlayerToStore` | Positive inventory counts matching a category; skips quest, favorited, and worn entries; optional retained count keeps that many per carried base item |
 | `StoreToPlayer` | Positive counts matching a category, without the player's protection checks |
 | `StoreToStore` | Positive counts matching a category, without quest/favorite/worn checks |
 | `AllToStore` | `InventoryChanges::RemoveAllItems`; rejects identical source/destination enums |
@@ -16,7 +16,7 @@ The category helpers iterate inventory snapshots and use `MoveItems` to call `Re
 
 `PlayerToStore` also evaluates Skyrim's standard `GetEquipped` condition for matching items. It resolves the current function on each transfer so mod-installed condition hooks are respected. A successful nonzero result protects the whole base-item stack, as native worn flags already do. Missing or failed condition evaluation leaves the existing quest, favourite, and worn checks in force. Mods keeping worn state private without exposing native flags or this condition cannot be detected through these checks.
 
-`SortItems` drains the Sort container in this order: Keys, Smithing, Food, Alchemy, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+`SortItems` drains the Sort container in this order: Ammunition, Keys, Smithing, Food, Alchemy, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
 
@@ -37,6 +37,8 @@ Do not assume every parent menu consolidates exactly the same children. `ShowVau
 
 Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Book Transfer One Copy and Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
 
+Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take All, Open, and Exit. N comes from the Options setting described in [configuration.md](configuration.md). Keep N deposits only the excess above N per carried ammunition record; it never tops up smaller stacks from storage. Equipped, favorited, and quest entries remain untouched. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
+
 Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
 
 ## Classification
@@ -56,10 +58,11 @@ Classification precedence is user override, bundled override, then built-in rule
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
 | Native spell scroll | Scroll |
 | Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
+| Ammunition | Ammunition; `TESAmmo` covers arrows and bolts, after override precedence |
 | Key | Keys; checked before the miscellaneous-item branch because `TESKey` derives from `TESObjectMISC` |
 | Other types | No built-in category |
 
-Ammunition has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
+Native `TESAmmo` records classify as Ammunition. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 
@@ -136,3 +139,6 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`. It is persistent, non-respawning, empty, and excluded from assignment choices. Sneaking is checked in the shared activation dispatcher for Master and Sort only. The close callback is target-specific; a session counter invalidates queued callbacks across game loads. Post-load and new-game tasks finish any residual picker inventory and return its contents. Failed returns stay in the persistent picker and prevent reopening it until recovery succeeds.
 
 Sort first returns ignored records when Return Ignored Items is enabled. Its category transfers exclude any ignored copies left after a failed return. Disabling the option restores normal sorting. Player deposit helpers accept an explicit ignore flag; only Quick Transfer passes it, so manual deposits and crafting returns retain their existing policy.
+| Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
+
+Direct Archery access gathers ammunition alongside bows. On close, it returns ammunition to its vault before returning weapons. A refused ammunition return leaves the archive intact so those copies cannot fall into the Weapon vault.

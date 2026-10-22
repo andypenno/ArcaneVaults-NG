@@ -58,6 +58,8 @@ public:
     // Utility Functions
     void SortItems();
     void OffloadItems();
+    void KeepAmmunition(bool a_respectIgnores = false);
+    void TakeAmmunition();
     void IgnoreMenu(RE::TESObjectREFR* a_source);
     void FinishIgnorePicker();
     void ResetIgnorePicker() { ++ignoreSession_; }
@@ -92,6 +94,7 @@ public:
     void TreasureMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
     void KeysMenu(RE::TESObjectREFR* a_source);
+    void AmmunitionMenu(RE::TESObjectREFR* a_source);
     void PotionMenu(RE::TESObjectREFR* a_source);
     void PotionPositiveMenu(RE::TESObjectREFR* a_source);
     void PotionNegativeMenu(RE::TESObjectREFR* a_source);
@@ -132,6 +135,7 @@ private:
     void ShowTreasureMenu(RE::TESObjectREFR* a_source);
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
     void ShowKeysMenu(RE::TESObjectREFR* a_source);
+    void ShowAmmunitionMenu(RE::TESObjectREFR* a_source);
     void ShowPotionMenu(RE::TESObjectREFR* a_source);
     void ShowPotionPositiveMenu(RE::TESObjectREFR* a_source);
     void ShowPotionNegativeMenu(RE::TESObjectREFR* a_source);

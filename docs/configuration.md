@@ -15,7 +15,7 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 | `ArcaneVaultIgnoredItems.ini` | Global ignore list with stable plugin-local identifiers under `[IgnoredItems]` |
 | `ArcaneVaultTranslation.json` | Flat translation object, supplied by [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) |
 
-Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. Integer parsing uses `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
+Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. AmmunitionKeepAmount uses `from_chars` with full input and nonnegative validation; invalid or overflowing values fall back to 100. Other integer settings use `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
 
 ## Options
 
@@ -30,8 +30,12 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 | `AssignOnlyOwn` | true | Restrict binding according to ownership/exterior non-respawn rules |
 | `AssignSpell` | true | Enable external assignment spell |
 | `SortSpell` | true | Enable external sorting/offload spell |
+| `AmmunitionKeepAmount` | 100 | Retain this many per carried arrow or bolt record; zero retains none |
+| `KeepSelectedAmmunition` | false | Retain and top up only current, favourite, worn, or native-equipped ammunition records |
 
-In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `GrandSoulgem`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, `GrandSoulgem`, `Ammunition`, `Keys`, and `KeysKeepOne`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
+
+Options exposes Ammunition Keep Amount as a nonnegative integer control. Quick Transfer only exposes an Ammunition enable checkbox under More. `[Offload] Ammunition=true` enables ammunition deposits using the same reserve as the vault Keep N action. Missing values default to enabled and 100. The amount applies per ammunition base record, not to the combined arrow/bolt count.
 
 Quick Transfer shows Keys and Keep One under More. `Keys=true` enables key deposits through the menu, hotkey, and offload spell. `KeysKeepOne=true` deposits duplicates while retaining one per carried key record. Disabling Keep One deposits all eligible keys. Both default to true when missing from an existing settings file. Sort moves keys already deposited into its inbox to the Keys vault; it does not withdraw a copy to the player.
 
@@ -83,3 +87,5 @@ Framework wrappers come from its submodule's resources header and resolve `SKSEM
 Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ignore List picker. Items remaining when it closes are added by base record, and every deposited copy is returned. Removing an item before closing cancels that addition. Normal activation, manual vault actions, and crafting loans do not use the list. Quick Transfer, its hotkey, and its spell always skip ignored records.
 
 The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.
+
+With Keep Selected Ammunition enabled, Keep N retains N selected copies and deposits unselected ammunition. Quest records remain protected. Withdraw Up To N tops up selected records only. With it disabled, reserves apply to all ammunition records and the ordinary favourite, worn, and current-ammunition protections apply.

@@ -158,6 +158,7 @@ enum class ContainerGroup {
     case Container::TwoHand:      return "Vault.TwoHand";
     case Container::Staff:        return "Vault.Staff";
     case Container::Keys:         return "Vault.Keys";
+    case Container::Ammunition:   return "Vault.Ammunition";
     case Container::Ignore:       return "Ignore";
     case Container::None:         return {};
     default: return {};
@@ -165,7 +166,8 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 26> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 27> categoryNames{{
+    { "Ammunition", ItemCategory::Ammunition },
     { "Archery", ItemCategory::Archery },
     { "Book", ItemCategory::Book },
     { "Catalyst", ItemCategory::Catalyst },

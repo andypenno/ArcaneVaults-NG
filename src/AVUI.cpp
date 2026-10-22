@@ -63,6 +63,13 @@ namespace AVUI {
 
 		if (Checkbox(Translate("Options.ReturnIgnoredItems"), &setting->GSC_ReturnIgnoredItems))
 			changeOption = true;
+		if (Checkbox(Translate("Options.KeepSelectedAmmunition"), &setting->GSC_KeepSelectedAmmunition))
+			changeOption = true;
+		int keepAmount = setting->GSC_AmmunitionKeepAmount;
+		if (InputInt(Translate("Options.AmmunitionKeepAmount"), &keepAmount)) {
+			setting->GSC_AmmunitionKeepAmount = (std::max)(0, keepAmount);
+			changeOption = true;
+		}
 
 		// Configuration Spells
 		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
@@ -162,6 +169,8 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (Checkbox(Translate("Vault.Ammunition"), &setting->GSC_OffloadAmmunition))
+				changeOption = true;
 			if (Checkbox(Translate("Vault.Keys"), &setting->GSC_OffloadKeys))
 				changeOption = true;
 			SameLine();
