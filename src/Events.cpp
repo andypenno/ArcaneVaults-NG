@@ -6,6 +6,8 @@
 #include "Stores.h"
 #include "Soulgems.h"
 #include "ItemClass.h"
+#include <atomic>
+#include <utility>
 
 //==============================================
 //  Redirects
@@ -266,18 +268,18 @@ public:
 
     void EnterCrafting(RE::TESObjectREFR* a_furniture) {
         if (loanBench_) ExitCrafting();
-
-        // Check for Craft Loan Setting
-        if (!Settings::GetSingleton()->GSC_CraftingLoan) return;
+        ++session_;
 
         auto* stores = Stores::GetSingleton();
         auto* utility = Utility::GetSingleton();
         BenchType benchType = utility->GetBenchType(a_furniture);
+        const auto* settings = Settings::GetSingleton();
+        const bool materials = settings->GSC_CraftingLoan;
 
-        if (benchType == BenchType::None) return;
+        if (benchType == BenchType::None || !materials) return;
         loanBench_ = benchType;
-
-        // Begin crafting loan
+        loanFurniture_ = a_furniture->GetHandle();
+        materialsLoan_ = materials;
         switch (benchType) {
         case BenchType::None:
             break;
@@ -313,21 +315,26 @@ public:
     }
 
     void Reset() {
+        ++session_;
         loanBench_.reset();
+        loanFurniture_ = {};
+        materialsLoan_ = false;
         Soulgems::ResetLoan();
         Stores::GetSingleton()->ResetJunkLoan();
     }
 
     void ExitCrafting() {
         if (!loanBench_) return;
+        ++session_;
         const auto benchType = *loanBench_;
         loanBench_.reset();
+        loanFurniture_ = {};
+        if (!std::exchange(materialsLoan_, false)) return;
         auto* stores = Stores::GetSingleton();
         stores->EndJunkLoan();
         if (benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
             Soulgems::EndLoan();
 
-        // Restore outstanding crafting loan
         switch (benchType) {
         case BenchType::None:
             break;
@@ -358,8 +365,28 @@ public:
         }
     }
 
+    void QueueExitCrafting() {
+        const auto session = session_.load();
+        SKSE::GetTaskInterface()->AddTask([this, session] {
+            if (session == session_) ExitCrafting();
+        });
+    }
+
+    void FurnitureEvent(const RE::TESFurnitureEvent& event) {
+        const auto session = session_.load();
+        SKSE::GetTaskInterface()->AddTask([this, event, session] {
+            if (session != session_ || event.actor.get() != RE::PlayerCharacter::GetSingleton() ||
+                event.type != RE::TESFurnitureEvent::FurnitureEventType::kExit) return;
+            const auto furniture = loanFurniture_.get();
+            if (furniture && furniture.get() == event.targetFurniture.get()) ExitCrafting();
+        });
+    }
+
 private:
     std::optional<BenchType> loanBench_;
+    RE::ObjectRefHandle loanFurniture_;
+    std::atomic<std::uint64_t> session_{};
+    bool materialsLoan_{};
 };
 
 class FurnitureActivation {
@@ -372,8 +399,12 @@ public:
 
 private:
     static bool ActivateCraftLoan(RE::TESFurniture* a_baseObject, RE::TESObjectREFR* a_target, RE::TESObjectREFR* a_activator, std::uint8_t a_arg3, RE::TESBoundObject* a_object, std::int32_t a_targetCount) {
-        const auto benchType = a_baseObject->workBenchData.benchType.get();
-        const bool craftingActivation = a_target && a_activator == RE::PlayerCharacter::GetSingleton() && benchType != RE::TESFurniture::WorkBenchData::BenchType::kNone && Settings::GetSingleton()->GSC_CraftingLoan;
+        const auto nativeBench = a_baseObject->workBenchData.benchType.get();
+        const auto benchType = a_target ? Utility::GetSingleton()->GetBenchType(a_target) : BenchType::None;
+        const auto* settings = Settings::GetSingleton();
+        const bool craftingActivation = a_target && a_activator == RE::PlayerCharacter::GetSingleton() &&
+            nativeBench != RE::TESFurniture::WorkBenchData::BenchType::kNone && benchType != BenchType::None &&
+            settings->GSC_CraftingLoan;
 
         // Send crafting materials to player
         if (craftingActivation)
@@ -388,7 +419,8 @@ private:
     static inline REL::Relocation<decltype(ActivateCraftLoan)> activate_;
 };
 
-class CraftingMenuEventHandler final : public RE::BSTEventSink<RE::MenuOpenCloseEvent> {
+class CraftingMenuEventHandler final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>,
+    public RE::BSTEventSink<RE::TESFurnitureEvent> {
 public:
     static CraftingMenuEventHandler* GetSingleton() {
         static CraftingMenuEventHandler singleton;
@@ -400,14 +432,21 @@ public:
             return RE::BSEventNotifyControl::kContinue;
 
         if (!a_event->opening)
-            CraftingLoanState::GetSingleton()->ExitCrafting();
+            CraftingLoanState::GetSingleton()->QueueExitCrafting();
 
         return RE::BSEventNotifyControl::kContinue;
     }
 
     static void Register() {
-        RE::UI::GetSingleton()->AddEventSink(CraftingMenuEventHandler::GetSingleton());
+        RE::UI::GetSingleton()->AddEventSink<RE::MenuOpenCloseEvent>(CraftingMenuEventHandler::GetSingleton());
+        RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESFurnitureEvent>(CraftingMenuEventHandler::GetSingleton());
         logger::info("Handler Installed: Crafting Menu");
+    }
+
+    RE::BSEventNotifyControl ProcessEvent(const RE::TESFurnitureEvent* event,
+        RE::BSTEventSource<RE::TESFurnitureEvent>*) override {
+        if (event) CraftingLoanState::GetSingleton()->FurnitureEvent(*event);
+        return RE::BSEventNotifyControl::kContinue;
     }
 };
 

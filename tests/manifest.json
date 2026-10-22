@@ -148,6 +148,19 @@
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "crafting-sessions",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_crafting_sessions.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
     }
   ]
 }

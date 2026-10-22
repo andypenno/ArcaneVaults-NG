@@ -89,3 +89,5 @@ Ignore-list activation and recovery are described in [storage.md](storage.md). P
 `Utility::LoadAllForms` caches loaded skill-book record identities alongside recipe inputs before gameplay can change their teaching state.
 
 `ContainerSelectionState` supports assignment and action browsing through the same SkyUILib list. Vault and Archive browsers supply registered actions and a cancel callback; assignment retains its redirect behavior.
+
+Crafting sessions retain the station handle and a generation counter. Menu-close and furniture-exit work returns loans only for the matching session. Wrong actors, stale furniture and duplicate exits are ignored. Load reset invalidates queued exits without transferring items. The accepted loan options remain captured until return.

@@ -8,9 +8,12 @@ ROOT = Path(__file__).resolve().parents[2]
 implementation = (ROOT / "src/Soulgems.cpp").read_text().replace('#include "Utility.h"', '').replace('#include "Settings.h"', '')
 program = r'''
 #include <algorithm>
+#include <atomic>
+#include <utility>
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -64,7 +67,12 @@ struct InventoryEntryData {
     bool IsWorn() const { return worn; }
 };
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
+struct TESObjectREFR;
+struct Ref {TESObjectREFR* object;TESObjectREFR* get()const{return object;}explicit operator bool()const{return object;}};
+struct ObjectRefHandle {TESObjectREFR* object=nullptr;Ref get()const{return {object};}};
+struct TESFurnitureEvent {enum class FurnitureEventType{kEnter,kExit};Ref actor,targetFurniture;FurnitureEventType type;};
 struct TESObjectREFR {
+    ObjectRefHandle GetHandle(){return {this};}
     using Inventory = std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>>;
     Inventory inventory;
     inline static std::vector<std::unique_ptr<ExtraDataList>> extras;
@@ -137,6 +145,7 @@ loan = (ROOT / "src/Events.cpp").read_text()
 loan = loan[loan.index("class CraftingLoanState {"):loan.index("class FurnitureActivation {")]
 program += r'''
 
+namespace SKSE {struct Tasks {void AddTask(std::function<void()> task){task();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;}}
 struct Stores {
     void BeginJunkLoan(){}void EndJunkLoan(){}void ResetJunkLoan(){}
     static Stores* GetSingleton() { static Stores s;return &s; }
