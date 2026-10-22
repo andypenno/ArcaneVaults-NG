@@ -32,6 +32,8 @@ The `ForEachINIOption` helper shares one mapping between reads and writes.
 
 In `[Offload]`, enabled defaults are `Reagent`, `Catalyst`, `Ingredient`, `Crafting`, `Construction`, `Gemstone`, `Smelting`, `Tanning`, `RawFood`, and `GrandSoulgem`. Disabled defaults are `Clothing`, `HeavyArmor`, `LightArmor`, `Jewelry`, `Books`, `Scrolls`, `Spelltomes`, `Potion`, `Poison`, `CookedFood`, `EmptySoulgem`, `FilledSoulgem`, `Treasure`, `Archery`, `OneHand`, `TwoHand`, and `StaffHand`. Exact spelling matters, including `Spelltomes` and `StaffHand`.
 
+The Books Quick Transfer controls use a separate ImGui ID scope from their Books collapsing header. Their visible labels remain translated; the header and Books checkbox no longer share an ID.
+
 The UI exposes assignment hotkey capture and most settings, plus per-category quick-transfer checkboxes. It has no QuickKeyCode capture control. [HelperFunctions.h](../include/HelperFunctions.h) converts engine codes to/from ImGui keys; keyboard uses engine scan codes, mouse uses 256 through 260, and gamepad uses 266 through 281. Input events trigger assignment/offload for keyboard and gamepad; the handler does not accept mouse even though conversion supports it. It also has no explicit gameplay/menu-state gate beyond singleton checks.
 
 Configuration spells are looked up as local IDs `0xDC0` and `0xDC1` in the companion ESP. `ConfigurationSpells` reconciles player spells on post-load-game and on spell checkbox changes. The scripts and spell effect wiring are external; the source does not show how the spell invokes its native function.
