@@ -82,3 +82,35 @@ with tempfile.TemporaryDirectory(prefix='arcanevault-overrides-') as directory:
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(ROOT),str(path/'check.cpp'),'-o',str(path/'check')],check=True)
     subprocess.run([str(path/'check')],check=True)
 print('PASS: malformed, unresolved and non-item overrides do not prevent later valid entries')
+
+fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
+                   if line.strip().startswith(("bool GSC_", "int GSC_")))
+ui = (ROOT / "src/AVUI.cpp").read_text()
+a=ui.index("\tvoid __stdcall RenderQuantities()")
+method=ui[a:ui.index("\n\t}",a)+3].replace("__stdcall ", "")
+program = r'''
+#include <algorithm>
+#include <cassert>
+#include <map>
+#include <string>
+struct Settings {
+''' + fields + r'''
+    int saves=0;
+    static Settings* GetSingleton(){static Settings settings;return &settings;}
+    void SaveINI(){++saves;}
+};
+std::map<std::string,int> edits;
+const char* Translate(const char* key){return key;}
+bool InputInt(const char* key,int* value){if(!edits.contains(key))return false;*value=edits.at(key);return true;}
+''' + method + r'''
+int main(){
+    auto* settings=Settings::GetSingleton();RenderQuantities();assert(settings->saves==0);
+    edits={{"Options.AmmunitionKeepAmount",-1},{"Options.GoldKeepAmount",42},{"Options.SoulgemKeepAmount",0},{"Options.AlchemyKeepAmount",-10},{"Options.ScrollKeepAmount",1000}};
+    RenderQuantities();assert(settings->saves==1 && settings->GSC_AmmunitionKeepAmount==0 && settings->GSC_GoldKeepAmount==42 && settings->GSC_SoulgemKeepAmount==0 && settings->GSC_AlchemyKeepAmount==0 && settings->GSC_ScrollKeepAmount==1000);
+}
+'''
+with tempfile.TemporaryDirectory(prefix="arcanevault-quantities-check-") as temporary:
+    path=Path(temporary);(path / "check.cpp").write_text(program)
+    subprocess.run(["c++","-std=c++20","-Wall","-Wextra","-Werror",str(path / "check.cpp"),"-o",str(path / "check")],check=True)
+    subprocess.run([str(path / "check")],check=True)
+print("PASS: actual Quantities UI clamps and persists reserve edits")

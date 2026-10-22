@@ -41,6 +41,8 @@ public:
 	bool GSC_OffloadRawFood{ true };
 	bool GSC_OffloadSoulgems{ true };
 	int GSC_SoulgemKeepAmount{ 25 };
+	int GSC_AlchemyKeepAmount{ 1 };
+	int GSC_ScrollKeepAmount{ 3 };
 	bool GSC_OffloadTreasure{ false };
 	bool GSC_OffloadJunk{ true };
 	int GSC_GoldKeepAmount{ 5000 };

@@ -108,6 +108,8 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
     void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
     void JunkMenu(RE::TESObjectREFR*);
+    void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
+    void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
     void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
     void CloseStoreObject(RE::TESObjectREFR*) {}
     void OpenStorageMenu(Container container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){opened=container;onClose=[source,close]{close(source);};}
@@ -144,7 +146,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -374,6 +376,22 @@ int main() {
     junkInbox.rejectMove=false;stores.SortItems();assert(junkInbox.inventory[&unmatchedJunk].first==0 && player->inventory[&unmatchedJunk].first==10);
     settings->ignored.clear();stores.JunkMenu(&activationSource);assert(stores.opened==Container::Junk);stores.onClose();
 
+
+
+    for(bool alchemy:{false,true})for(int target:{0,1,25})for(int held:{0,1,100})for(int stock:{0,3,100}){
+        player->inventory.clear();chest.inventory.clear();utility->custom.clear();
+        RE::TESBoundObject item{alchemy?ItemCategory::Alchemy:ItemCategory::Scroll};put(&item,held);chest.inventory[&item]=entry(stock);
+        settings->GSC_AlchemyKeepAmount=target;settings->GSC_ScrollKeepAmount=target;
+        if(alchemy)stores.AlchemyMenu(&activationSource);else stores.ScrollMenu(&activationSource);
+        click(1);assert(player->inventory[&item].first==std::min(held,target));
+        assert(player->inventory[&item].first+chest.inventory[&item].first==held+stock);
+        click(2);assert(player->inventory[&item].first==std::min(held+stock,target));
+        assert(player->inventory[&item].first+chest.inventory[&item].first==held+stock);
+    }
+    for(auto [key,fallback]:{std::pair{"AlchemyKeepAmount",1},std::pair{"ScrollKeepAmount",3}}){
+        for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.exists=true;ini.text=text;settings->get_value(ini,reserve,"General",key);assert(reserve==fallback);}
+        ini.text="0";settings->get_value(ini,reserve,"General",key);assert(reserve==0);
+    }
 
 }
 '''

@@ -148,5 +148,8 @@
 	"Ignore.Cancel": "Cancel",
 	"Ignore.SaveFailed": "Ignore list could not be saved. Changes apply until the game closes.",
 	"Ignore.Unstable": "Some items have no stable plugin record and cannot be added to the ignore list.",
-	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition"
+	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition",
+	"Quantities": "Quantities",
+	"Options.AlchemyKeepAmount": "Alchemy Keep Amount",
+	"Options.ScrollKeepAmount": "Scroll Keep Amount"
 }

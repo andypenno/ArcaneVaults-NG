@@ -12,6 +12,7 @@ namespace AVUI {
 		// Render Menu
 		SKSEMenuFramework::SetSection(Translate("Settings.ModName"));
 		SKSEMenuFramework::AddSectionItem(Translate("Options"), RenderOptions);
+		SKSEMenuFramework::AddSectionItem(Translate("Quantities"), RenderQuantities);
 		SKSEMenuFramework::AddSectionItem("Quick Transfer", RenderTransfer);
 		SKSEMenuFramework::AddSectionItem(Translate("Override"), RenderOverrides);
 		SKSEMenuFramework::AddSectionItem(Translate("Ignore"), RenderIgnoredItems);
@@ -54,17 +55,39 @@ namespace AVUI {
 				changeOption = true;
 			}
 		}
-		if (Checkbox(Translate("Options.Redirect"), &setting->GSC_GlobalRedirects))
-			changeOption = true;		
-		if (Checkbox(Translate("Options.CraftLoan"), &setting->GSC_CraftingLoan))
-			changeOption = true;
 		if (Checkbox(Translate("Options.OnlyOwn"), &setting->GSC_AssignOnlyOwn))
 			changeOption = true;
-
+		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
+			changeOption = true;
+			utility->ConfigurationSpells();
+		}
+		if (Checkbox(Translate("Options.Redirect"), &setting->GSC_GlobalRedirects))
+			changeOption = true;
+		if (Checkbox(Translate("Options.CraftLoan"), &setting->GSC_CraftingLoan))
+			changeOption = true;
+		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
+			changeOption = true;
+			utility->ConfigurationSpells();
+		}
 		if (Checkbox(Translate("Options.ReturnIgnoredItems"), &setting->GSC_ReturnIgnoredItems))
 			changeOption = true;
 		if (Checkbox(Translate("Options.KeepSelectedAmmunition"), &setting->GSC_KeepSelectedAmmunition))
 			changeOption = true;
+
+		int salePercentage = setting->GSC_SalePercentage;
+		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
+			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);
+			changeOption = true;
+		}
+
+		if (changeOption)
+			setting->SaveINI();
+	}
+
+	void __stdcall RenderQuantities() {
+		auto* setting = Settings::GetSingleton();
+		bool changeOption = false;
+
 		int keepAmount = setting->GSC_AmmunitionKeepAmount;
 		if (InputInt(Translate("Options.AmmunitionKeepAmount"), &keepAmount)) {
 			setting->GSC_AmmunitionKeepAmount = (std::max)(0, keepAmount);
@@ -83,22 +106,18 @@ namespace AVUI {
 			changeOption = true;
 		}
 
-		int salePercentage = setting->GSC_SalePercentage;
-		if (InputInt(Translate("Options.SalePercentage"), &salePercentage)) {
-			setting->GSC_SalePercentage = std::clamp(salePercentage, 1, 100);
+		int alchemyKeepAmount = setting->GSC_AlchemyKeepAmount;
+		if (InputInt(Translate("Options.AlchemyKeepAmount"), &alchemyKeepAmount)) {
+			setting->GSC_AlchemyKeepAmount = (std::max)(0, alchemyKeepAmount);
 			changeOption = true;
 		}
 
-		// Configuration Spells
-		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
+		int scrollKeepAmount = setting->GSC_ScrollKeepAmount;
+		if (InputInt(Translate("Options.ScrollKeepAmount"), &scrollKeepAmount)) {
+			setting->GSC_ScrollKeepAmount = (std::max)(0, scrollKeepAmount);
 			changeOption = true;
-			utility->ConfigurationSpells();
 		}
-		if (Checkbox(Translate("Options.SortSpell"), &setting->GSC_SortSpell)) {
-			changeOption = true;
-			utility->ConfigurationSpells();
-		}
-		
+
 		if (changeOption)
 			setting->SaveINI();
 	}
