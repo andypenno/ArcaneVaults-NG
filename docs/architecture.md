@@ -91,3 +91,5 @@ Ignore-list activation and recovery are described in [storage.md](storage.md). P
 `ContainerSelectionState` supports assignment and action browsing through the same SkyUILib list. Vault and Archive browsers supply registered actions and a cancel callback; assignment retains its redirect behavior.
 
 Crafting sessions retain the station handle and a generation counter. Menu-close and furniture-exit work returns loans only for the matching session. Wrong actors, stale furniture and duplicate exits are ignored. Load reset invalidates queued exits without transferring items. The accepted loan options remain captured until return.
+
+All Crafting Materials is disabled by default. When enabled alongside Crafting Loan, every recognized station borrows Smithing, Food, Alchemy, eligible Junk and empty/filled soul gems, without recipe filtering. Armor, Weapons, Gear and other non-material vaults remain excluded. The session captures this mode on entry so changing either option while crafting does not alter its return path. Disabling the option preserves the station-specific table above.

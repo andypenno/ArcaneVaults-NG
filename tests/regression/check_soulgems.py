@@ -134,6 +134,7 @@ struct Utility {
 '''
 program += r'''
 struct Settings {
+    bool GSC_AllCraftingMaterials=false;
     bool GSC_CraftingLoan = true;
     bool GSC_ReturnIgnoredItems = true;
     std::unordered_set<const RE::TESBoundObject*> ignored;
@@ -231,6 +232,9 @@ int main() {
     Soulgems::BeginLoan(true);assert((counts(player,&gem)==std::array{27,5}));
     Soulgems::EndLoan();assert((counts(player,&gem)==std::array{25,0}));
     assert((counts(bank,&gem)==std::array{2,5}));
+    reset();u->recipes.clear();bank->Put(&gem,4);bank->Put(&prefilled,3);Soulgems::BeginLoan(true,true);
+    assert((counts(player,&gem)==std::array{4,0}));assert((counts(player,&prefilled)==std::array{0,3}));
+    Soulgems::EndLoan();assert((counts(bank,&gem)==std::array{4,0}));assert((counts(bank,&prefilled)==std::array{0,3}));
     reset();
     prefilled.linkedSoulGem=&gem;bank->Put(&prefilled,3);player->Put(&gem,25);
     Soulgems::BeginLoan(false);

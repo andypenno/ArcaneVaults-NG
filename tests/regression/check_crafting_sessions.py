@@ -7,14 +7,14 @@ common=(ROOT / "tests/support/engine.hpp").read_text().split('#include "src/Play
 common=common.replace("struct Utility {","struct Utility {BenchType bench=BenchType::Alchemy;BenchType GetBenchType(RE::TESObjectREFR*)const{return bench;}")
 common += r'''
 #include <utility>
-struct Settings {bool GSC_CraftingLoan=true;static Settings* GetSingleton(){static Settings settings;return &settings;}};
+struct Settings {bool GSC_CraftingLoan=true,GSC_AllCraftingMaterials=false;static Settings* GetSingleton(){static Settings settings;return &settings;}};
 struct Stores {
-    int begins=0,ends=0,returns=0;
+    int begins=0,ends=0,returns=0;std::vector<Container> borrowed,restored;
     static Stores* GetSingleton(){static Stores stores;return &stores;}
     void BeginJunkLoan(){++begins;}void EndJunkLoan(){++ends;}void ResetJunkLoan(){}
-    void AllToPlayer(Container){}void StoreToPlayer(ItemCategory,Container){}void PlayerToStore(ItemCategory,Container){++returns;}
+    void AllToPlayer(Container c){borrowed.push_back(c);}void StoreToPlayer(ItemCategory,Container){}void PlayerToStore(ItemCategory,Container c){++returns;restored.push_back(c);}
 };
-namespace Soulgems {inline int begins=0,ends=0;void BeginLoan(bool){++begins;}void EndLoan(){++ends;}void ResetLoan(){}}
+namespace Soulgems {inline int begins=0,ends=0;inline bool all=false;void BeginLoan(bool,bool every=false){++begins;all=every;}void EndLoan(){++ends;}void ResetLoan(){}}
 '''
 events=(ROOT / "src/Events.cpp").read_text()
 a=events.index("class CraftingLoanState {");b=events.index("class FurnitureActivation {",a)
@@ -26,6 +26,11 @@ int main(){
         session->Reset();utility->bench=bench;settings->GSC_CraftingLoan=true;const int begins=stores->begins,ends=stores->ends,soulBegins=Soulgems::begins,soulEnds=Soulgems::ends;
         session->EnterCrafting(&first);assert(stores->begins==begins+1);settings->GSC_CraftingLoan=false;session->ExitCrafting();session->ExitCrafting();
         assert(stores->ends==ends+1);const int gems=bench==BenchType::Smithing || bench==BenchType::Enchanting;assert(Soulgems::begins==soulBegins+gems && Soulgems::ends==soulEnds+gems);
+    }
+    for(auto bench:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::Enchanting,BenchType::StaffEnchanting}){
+        session->Reset();utility->bench=bench;settings->GSC_CraftingLoan=true;settings->GSC_AllCraftingMaterials=true;stores->borrowed.clear();stores->restored.clear();const int ends=Soulgems::ends;
+        session->EnterCrafting(&first);assert(Soulgems::all);assert((stores->borrowed==std::vector{Container::Smithing,Container::Food,Container::Alchemy}));
+        settings->GSC_AllCraftingMaterials=false;settings->GSC_CraftingLoan=false;session->ExitCrafting();assert(Soulgems::ends==ends+1);assert(stores->restored==stores->borrowed);
     }
     settings->GSC_CraftingLoan=true;utility->bench=BenchType::None;const int begins=stores->begins;session->EnterCrafting(&first);assert(stores->begins==begins);
     utility->bench=BenchType::Alchemy;settings->GSC_CraftingLoan=false;session->EnterCrafting(&first);assert(stores->begins==begins);settings->GSC_CraftingLoan=true;
