@@ -71,6 +71,12 @@ def validate_esp(root, data):
     source = import_esp(data)
     nodes = list(walk(source["records"]))
     by_id = {int(node["form_id"], 16): node for node in nodes}
+    retained = json.loads((root / 'tests/fixtures/storage-identities.json').read_text())['records']
+    for identity, expected in retained.items():
+        node = by_id.get(int(identity, 16))
+        require(node is not None and node['type'] == expected['type'], f'Retained storage identity changed: {identity}')
+        require([field for field in node['fields'] if field['type'] in ('EDID', 'NAME')] == expected['fields'],
+                f'Retained storage name/link changed: {identity}')
     header = nodes[0]
     require(header["type"] == "TES4" and header["form_id"] == "0x00000000", "Missing ESP header")
     masters = [field["text"] for field in header["fields"] if field["type"] == "MAST"]
@@ -90,6 +96,20 @@ def validate_esp(root, data):
     require(registered and len(set(registered)) == len(registered), "Duplicate or missing C++ container registry IDs")
     require({int(node["form_id"], 16) & 0xFFFFFF for node in references} == set(registered),
             "ESP storage references differ from the C++ registry")
+
+    origin_keyword = by_id.get(0x01000DE0)
+    require(origin_keyword is not None and origin_keyword["type"] == "KYWD" and
+            any(field.get("text") == "AV_StolenOrigin" for field in origin_keyword["fields"] if field["type"] == "EDID"),
+            "Stolen Items origin keyword is missing or invalid")
+
+    enchanted_origin = by_id.get(0x01000DED)
+    require(enchanted_origin is not None and enchanted_origin["type"] == "KYWD" and
+            any(field.get("text") == "AV_EnchantedOrigin" for field in enchanted_origin["fields"] if field["type"] == "EDID"),
+            "Enchanted Items origin keyword is missing or invalid")
+    favorite_origin = by_id.get(0x01000DF0)
+    require(favorite_origin is not None and favorite_origin["type"] == "KYWD" and
+            any(field.get("text") == "AV_SortFavorite" for field in favorite_origin["fields"] if field["type"] == "EDID"),
+            "Sort favourite keyword is missing or invalid")
 
     def check_cells(items, cell=None):
         for node in items:
@@ -150,6 +170,10 @@ def dispatch(code, variable, spell_type):
 
 
 def validate_files(root, files):
+    import sys
+    sys.path.insert(0, str(root / 'tests'))
+    from support.data import validate_static
+    validate_static(files, root)
     manifest = json.loads((root / "release/inputs.json").read_text())
     expected = set(manifest["copies"]) | set(manifest["generated"])
     require(set(files) == expected, f"Package paths differ: missing {sorted(expected - set(files))}, extra {sorted(set(files) - expected)}")
@@ -191,6 +215,9 @@ def validate_zip(root, path):
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         require(len(names) == len(set(names)), "Duplicate ZIP paths")
+        require(len(names) == len({name.casefold() for name in names}), "Case-colliding ZIP paths")
+        require(all('\\' not in name and not name.startswith('/') and ':' not in name and
+                    all(part not in ('', '.', '..') for part in name.split('/')) for name in names), "Unsafe ZIP path")
         require(archive.testzip() is None, "ZIP CRC check failed")
         files = {name: archive.read(name) for name in names}
     return validate_files(root, files)

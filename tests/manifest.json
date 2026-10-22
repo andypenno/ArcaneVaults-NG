@@ -20,93 +20,54 @@
       "release": true
     },
     {
-      "id": "misc",
+      "id": "categories",
       "suites": [
-        "regression"
+        "unit"
       ],
       "command": [
         "{python}",
-        "tests/regression/check_misc.py"
+        "tests/unit/categories.py"
+      ],
+      "timeout_seconds": 90,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "static-data",
+      "suites": [
+        "static-data"
+      ],
+      "command": [
+        "{python}",
+        "tests/packaging/static_data.py"
       ],
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
     },
     {
-      "id": "keys",
+      "id": "esp-editor",
       "suites": [
-        "regression"
+        "integration"
       ],
       "command": [
         "{python}",
-        "tests/regression/check_keys.py"
+        "tests/integration/esp_editor.py"
       ],
-      "timeout_seconds": 180,
+      "timeout_seconds": 300,
       "sanitize": false,
       "release": true
     },
     {
-      "id": "navigation",
+      "id": "wine-toolchain",
       "suites": [
-        "regression"
+        "integration"
       ],
       "command": [
         "{python}",
-        "tests/regression/check_navigation.py"
+        "tests/integration/wine_toolchain.py"
       ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "ignores",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_ignores.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "crafting-benches",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_crafting_benches.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "soulgems",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_soulgems.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "trade",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_trade.py"
-      ],
-      "timeout_seconds": 180,
+      "timeout_seconds": 120,
       "sanitize": false,
       "release": true
     },
@@ -124,6 +85,23 @@
       "release": true
     },
     {
+      "id": "sorting-scenarios",
+      "suites": [
+        "integration"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_quick_transfer_pipeline.py",
+        "--scenarios",
+        "tests/fixtures/sorting",
+        "--output",
+        "{results}/sorting.json"
+      ],
+      "timeout_seconds": 600,
+      "sanitize": true,
+      "release": true
+    },
+    {
       "id": "archives",
       "suites": [
         "regression"
@@ -137,91 +115,42 @@
       "release": true
     },
     {
-      "id": "stolen",
+      "id": "construction-loans",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_construction_loans.py", "--output", "{results}/construction-loans.json"],
+      "timeout_seconds": 120,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "remains",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_remains.py", "--output", "{results}/remains.json"],
+      "timeout_seconds": 150,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "crafting_benches",
       "suites": [
         "regression"
       ],
       "command": [
         "{python}",
-        "tests/regression/check_stolen.py"
+        "tests/regression/check_crafting_benches.py"
       ],
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
     },
     {
-      "id": "crafting-sessions",
+      "id": "engine_boundaries",
       "suites": [
         "regression"
       ],
       "command": [
         "{python}",
-        "tests/regression/check_crafting_sessions.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "sawn-logs",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_sawn_logs.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "learning",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_learning.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "quantity-menus",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_quantity_menus.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "transfer-feedback",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_transfer_feedback.py"
-      ],
-      "timeout_seconds": 180,
-      "sanitize": false,
-      "release": true
-    },
-    {
-      "id": "inventory-preview",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_inventory_preview.py"
+        "tests/regression/check_engine_boundaries.py"
       ],
       "timeout_seconds": 180,
       "sanitize": true,
@@ -241,16 +170,76 @@
       "release": true
     },
     {
-      "id": "engine_boundaries",
+      "id": "ignores",
       "suites": [
         "regression"
       ],
       "command": [
         "{python}",
-        "tests/regression/check_engine_boundaries.py"
+        "tests/regression/check_ignores.py"
       ],
       "timeout_seconds": 180,
-      "sanitize": true,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "keys",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_keys.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "learning",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_learning.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "misc",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_misc.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "navigation",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_navigation.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "quantity-menus",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_quantity_menus.py"],
+      "timeout_seconds": 180,
+      "sanitize": false,
       "release": true
     },
     {
@@ -271,16 +260,9 @@
     },
     {
       "id": "quick_transfer_frames",
-      "suites": [
-        "regression"
-      ],
-      "command": [
-        "{python}",
-        "tests/regression/check_quick_transfer_frames.py",
-        "--output",
-        "{results}/frames.json"
-      ],
-      "timeout_seconds": 600,
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_quick_transfer_frames.py", "--output", "{results}/frames.json"],
+"timeout_seconds": 600,
       "sanitize": true,
       "release": true
     },
@@ -297,6 +279,155 @@
         "{results}/pipeline.json"
       ],
       "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "redirects",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_redirects.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "soulgems",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_soulgems.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "stolen",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_stolen.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "trade",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_trade.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "transfer_feedback",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_transfer_feedback.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "packaging",
+      "suites": [
+        "packaging"
+      ],
+      "command": [
+        "{python}",
+        "tests/packaging/check.py",
+        "--zip",
+        "{zip}"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": false
+    },
+    {
+      "id": "performance",
+      "suites": [
+        "performance"
+      ],
+      "command": [
+        "{python}",
+        "tests/performance/gate.py",
+        "--output",
+        "{results}/performance",
+        "--baseline",
+        "{baseline}"
+      ],
+      "timeout_seconds": 1200,
+      "sanitize": false,
+      "release": true
+    },
+    {
+      "id": "construction-bulk-filter-probe",
+      "suites": ["experiments"],
+      "command": ["{python}", "tests/regression/check_construction_loans.py", "--bulk-skips-nonplayable", "--output", "{results}/construction-bulk-filter.json"],
+      "timeout_seconds": 120,
+      "sanitize": true,
+      "release": false
+    },
+    {
+      "id": "bench_quicksort",
+      "suites": [
+        "experiments"
+      ],
+      "command": [
+        "{python}",
+        "tests/performance/bench_quicksort.py",
+        "--output",
+        "{results}/bench_quicksort.json"
+      ],
+      "timeout_seconds": 600,
+      "sanitize": false,
+      "release": false
+    },
+    {
+      "id": "bench_transfer_candidates",
+      "suites": [
+        "experiments"
+      ],
+      "command": [
+        "{python}",
+        "tests/performance/bench_transfer_candidates.py",
+        "--output",
+        "{results}/bench_transfer_candidates.json",
+        "--sizes",
+        "0",
+        "100",
+        "1000",
+        "--samples",
+        "2"
+      ],
+      "timeout_seconds": 600,
+      "sanitize": false,
+      "release": false
+    },
+    {
+      "id": "inventory-preview",
+      "suites": ["regression"],
+      "command": ["{python}", "tests/regression/check_inventory_preview.py"],
+      "timeout_seconds": 90,
       "sanitize": true,
       "release": true
     }

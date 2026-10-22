@@ -11,7 +11,7 @@ Python 3 and the [.NET 10 SDK](https://learn.microsoft.com/dotnet/core/install/l
 ```bash
 set -eu
 repo=/absolute/path/to/ArcaneVaults-NG
-input_esp="$repo/build/esp-editing/ArcaneVaults-LinkedStorage.esp"
+input_esp="$repo/results/esp-editing/ArcaneVaults-LinkedStorage.esp"
 esp_tools="${XDG_DATA_HOME:-$HOME/.local/share}/arcanevault-esp-tools"
 mkdir -p "$esp_tools"
 dotnet_cli="$esp_tools/dotnet/dotnet"
@@ -20,13 +20,13 @@ if [ ! -x "$dotnet_cli" ]; then
     bash "$esp_tools/dotnet-install.sh" --channel 10.0 --install-dir "$esp_tools/dotnet" --no-path
 fi
 python3 "$repo/tools/release/esp.py" generate "$repo/release/ArcaneVaults-LinkedStorage.json" "$input_esp"
-"$dotnet_cli" restore "$repo/tools/esp/ArcaneVaults.Esp.csproj" --locked-mode
-"$dotnet_cli" build "$repo/tools/esp/ArcaneVaults.Esp.csproj" --configuration Release --no-restore
-"$dotnet_cli" "$repo/tools/esp/bin/Release/net10.0/ArcaneVaults.Esp.dll" inspect "$input_esp"
-python3 "$repo/tools/esp/check.py" "$dotnet_cli" "$input_esp"
+"$dotnet_cli" restore "$repo/tools/esp/ArcaneVaults.Esp.csproj" --locked-mode -p:BaseIntermediateOutputPath="$repo/.build/esp-obj/"
+"$dotnet_cli" build "$repo/tools/esp/ArcaneVaults.Esp.csproj" --configuration Release --no-restore -p:BaseIntermediateOutputPath="$repo/.build/esp-obj/" -o "$repo/.build/esp"
+"$dotnet_cli" "$repo/.build/esp/ArcaneVaults.Esp.dll" inspect "$input_esp"
+python3 "$repo/tests/packaging/esp_editor_check.py" "$dotnet_cli" "$repo/.build/esp/ArcaneVaults.Esp.dll" "$input_esp"
 
 # Optional real label edit. Choose an ID from inspect and an unused output directory.
-# "$dotnet_cli" "$repo/tools/esp/bin/Release/net10.0/ArcaneVaults.Esp.dll" \
+# "$dotnet_cli" "$repo/.build/esp/ArcaneVaults.Esp.dll" \
 #     rename-container "$input_esp" /absolute/path/to/output/ArcaneVaults-LinkedStorage.esp \
 #     000D6E "Arcane Vault"
 ```

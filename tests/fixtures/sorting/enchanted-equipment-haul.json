@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "name": "enchanted-equipment-haul",
+  "description": "Hundreds of copies sharing equipment bases, with different custom enchantments, names, charge, tempering and ownership plus a favourited worn sword.",
+  "settings": {
+    "GSC_OffloadReagent": true,
+    "GSC_OffloadCatalyst": true,
+    "GSC_OffloadIngredient": true,
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadBooks": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadPersonal": true,
+    "GSC_OffloadGear": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadScrolls": true,
+    "GSC_OffloadSpelltomes": true,
+    "GSC_OffloadCrafting": true,
+    "GSC_OffloadConstruction": true,
+    "GSC_OffloadGemstone": true,
+    "GSC_OffloadSmelting": true,
+    "GSC_OffloadTanning": true,
+    "GSC_OffloadPotion": true,
+    "GSC_OffloadPoison": true,
+    "GSC_OffloadCookedFood": true,
+    "GSC_OffloadRawFood": true,
+    "GSC_OffloadSoulgems": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadGold": true,
+    "GSC_OffloadAmmunition": true,
+    "GSC_OffloadKeys": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_LockpickKeepAmount": 0,
+    "GSC_SoulgemKeepAmount": 0,
+    "GSC_GoldKeepAmount": 0,
+    "GSC_AmmunitionKeepAmount": 0,
+    "GSC_KeysKeepOne": false
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-frost-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true,
+        "enchantment": "frost",
+        "name": "Winter's Bite",
+        "temper": 1.8,
+        "charge": 70
+      },
+      {
+        "id": "plain-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 250
+      },
+      {
+        "id": "fire-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 250,
+        "enchantment": "fire",
+        "name": "Ember",
+        "charge": 17,
+        "temper": 1.1
+      },
+      {
+        "id": "stolen-chaos-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "copies": 250,
+        "enchantment": "chaos",
+        "name": "Storm",
+        "owner": "Whiterun blacksmith",
+        "charge": 52,
+        "temper": 1.3
+      },
+      {
+        "id": "alchemy-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 200,
+        "enchantment": "alchemy",
+        "name": "Alchemist's Band"
+      },
+      {
+        "id": "smithing-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "copies": 49,
+        "enchantment": "smithing",
+        "name": "Smith's Band"
+      }
+    ]
+  },
+  "no_transfers": false
+}

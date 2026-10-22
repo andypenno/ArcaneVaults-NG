@@ -25,13 +25,10 @@ These are observations from the named source, not confirmed game failures or fix
 | Location | Observation and consequence to verify |
 | --- | --- |
 | `AVUI::RenderTransfer` | Staff label binds `GSC_OffloadTwoHand`; TwoHand label binds `GSC_OffloadStaffHand`. `OffloadItems` uses the members according to their actual names |
-| `Stores::ShowFoodMenu` | Spice action moves Reagent items to Reagent but opens RawFood; direct `ShowFoodSaltMenu` opens Reagent |
-| `Stores::ShowScrollMenu` | Keep One/Three deposits one/three per item after withdrawing storage; compare intended label with actual player/store counts |
-| `ClassifyItem` | No explicit native ScrollItem branch; misc Treasure/Gemstone classification depends on overrides |
-| `Settings::ProcessOverrideFile` | One unresolved/malformed entry stops the remaining file; unknown category names only warn |
+| `ClassifyItem` | Misc Treasure/Gemstone classification depends on overrides |
 | `AVTranslation::Install`, `Settings::get_value` | JSON/value conversion errors can throw without local handling |
 | `Utility::LoadAllForms` and consumers | Missing required forms only log; later code uses some pointers without guards. Campfire Creation Club lookup is also treated as required by default |
-| `CraftingLoanState`, `Soulgems` | Non-gem loans still return by category; gem loans preserve pre-loan counts but unrecognized form changes remain on the player. Carpenter bench detection is unchanged |
+| `CraftingLoanState`, `Soulgems` | Non-gem loans still return by category; gem loans preserve pre-loan counts but unrecognized form changes remain on the player. Carpenter benches use the loaded Hearthfire crafting keyword |
 | `ContainerMenuCloseCallback` | One pending callback; load/revert callbacks do not explicitly reset this menu state |
 | `RedirectedContainerState` | Begin/Cancel are not wired into current call sites; cannot assume its close behavior runs |
 | `main.cpp` | Configuration spell reconciliation explicitly covers loaded games, not a new-game message |
@@ -44,7 +41,7 @@ Before turning an observation into a patch, reproduce the relevant case and esta
 
 The documentation pass inspected first-party source, build scripts, lockfile, submodule pins, integration headers, and the extracted release. It checked documentation links, registry IDs against the actual ESP, and Git whitespace/scope. The [Wine release build](wine-build.md) and documented rebuild/install passed; Windows x64 format, SKSE exports, staging bytes, and lockfile preservation were checked. No Skyrim loading or game scenario ran. Future reports must distinguish compilation and static artifact checks from execution in the game.
 
-The [ESP](esp-editing.md) and [release](release-build.md) tools have runnable checks. The C++ plugin has no automated test target. CommonLib has an optional `commonlibsse-ng-tests` target behind `--tests=y`; those are dependency tests, not proof of Arcane Vaults behavior. For a logic change, leave the smallest runnable regression check that exercises the changed contract. Avoid adding a test framework just to mirror implementation.
+The [ESP](esp-editing.md) and [release](release-build.md) tools have runnable checks. The committed [test framework](../tests/README.md) provides unit, integration, regression, performance and package suites. CommonLib has an optional `commonlibsse-ng-tests` target behind `--tests=y`; those are dependency tests, not proof of Arcane Vaults behavior. For a logic change, leave the smallest runnable regression check that exercises the changed contract. Avoid adding a test framework just to mirror implementation.
 
 ## Windows and in-game checks
 
@@ -70,4 +67,4 @@ Choose checks relevant to the change and record runtime, load order, starting in
 
 Logging uses `SKSE::log` through the `logger` alias. The entry point does not explicitly configure a file sink/path, so inspect the active runtime's logging setup rather than inventing a plugin log filename.
 
-`tests/integration/inventory.py` compiles the complete `InventoryStacks.cpp` against engine boundaries and runs committed inventory scenarios. It checks metadata, matching enchanted bases, protected instances, partial/refused moves, count deltas and invalidated cursors. It does not run Skyrim.
+Dragon Heartscales (`Skyrim.esm|0x0D0756`) have a bundled Treasure override. Native quest-marked entries are skipped by player transfers. Without that mark, enabled Treasure transfers route them into the directly accessible Treasure vault. Local regressions cover both states and Sort routing; the reported in-game disappearance is not reproduced. Reagent access gathers and opens Reagent, then returns leftovers to Alchemy.

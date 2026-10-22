@@ -1,0 +1,132 @@
+"""Measure the equipment/transfer CPU path, optionally comparing an explicit Git revision."""
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import statistics
+import subprocess
+import tempfile
+
+from support import engine as check_stolen
+
+ROOT = check_stolen.ROOT
+FILES = ("src/PlayerEquipment.cpp", "src/InventoryStacks.cpp", "src/Stores.cpp", "src/InventoryStacks.h", "src/PlayerEquipment.h")
+
+MAIN = r'''
+int main() {
+    using Clock=std::chrono::steady_clock;
+    auto* player=RE::PlayerCharacter::GetSingleton();
+    auto* stores=Stores::GetSingleton();
+    RE::TESObjectREFR bank{0x9000};Utility::GetSingleton()->containers[Container::Armor]=&bank;
+    for(int size:{100,1000}) for(bool transfer:{false,true}) {
+        if(transfer && size>1000)continue;
+        for(int sample=0;sample<(transfer?2:6);++sample) {
+            player->rows.clear();bank.rows.clear();RE::SCRIPT_FUNCTION::equipped.clear();
+            std::vector<RE::TESBoundObject> items(size);
+            for(int i=0;i<size;++i) {
+                auto& item=items[i];item.id=0x10000+i;item.armor=true;
+                player->Put(&item,0,1,nullptr,"worn");
+                player->rows[&item].extras.front()->uiWorn=true;
+                player->Put(&item,0,2,nullptr,"spare");
+                RE::SCRIPT_FUNCTION::equipped.insert(&item);
+            }
+            RE::InventoryMenu menu;
+            RE::InventoryUpdateData data{player->id};
+            RE::UIMessage message{std::string(RE::InventoryMenu::MENU_NAME),RE::UI_MESSAGE_TYPE::kInventoryUpdate,&data};
+            menu.ProcessMessage(message);
+            RE::TESObjectREFR::mirrorTime={};const auto begin=Clock::now();
+            const auto snapshot=PlayerEquipment::Read(&menu,player);
+            if(transfer) {
+                auto request=std::make_shared<PlayerEquipment::Request>();
+                request->work=[&]{stores->PlayerToStore(ItemCategory::Jewelry,Container::Armor);};
+                PlayerEquipment::Work(request,snapshot);
+            }
+            const auto rawMicros=std::chrono::duration<double,std::micro>(Clock::now()-begin).count();
+            const auto mirrorMicros=std::chrono::duration<double,std::micro>(RE::TESObjectREFR::mirrorTime).count();
+            assert(mirrorMicros>=0 && mirrorMicros<=rawMicros);const auto micros=rawMicros-mirrorMicros;
+            assert(snapshot.size()==items.size());
+            for(auto& item:items) {
+                const auto& row=player->rows.at(&item);
+                assert(snapshot.at(&item).equipped.size()==1 && snapshot.at(&item).equipped.contains(row.extras.front().get()));
+                assert(row.total==(transfer?1:3) && row.extras.front()->metadata=="worn");
+                if(transfer)assert(bank.rows.at(&item).total==2 && bank.rows.at(&item).extras.front()->metadata=="spare");
+            }
+            std::cout<<size<<' '<<transfer<<' '<<micros<<' '<<rawMicros<<' '<<mirrorMicros<<'\n';
+        }
+    }
+}
+'''
+
+
+def source_program(sources):
+    equipment = "\n".join(line for line in sources[FILES[0]].splitlines() if not line.startswith("#include"))
+    inventory = "\n".join(line for line in sources[FILES[1]].splitlines() if not line.startswith("#include"))
+    stores = sources[FILES[2]]
+    start = stores.index("void Stores::PlayerToStore(")
+    method = stores[start:stores.index("\n}\n", start) + 3]
+    main_source = MAIN if 'ItemEquipment' in sources[FILES[4]] else MAIN.replace('.equipped', '')
+    return '#include "common.hpp"\n#include <iostream>\n' + inventory + equipment + method + main_source
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--baseline", help="Optional Git revision for an explicit diagnostic comparison")
+    parser.add_argument("--output", type=Path, default=ROOT / "results/benchmarks/quicksort.json")
+    args = parser.parse_args()
+    current = {p: (ROOT / p).read_text() for p in FILES}
+    variants = {"after": current}
+    if args.baseline:
+        variants = {"before": {p: subprocess.check_output(["git", "show", f"{args.baseline}:{p}"], cwd=ROOT, text=True) for p in FILES}, **variants}
+    common = check_stolen.common.replace("++rowVisits;", "").replace("++inventoryCopies;", "")
+    report = {
+        "baseline": args.baseline,
+        "boundary": "Actual equipment snapshot and single-category protected transfer CPU path with engine stubs. Menu construction, UI scheduling, waiting, and Skyrim runtime costs are excluded.",
+        "compiler": subprocess.check_output(["g++", "--version"], text=True).splitlines()[0],
+        "harness_sha256": hashlib.sha256(common.encode()).hexdigest(),
+        "source_sha256": {label: {p: hashlib.sha256(s.encode()).hexdigest() for p, s in sources.items()} for label, sources in variants.items()},
+        "batches": [],
+        "complete": False,
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    assert not args.output.exists(), "Choose a new result path to preserve earlier measurements"
+    with tempfile.TemporaryDirectory(prefix="quicksort-bench-") as tmp:
+        tmp = Path(tmp)
+        for label, sources in variants.items():
+            variant = tmp / label
+            (variant / "src").mkdir(parents=True)
+            (variant / "common.hpp").write_text("#pragma once\n" + common)
+            (variant / "src/InventoryStacks.h").write_text(sources[FILES[3]])
+            for name in ("StolenItems", "EnchantedItems", "PlayerEquipment"):
+                (variant / f"src/{name}.h").write_text(sources[FILES[4]] if name == "PlayerEquipment" else (ROOT / f"src/{name}.h").read_text())
+            cpp = variant / "bench.cpp"
+            generated=source_program(sources)
+            if "Snapshot Capture(" in sources["src/PlayerEquipment.cpp"]:
+                generated=generated.replace("PlayerEquipment::Read(&menu,player)", "PlayerEquipment::Read(&menu,PlayerEquipment::Capture(player),player->GetHandle().native_handle())")
+            cpp.write_text(generated)
+            subprocess.run(["g++", "-O2", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(variant), "-I", str(ROOT), str(cpp), "-o", str(variant / "quicksort-bench")], check=True, timeout=60)
+        for batch in range(2):
+            for label in (list(variants) if batch == 0 else list(reversed(variants))):
+                output = subprocess.check_output([str(tmp / label / "quicksort-bench")], text=True, timeout=45)
+                samples = []
+                for line in output.splitlines():
+                    size, transfer, micros, raw, mirror = line.split()
+                    samples.append({"items": int(size), "phase": "snapshot_and_transfer" if bool(int(transfer)) else "snapshot", "microseconds": float(micros), "raw_microseconds": float(raw), "fixture_mirror_microseconds": float(mirror)})
+                report["batches"].append({"batch": batch, "version": label, "samples": samples})
+                args.output.write_text(json.dumps(report, indent=2) + "\n")
+        report["complete"] = True
+        report["comparisons"] = []
+        args.output.write_text(json.dumps(report, indent=2) + "\n")
+        if not args.baseline:
+            print(f"PASS: unchanged worn/spare outcomes and current CPU timings in {args.output}")
+            return
+        for size, phase in ((100, "snapshot"), (1000, "snapshot"), (100, "snapshot_and_transfer"), (1000, "snapshot_and_transfer")):
+            values = {label: [s["microseconds"] for b in report["batches"] if b["version"] == label for s in b["samples"] if s["items"] == size and s["phase"] == phase] for label in ("before", "after")}
+            medians = {label: statistics.median(v) for label, v in values.items()}
+            report["comparisons"].append({"items": size, "phase": phase, "microseconds": {label: {"min": min(v), "median": medians[label], "max": max(v)} for label, v in values.items()}, "speedup": medians["before"] / medians["after"]})
+        args.output.write_text(json.dumps(report, indent=2) + "\n")
+    print(f"PASS: unchanged worn/spare outcomes, before/after CPU timings in {args.output}")
+
+
+if __name__ == "__main__":
+    main()

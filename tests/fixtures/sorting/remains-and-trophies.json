@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "name": "remains-and-trophies",
+  "description": "Remains defaults, protected copies, wearable trophy override, excluded pelt and ingredient, and selective legacy Junk recovery.",
+  "settings": {},
+  "inventories": {
+    "player": [
+      {
+        "id": "dragon-bone",
+        "base": "dragon-bone",
+        "count": 3,
+        "after": {
+          "Smithing": 3
+        }
+      },
+      {
+        "id": "dragon-scales",
+        "base": "dragon-scales",
+        "count": 3,
+        "after": {
+          "Smithing": 3
+        }
+      },
+      {
+        "id": "mammoth-tusk",
+        "base": "mammoth-tusk",
+        "count": 3,
+        "after": {
+          "Smithing": 3
+        }
+      },
+      {
+        "id": "horker-tusk",
+        "base": "horker-tusk",
+        "count": 3,
+        "after": {
+          "Smithing": 3
+        }
+      },
+      {
+        "id": "troll-skull",
+        "base": "troll-skull",
+        "count": 3,
+        "after": {
+          "Smithing": 3
+        }
+      },
+      {
+        "id": "human-skull",
+        "base": "human-skull",
+        "count": 3,
+        "after": {
+          "Smithing": 3
+        }
+      },
+      {
+        "id": "carved-skull",
+        "base": "carved-skull",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "quest": true
+      },
+      {
+        "id": "goat-horns",
+        "base": "goat-horns",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "favorite": true
+      },
+      {
+        "id": "necromancer-bone",
+        "base": "necromancer-bone",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "ignored": true
+      },
+      {
+        "id": "trophy-head",
+        "base": "trophy-head",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "worn": true
+      },
+      {
+        "id": "bone-meal",
+        "base": "bone-meal",
+        "count": 3,
+        "after": {
+          "Alchemy": 3
+        }
+      },
+      {
+        "id": "pelt",
+        "base": "bear-pelt",
+        "count": 2,
+        "after": {
+          "Smithing": 2
+        }
+      }
+    ],
+    "Junk": [
+      {
+        "id": "legacy-tusk",
+        "base": "mammoth-tusk",
+        "count": 6,
+        "owner": "Whiterun",
+        "after": {
+          "Smithing": 6
+        }
+      },
+      {
+        "id": "user-junk",
+        "base": "junk-trophy",
+        "count": 2,
+        "after": {
+          "Junk": 2
+        }
+      },
+      {
+        "id": "user-ignore",
+        "base": "ignored-remains",
+        "count": 2,
+        "after": {
+          "Junk": 2
+        }
+      }
+    ],
+    "Remains": [
+      {
+        "id": "interrupted-archive",
+        "base": "dragon-bone",
+        "count": 4,
+        "after": {
+          "Smithing": 4
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

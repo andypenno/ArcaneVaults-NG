@@ -59,10 +59,9 @@ def rename_payload(payload, name):
     return bytes(output)
 
 
-if len(sys.argv) != 3:
-    raise SystemExit("Usage: python3 tools/esp/check.py DOTNET INPUT_ESP")
-dotnet, input_path = sys.argv[1], Path(sys.argv[2]).resolve()
-dll = Path(__file__).parent / "bin/Release/net10.0/ArcaneVaults.Esp.dll"
+if len(sys.argv) != 4:
+    raise SystemExit("Usage: esp_editor_check.py DOTNET DLL INPUT_ESP")
+dotnet, dll, input_path = sys.argv[1], Path(sys.argv[2]).resolve(), Path(sys.argv[3]).resolve()
 original = input_path.read_bytes()
 
 

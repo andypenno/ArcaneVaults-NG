@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "name": "dungeon-return-default-settings",
+  "description": "A typical dungeon return under the actual default settings. Materials and junk leave, disabled categories remain, and gold, arrows, keys and soul gems retain their configured reserves.",
+  "settings": {},
+  "inventories": {
+    "player": [
+      {
+        "id": "stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "favorite": true,
+        "worn": true,
+        "enchantment": "frost",
+        "name": "Winter's Bite",
+        "charge": 80
+      },
+      {
+        "id": "leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "worn": true
+      },
+      {
+        "id": "steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "after": {
+          "player": 1
+        }
+      },
+      {
+        "id": "novel",
+        "base": "novel",
+        "count": 3,
+        "after": {
+          "player": 3
+        }
+      },
+      {
+        "id": "health-potion",
+        "base": "health-potion",
+        "count": 12,
+        "after": {
+          "player": 12
+        },
+        "favorite": true
+      },
+      {
+        "id": "magicka-potion",
+        "base": "magicka-potion",
+        "count": 5,
+        "after": {
+          "player": 5
+        }
+      },
+      {
+        "id": "poison",
+        "base": "poison",
+        "count": 4,
+        "after": {
+          "player": 4
+        }
+      },
+      {
+        "id": "venison-stew",
+        "base": "venison-stew",
+        "count": 6,
+        "after": {
+          "player": 6
+        }
+      },
+      {
+        "id": "raw-venison",
+        "base": "raw-venison",
+        "count": 12,
+        "after": {
+          "Food": 12
+        }
+      },
+      {
+        "id": "letter",
+        "base": "letter",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "quest": true
+      },
+      {
+        "id": "keepsake",
+        "base": "keepsake",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "ignored": true
+      },
+      {
+        "id": "lockpick",
+        "base": "lockpick",
+        "count": 40,
+        "after": {
+          "player": 40
+        }
+      },
+      {
+        "id": "steel-arrow",
+        "base": "steel-arrow",
+        "count": 160,
+        "after": {
+          "player": 100,
+          "Ammunition": 60
+        }
+      },
+      {
+        "id": "house-key",
+        "base": "house-key",
+        "count": 3,
+        "after": {
+          "player": 1,
+          "Keys": 2
+        }
+      },
+      {
+        "id": "septim",
+        "base": "septim",
+        "count": 7500,
+        "after": {
+          "player": 5000,
+          "Treasure": 2500
+        }
+      },
+      {
+        "id": "mountain-flower",
+        "base": "mountain-flower",
+        "count": 30,
+        "after": {
+          "Alchemy": 30
+        }
+      },
+      {
+        "id": "heartstone",
+        "base": "heartstone",
+        "count": 6,
+        "after": {
+          "Alchemy": 6
+        }
+      },
+      {
+        "id": "salt",
+        "base": "salt",
+        "count": 8,
+        "after": {
+          "Alchemy": 8
+        }
+      },
+      {
+        "id": "iron-ingot",
+        "base": "iron-ingot",
+        "count": 40,
+        "after": {
+          "Smithing": 40
+        }
+      },
+      {
+        "id": "leather-strips",
+        "base": "leather-strips",
+        "count": 25,
+        "after": {
+          "Smithing": 25
+        }
+      },
+      {
+        "id": "ruined-book",
+        "base": "ruined-book",
+        "count": 7,
+        "after": {
+          "Junk": 7
+        }
+      },
+      {
+        "id": "empty-petty-gem",
+        "base": "empty-petty-gem",
+        "count": 30,
+        "after": {
+          "player": 25,
+          "Soulgem": 5
+        }
+      }
+    ],
+    "Smithing": [
+      {
+        "id": "banked-iron",
+        "base": "iron-ingot",
+        "count": 180,
+        "after": {
+          "Smithing": 180
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

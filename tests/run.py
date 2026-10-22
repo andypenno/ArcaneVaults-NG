@@ -116,7 +116,7 @@ def run(suites, output=None, names=(), zip_path=None, sanitize=False, baseline=N
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--suite', nargs='+', default=['unit'])
+    parser.add_argument('--suite', nargs='+', default=['unit', 'static-data'])
     parser.add_argument('--test', nargs='*', default=[])
     parser.add_argument('--output', type=Path)
     parser.add_argument('--zip', type=Path)

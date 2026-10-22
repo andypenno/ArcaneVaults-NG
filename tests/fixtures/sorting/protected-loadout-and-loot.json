@@ -1,0 +1,284 @@
+{
+  "version": 1,
+  "name": "protected-loadout-and-loot",
+  "description": "The standard loadout plus ordinary and differently enchanted copies sharing protected equipment bases.",
+  "settings": {
+    "GSC_OffloadReagent": true,
+    "GSC_OffloadCatalyst": true,
+    "GSC_OffloadIngredient": true,
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadBooks": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadPersonal": true,
+    "GSC_OffloadGear": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadScrolls": true,
+    "GSC_OffloadSpelltomes": true,
+    "GSC_OffloadCrafting": true,
+    "GSC_OffloadConstruction": true,
+    "GSC_OffloadGemstone": true,
+    "GSC_OffloadSmelting": true,
+    "GSC_OffloadTanning": true,
+    "GSC_OffloadPotion": true,
+    "GSC_OffloadPoison": true,
+    "GSC_OffloadCookedFood": true,
+    "GSC_OffloadRawFood": true,
+    "GSC_OffloadSoulgems": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadGold": true,
+    "GSC_OffloadAmmunition": true,
+    "GSC_OffloadKeys": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_LockpickKeepAmount": 25,
+    "GSC_SoulgemKeepAmount": 25,
+    "GSC_GoldKeepAmount": 5000,
+    "GSC_AmmunitionKeepAmount": 100,
+    "GSC_KeysKeepOne": true
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "favorite": true,
+        "worn": true,
+        "name": "Winter's Bite",
+        "enchantment": "frost-and-chaos",
+        "temper": 1.4,
+        "charge": 87
+      },
+      {
+        "id": "hunting-bow",
+        "base": "hunting-bow",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "favorite": true,
+        "enchantment": "soul-trap",
+        "charge": 40
+      },
+      {
+        "id": "steel-warhammer",
+        "base": "steel-warhammer",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "favorite": true,
+        "temper": 1.2
+      },
+      {
+        "id": "fire-staff",
+        "base": "fire-staff",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "favorite": true,
+        "charge": 58
+      },
+      {
+        "id": "linen-robes",
+        "base": "linen-robes",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "enchantment": "magicka-regeneration"
+      },
+      {
+        "id": "steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "favorite": true,
+        "enchantment": "fortify-health"
+      },
+      {
+        "id": "leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "enchantment": "muffle"
+      },
+      {
+        "id": "silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true,
+        "enchantment": "fortify-smithing"
+      },
+      {
+        "id": "health-potion",
+        "base": "health-potion",
+        "count": 12,
+        "after": {
+          "player": 12
+        },
+        "favorite": true
+      },
+      {
+        "id": "magicka-potion",
+        "base": "magicka-potion",
+        "count": 9,
+        "after": {
+          "player": 9
+        },
+        "favorite": true
+      },
+      {
+        "id": "stamina-potion",
+        "base": "stamina-potion",
+        "count": 8,
+        "after": {
+          "player": 8
+        },
+        "favorite": true
+      },
+      {
+        "id": "venison-stew",
+        "base": "venison-stew",
+        "count": 5,
+        "after": {
+          "player": 5
+        },
+        "favorite": true
+      },
+      {
+        "id": "fireball-scroll",
+        "base": "fireball-scroll",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "favorite": true
+      },
+      {
+        "id": "house-key",
+        "base": "house-key",
+        "count": 1,
+        "after": {
+          "player": 1
+        }
+      },
+      {
+        "id": "lockpick",
+        "base": "lockpick",
+        "count": 25,
+        "after": {
+          "player": 25
+        }
+      },
+      {
+        "id": "steel-arrow",
+        "base": "steel-arrow",
+        "count": 100,
+        "after": {
+          "player": 100
+        }
+      },
+      {
+        "id": "septim",
+        "base": "septim",
+        "count": 4200,
+        "after": {
+          "player": 4200
+        }
+      },
+      {
+        "id": "empty-petty-gem",
+        "base": "empty-petty-gem",
+        "count": 8,
+        "after": {
+          "player": 8
+        }
+      },
+      {
+        "id": "letter",
+        "base": "letter",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "quest": true
+      },
+      {
+        "id": "keepsake",
+        "base": "keepsake",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "ignored": true
+      },
+      {
+        "id": "torch",
+        "base": "torch",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "ignored": true
+      },
+      {
+        "id": "plain-looted-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        }
+      },
+      {
+        "id": "fire-looted-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "after": {
+          "Weapon": 1
+        },
+        "enchantment": "fire-damage",
+        "name": "Ember",
+        "charge": 13,
+        "temper": 1.1
+      },
+      {
+        "id": "unworn-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        },
+        "enchantment": "fortify-alchemy"
+      },
+      {
+        "id": "spare-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "after": {
+          "Armor": 1
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

@@ -9,14 +9,12 @@
 build/
 tools/esp/bin/
 tools/esp/obj/
-tools/release/__pycache__/
+__pycache__/
+results/
+.build/
 vs*/
 view/
 
 # files
 *.zip
 compile_commands.json
-
-# Test reports and Python bytecode
-/results/
-__pycache__/
