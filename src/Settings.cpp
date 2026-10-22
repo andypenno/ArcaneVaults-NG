@@ -53,6 +53,8 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_CraftingLoan, "General", "CraftingLoan");
 	option(settings.GSC_AllCraftingMaterials, "General", "AllCraftingMaterials");
 	option(settings.GSC_ReturnIgnoredItems, "General", "ReturnIgnoredItems");
+	option(settings.GSC_LearnDepositOverrides, "General", "LearnDepositOverrides");
+	option(settings.GSC_AllowAutomaticLearning, "General", "AllowAutomaticLearning");
 	option(settings.GSC_AllowRemovingStolenTags, "General", "AllowRemovingStolenTags");
 	option(settings.GSC_AssignOnlyOwn, "General", "AssignOnlyOwn");
 	option(settings.GSC_AssignSpell, "General", "AssignSpell");
@@ -75,7 +77,9 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadJewelry, "Offload", "Jewelry");
 	option(settings.GSC_OffloadBooks, "Offload", "Books");
 	option(settings.GSC_OffloadNotes, "Offload", "Notes");
+	option(settings.GSC_OffloadPersonal, "Offload", "Personal");
 	option(settings.GSC_OffloadGear, "Offload", "Gear");
+	option(settings.GSC_OffloadJunk, "Offload", "Junk");
 	option(settings.GSC_OffloadScrolls, "Offload", "Scrolls");
 	option(settings.GSC_OffloadSpelltomes, "Offload", "Spelltomes");
 	option(settings.GSC_OffloadCrafting, "Offload", "Crafting");
@@ -89,7 +93,6 @@ void Settings::ForEachINIOption(Settings& settings, Func&& option) {
 	option(settings.GSC_OffloadCookedFood, "Offload", "CookedFood");
 	option(settings.GSC_OffloadRawFood, "Offload", "RawFood");
 	option(settings.GSC_OffloadSoulgems, "Offload", "Soulgems");
-	option(settings.GSC_OffloadJunk, "Offload", "Junk");
 	option(settings.GSC_OffloadTreasure, "Offload", "Treasure");
 	option(settings.GSC_OffloadGold, "Offload", "Gold");
 	option(settings.GSC_OffloadAmmunition, "Offload", "Ammunition");

@@ -140,6 +140,7 @@ program += r'''struct CSimpleIniA {
 };
 namespace std {template<class... T> string format(const char*,T...){return "";}template<class T> int make_format_args(T value){return value;}inline string vformat(const char*,int){return "";}}
 '''
+program += "namespace DepositLearning {inline void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int){}}\n"
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
     std::set<RE::TESBoundObject*> ignored;
@@ -151,6 +152,8 @@ program += "struct Settings {\n" + settings_fields + r'''
 '''
 start=settings.index("template <class T>\nvoid Settings::get_value(")
 program += settings[start:settings.index("\n}\n",start)+3]
+item_class=(ROOT / "src/ItemClass.cpp").read_text()
+program += item_class[item_class.index("CategoryMask operator|("):item_class.index("CategoryMask ParseCategories(")]
 move_start=source.index("    int MoveItems(")
 program+=source[move_start:source.index("\n    }",move_start)+6]
 start=source.index("void Stores::StoreToPlayer(")
@@ -384,7 +387,7 @@ int main() {
     RE::TESBoundObject explicitJunk{ItemCategory::Junk,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing)},unmatchedJunk{ItemCategory::None};
     put(&explicitJunk,5);put(&unmatchedJunk,7);settings->GSC_OffloadJunk=true;stores.OffloadItems();
     assert(player->inventory[&explicitJunk].first==0 && junk.inventory[&explicitJunk].first==5 && player->inventory[&unmatchedJunk].first==7);
-    settings->GSC_OffloadJunk=false;put(&explicitJunk,4);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);
+    explicitJunk.extraMask=0;settings->GSC_OffloadJunk=false;put(&explicitJunk,4);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);
     settings->GSC_OffloadJunk=true;settings->ignored.insert(&explicitJunk);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);settings->ignored.clear();
     junkInbox.inventory[&explicitJunk]=entry(9);junkInbox.inventory[&unmatchedJunk]=entry(8);stores.SortItems();
     assert(junk.inventory[&explicitJunk].first==14 && junk.inventory[&unmatchedJunk].first==8 && junkInbox.inventory[&unmatchedJunk].first==0);

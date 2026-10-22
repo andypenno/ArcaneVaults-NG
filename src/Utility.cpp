@@ -449,3 +449,9 @@ std::vector<Utility::ContainerChoice> Utility::GetGroupedChoices(ContainerGroup 
 
     return choices;
 }
+
+Container Utility::GetContainerKind(RE::FormID formID) const {
+    for (const auto& [kind, entry] : containerMap)
+        if (entry.container && entry.container->GetFormID() == formID) return kind;
+    return Container::None;
+}

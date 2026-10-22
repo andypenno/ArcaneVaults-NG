@@ -184,23 +184,24 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 42> categoryNames{{
-    { "Remains", ItemCategory::Remains },
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 50> categoryNames{{
     { "Ignore", ItemCategory::Ignore },
-    { "HealthPotion", ItemCategory::HealthPotion },
-    { "MagickaPotion", ItemCategory::MagickaPotion },
-    { "StaminaPotion", ItemCategory::StaminaPotion },
-    { "Gear", ItemCategory::Gear },
-    { "Lockpick", ItemCategory::Lockpick },
-    { "Instrument", ItemCategory::Instrument },
-    { "Map", ItemCategory::Map },
-    { "Note", ItemCategory::Note },
-    { "SkillBook", ItemCategory::SkillBook },
-    { "Recipe", ItemCategory::Recipe },
     { "Junk", ItemCategory::Junk },
+    { "Alchemy", ItemCategory::Alchemy },
+    { "Armor", ItemCategory::Armor },
+    { "Weapon", ItemCategory::Weapon },
+    { "Smithing", ItemCategory::Smithing },
+    { "Remains", ItemCategory::Remains },
+    { "Food", ItemCategory::Food },
+    { "Concoction", ItemCategory::Concoction },
+    { "Restorative", ItemCategory::Restorative },
     { "Ammunition", ItemCategory::Ammunition },
     { "Archery", ItemCategory::Archery },
     { "Book", ItemCategory::Book },
+    { "Note", ItemCategory::Note },
+    { "SkillBook", ItemCategory::SkillBook },
+    { "Recipe", ItemCategory::Recipe },
+    { "Map", ItemCategory::Map },
     { "Catalyst", ItemCategory::Catalyst },
     { "Clothing", ItemCategory::Clothing },
     { "CookedFood", ItemCategory::CookedFood },
@@ -226,7 +227,14 @@ inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 42> categ
     { "Staff", ItemCategory::Staff },
     { "Tanning", ItemCategory::Tanning },
     { "Treasure", ItemCategory::Treasure },
-    { "TwoHand", ItemCategory::TwoHand }
+    { "TwoHand", ItemCategory::TwoHand },
+    { "Personal", ItemCategory::Personal },
+    { "Gear", ItemCategory::Gear },
+    { "Lockpick", ItemCategory::Lockpick },
+    { "Instrument", ItemCategory::Instrument },
+    { "HealthPotion", ItemCategory::HealthPotion },
+    { "MagickaPotion", ItemCategory::MagickaPotion },
+    { "StaminaPotion", ItemCategory::StaminaPotion }
 }};
 
 enum class BenchType : std::uint8_t {

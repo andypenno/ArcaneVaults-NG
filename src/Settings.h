@@ -17,6 +17,8 @@ public:
 	bool GSC_CraftingLoan{ false };
 	bool GSC_AllCraftingMaterials{ false };
 	bool GSC_ReturnIgnoredItems{ true };
+	bool GSC_LearnDepositOverrides{ false };
+	bool GSC_AllowAutomaticLearning{ false };
 	bool GSC_AllowRemovingStolenTags{ false };
 	bool GSC_AssignOnlyOwn{ true };
 	bool GSC_AssignSpell{ true };
@@ -31,7 +33,9 @@ public:
 	bool GSC_OffloadJewelry{ false };
 	bool GSC_OffloadBooks{ false };
 	bool GSC_OffloadNotes{ false };
+	bool GSC_OffloadPersonal{ false };
 	bool GSC_OffloadGear{ false };
+	bool GSC_OffloadJunk{ true };
 	int GSC_LockpickKeepAmount{ 25 };
 	bool GSC_OffloadScrolls{ false };
 	bool GSC_OffloadSpelltomes{ false };
@@ -50,7 +54,6 @@ public:
 	int GSC_AlchemyKeepAmount{ 1 };
 	int GSC_ScrollKeepAmount{ 3 };
 	bool GSC_OffloadTreasure{ false };
-	bool GSC_OffloadJunk{ true };
 	int GSC_GoldKeepAmount{ 5000 };
 	bool GSC_OffloadGold{ true };
 	int GSC_AmmunitionKeepAmount{ 100 };
