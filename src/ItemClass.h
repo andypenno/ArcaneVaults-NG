@@ -161,6 +161,8 @@ enum class ContainerGroup {
     case Container::Ignore:       return "Ignore";
     case Container::Ammunition:   return "Vault.Ammunition";
     case Container::Valuables:    return "Vault.Valuables";
+    case Container::FilledSoulgems: return "Vault.FilledSoulgems";
+    case Container::EmptySoulgems: return "Vault.EmptySoulgems";
     case Container::None:         return {};
     default: return {};
     }

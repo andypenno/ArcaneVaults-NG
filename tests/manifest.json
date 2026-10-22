@@ -83,6 +83,19 @@
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "soulgems",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_soulgems.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
     }
   ]
 }

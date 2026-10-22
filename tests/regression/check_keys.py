@@ -35,8 +35,9 @@ namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
 using FormID = unsigned;
+struct TESSoulGem {};
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
-struct TESBoundObject { ItemCategory category; CategoryMask extraMask=0; inline static unsigned nextID=1; unsigned id=nextID++; unsigned GetFormID() const {return id;} };
+struct TESBoundObject { ItemCategory category; CategoryMask extraMask=0; inline static unsigned nextID=1; unsigned id=nextID++; unsigned GetFormID() const {return id;} template<class T>T* As(){return nullptr;} };
 struct InventoryEntryData {
     bool quest = false, favorite = false, worn = false;
     bool IsQuestObject() const { return quest; }
@@ -95,6 +96,7 @@ struct Utility {
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
+namespace Soulgems {void Recover(){} void Deposit(int,bool){}}
 struct MenuOption {std::string text;std::function<void()> action;};
 struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
     std::function<void()> onClose;
@@ -335,6 +337,11 @@ int main() {
 
 
 
+    player->inventory.clear();chest.inventory.clear();RE::TESBoundObject ordinarySoulgemOverride{ItemCategory::Soulgem};
+    put(&ordinarySoulgemOverride,12);settings->GSC_OffloadSoulgems=true;stores.OffloadItems();
+    assert(player->inventory[&ordinarySoulgemOverride].first==0 && chest.inventory[&ordinarySoulgemOverride].first==12);
+    auto& soulInbox=Utility::GetSingleton()->inbox;soulInbox.inventory[&ordinarySoulgemOverride]={5,std::make_shared<RE::InventoryEntryData>()};stores.SortItems();
+    assert(soulInbox.inventory[&ordinarySoulgemOverride].first==0 && chest.inventory[&ordinarySoulgemOverride].first==17);
     player->inventory.clear();RE::TESObjectREFR treasury,smithing,armor,valuables;auto* utility=Utility::GetSingleton();
     utility->custom={{Container::Treasure,&treasury},{Container::Smithing,&smithing},{Container::Armor,&armor},{Container::Valuables,&valuables}};
     RE::TESBoundObject gold{ItemCategory::Gold},gem{ItemCategory::Gemstone},ingot{ItemCategory::PreciousIngot},jewel{ItemCategory::Jewelry},unrelated{ItemCategory::Scroll};

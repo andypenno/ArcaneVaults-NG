@@ -11,6 +11,7 @@ python3 tools/release/build_release.py
 python3 tools/release/check.py
 python3 tools/release/check_redirects.py
 python3 tools/release/check_keys.py
+python3 tools/release/check_soulgems.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -61,5 +62,6 @@ The build validates Windows x64 PE format and the actual SKSE export table, ESP 
 `check_keys.py` needs a native C++20 compiler. It extracts the real transfer, Sort, Quick Transfer, Gold/ammunition/miscellaneous classification branches, Valuables menu callbacks, INI option mapping, and INI reader and runs them with inventory/settings stubs. It checks Keys duplicate retention, ammunition and Septim reserves, Valuables gathering/return and manual deposits, precious ingot crafting categories, protected entries, category selection, repeat deposits, large stacks, existing count requests, Quick Transfer defaults/modes, reserve input validation, and generated ESP persistence/respawn flags. It does not run Skyrim's inventory engine or write game settings files.
 
 `check_redirects.py` compiles the actual manager, identifier code, INI persistence, and SKSE callbacks with stubs. It covers unloaded sources, dynamic save isolation, both persistence modes, changed load order, global precedence, linked activator blocking, and malformed records.
+`check_soulgems.py` compiles the actual soul gem module and crafting-loan session with inventory stubs. It exercises mixed extra-data stacks, explicit zero souls, metadata-preserving moves, reserves, archive consolidation, protected/unique gems, recipe eligibility, reusable form changes, consumed gems, uncertain leftovers, and a setting changed during a loan. It models null-list removal preferring an explicit stack. These checks do not substitute for Skyrim inventory-engine testing.
 
 The package root corresponds to Skyrim's `Data` directory. It has no enclosing `Data` or project-name directory. Runtime prerequisites such as SKSE, Address Library, and SKSE Menu Framework remain external game dependencies described in [build.md](build.md). No Skyrim launch or gameplay scenario is verified by these artifact checks.

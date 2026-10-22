@@ -1,5 +1,6 @@
 #pragma once
 #include "Stores.h"
+#include "Soulgems.h"
 #include "Events.h"
 #include "ContainerMenu.h"
 #include "RedirectManager.h"
@@ -182,7 +183,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* currentAmmo = player->GetCurrentAmmo();
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || !data.second || data.first <= 0) continue;
+        if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
@@ -213,7 +214,7 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
 
     const auto inventory = chest->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0) continue;
+        if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
@@ -237,7 +238,7 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
 
     const auto inventory = source->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0) continue;
+        if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems &&
             Settings::GetSingleton()->IsIgnored(item)) continue;
@@ -341,6 +342,8 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     ReturnIgnoredItems();
+    Soulgems::Recover();
+    StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     // Sort all items in the sorting container
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
@@ -348,7 +351,6 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
     StoreToStore(ItemCategory::Food, Container::Sort, Container::Food);
     StoreToStore(ItemCategory::Alchemy, Container::Sort, Container::Alchemy);
-    StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     StoreToStore(ItemCategory::Scroll, Container::Sort, Container::Scroll);
     StoreToStore(ItemCategory::Book, Container::Sort, Container::Book);
     StoreToStore(ItemCategory::Treasure, Container::Sort, Container::Treasure);
@@ -360,6 +362,11 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
+
+    if (settings->GSC_OffloadSoulgems) {
+        PlayerToStore(ItemCategory::Soulgem, Container::Soulgem, 0, 0, true);
+        Soulgems::Deposit(settings->GSC_SoulgemKeepAmount, true);
+    }
 
     if (settings->GSC_OffloadGold)
         PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, settings->GSC_GoldKeepAmount, true);
@@ -400,11 +407,6 @@ void Stores::OffloadItems() {
     // Food
     if (settings->GSC_OffloadCookedFood) PlayerToStore(ItemCategory::CookedFood, Container::Food, 0, 0, true);
     if (settings->GSC_OffloadRawFood) PlayerToStore(ItemCategory::RawFood, Container::Food, 0, 0, true);
-
-    // Soulgem
-    if (settings->GSC_OffloadEmptySoulgem) PlayerToStore(ItemCategory::EmptySoulgem, Container::Soulgem, 0, 0, true);
-    if (settings->GSC_OffloadFilledSoulgem) PlayerToStore(ItemCategory::FilledSoulgem, Container::Soulgem, 0, 0, true);
-    if (settings->GSC_OffloadGrandSoulgem) PlayerToStore(ItemCategory::GrandSoulgem, Container::Soulgem, 0, 0, true);
 
     // Treasure
     if (settings->GSC_OffloadTreasure) PlayerToStore(ItemCategory::Treasure, Container::Treasure, 0, 0, true);
@@ -585,10 +587,7 @@ void Stores::ShowVaultDetail2Menu(RE::TESObjectREFR* a_source) {
     }});
 
     options.push_back({Translate("Vault.Soulgem"), [this, sourceHandle] {
-        if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Soulgem, source.get(), [this](RE::TESObjectREFR* a_source) {
-                ShowVaultDetail2Menu(a_source);
-            });
+        if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
 
     options.push_back({Translate("Vault.Treasure"), [this, sourceHandle] {
@@ -865,41 +864,58 @@ void Stores::SoulgemMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowSoulgemMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    Soulgems::Recover();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
-
-    options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::Soulgem, Container::Soulgem);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+    const int takeAmount = Settings::GetSingleton()->GSC_SoulgemKeepAmount;
+    options.push_back({std::format("{} {}", Translate("Vault.TakeUpToAmount"), takeAmount), [this, sourceHandle, takeAmount] {
+        Soulgems::TakeEmpty(takeAmount);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
-
-    options.push_back({Translate("Vault.StoreGrandSouls"), [this, sourceHandle] {
-        PlayerToStore(ItemCategory::GrandSoulgem, Container::Soulgem);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+    options.push_back({std::format("{} {} {}", Translate("Vault.KeepAmount"), Settings::GetSingleton()->GSC_SoulgemKeepAmount, Translate("Vault.Empty")), [this, sourceHandle] {
+        Soulgems::Deposit(Settings::GetSingleton()->GSC_SoulgemKeepAmount);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
-
-    options.push_back({Translate("Vault.GatherEmptySouls"), [this, sourceHandle] {
-        StoreToPlayer(ItemCategory::EmptySoulgem, Container::Soulgem);
-        RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreGetMessage"));
+    options.push_back({Translate("Vault.SoulgemsStoreAll"), [this, sourceHandle] {
+        Soulgems::Deposit(0);
         if (auto source = sourceHandle.get()) SoulgemMenu(source.get());
     }});
-
+    options.push_back({Translate("Vault.FilledSoulgems"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) FilledSoulgemsMenu(source.get());
+    }});
+    options.push_back({Translate("Vault.EmptySoulgems"), [this, sourceHandle] {
+        if (auto source = sourceHandle.get()) EmptySoulgemsMenu(source.get());
+    }});
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
         if (auto source = sourceHandle.get())
-            OpenStorageMenu(Container::Soulgem, source.get(), [this](RE::TESObjectREFR* a_source) {
-                SoulgemMenu(a_source);
-            });
+            OpenStorageMenu(Container::Soulgem, source.get(), [this](RE::TESObjectREFR* source) { SoulgemMenu(source); });
     }});
-
     options.push_back({Translate("Vault.Exit"), [this, sourceHandle] {
         if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
     }});
-
-    const auto title = std::format("{} {}",Translate("Vault.Soulgem"),Translate("Vault.Vault"));
+    const auto title = std::format("{} {}", Translate("Vault.Soulgem"), Translate("Vault.Vault"));
     const auto cancelIndex = static_cast<std::int32_t>(options.size() - 1);
     ShowDynamicMessageBox(title, std::move(options), cancelIndex);
+}
+
+void Stores::FilledSoulgemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    Soulgems::Recover();
+    Soulgems::Split();
+    OpenStorageMenu(Container::FilledSoulgems, a_source, [this](RE::TESObjectREFR* source) {
+        Soulgems::Consolidate();
+        CloseStoreObject(source);
+    });
+}
+
+void Stores::EmptySoulgemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    Soulgems::Recover();
+    Soulgems::Split();
+    OpenStorageMenu(Container::EmptySoulgems, a_source, [this](RE::TESObjectREFR* source) {
+        Soulgems::Consolidate();
+        CloseStoreObject(source);
+    });
 }
 
 //===================================================

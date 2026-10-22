@@ -36,7 +36,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		break;
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
-        Stores::GetSingleton()->ResetNavigation();
+        AVEvents::ResetCraftingLoan();
         AVEvents::CancelContainerMenuCloseCallback();
         Stores::GetSingleton()->ResetIgnorePicker();
         if (message->type == SKSE::MessagingInterface::kNewGame)

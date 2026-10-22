@@ -332,6 +332,8 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Restorative, RE::FormID(0xDA6), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->PotionRestoreMenu(a_source); });
     
     // Soulgems
+    AddContainer(dataHandler, Container::FilledSoulgems, RE::FormID(0xDCB), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->FilledSoulgemsMenu(source); });
+    AddContainer(dataHandler, Container::EmptySoulgems, RE::FormID(0xDCD), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->EmptySoulgemsMenu(source); });
     AddContainer(dataHandler, Container::Soulgem, RE::FormID(0xDAC), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->SoulgemMenu(a_source); });
 
     // Food
