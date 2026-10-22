@@ -27,6 +27,7 @@ program = r'''
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
@@ -243,9 +244,11 @@ program = r'''
 #include <array>
 #include <cstdint>
 #include <string_view>
+#include <type_traits>
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+struct ScrollItem {};
 struct BIPED_MODEL {
     enum class BipedObjectSlot : unsigned { kHead=1, kHair=2, kBody=4, kHands=8, kAmulet=32, kRing=64, kFeet=128, kShield=512, kCirclet=4096 };
     enum class ArmorType { kLightArmor, kHeavyArmor, kClothing };
@@ -276,7 +279,12 @@ struct TESBoundObject {
     ItemCategory category;
     bool nativeArmor = false;
     TESObjectARMO armor{};
-    template<class T> T* As() { return nativeArmor ? &armor : nullptr; }
+    bool nativeScroll = false;
+    ScrollItem scroll{};
+    template<class T> T* As() {
+        if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
+        else return nativeArmor ? &armor : nullptr;
+    }
 };
 }
 '''
@@ -289,9 +297,15 @@ item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")]
 program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;\n"
+scroll_start = item_source.index("    if (a_item->As<RE::ScrollItem>())")
+program += item_source[scroll_start:item_source.index("    // Crafting", scroll_start)]
 program += item_source[item_source.index("    // Armor and Clothing"):item_source.index("    // Weapons", item_source.index("    // Armor and Clothing"))]
 program += "return categories; }\nint main() {\n"
 program += r'''
+    RE::TESBoundObject nativeSpellScroll{ItemCategory::None}, ordinary{ItemCategory::None};
+    nativeSpellScroll.nativeScroll = true;
+    assert(HasCategory(ClassifyItem(&nativeSpellScroll), ItemCategory::Scroll));
+    assert(!HasCategory(ClassifyItem(&ordinary), ItemCategory::Scroll));
     RE::TESBoundObject helmet{ItemCategory::None}, hat{ItemCategory::None}, robe{ItemCategory::None}, nativeRing{ItemCategory::None}, circlet{ItemCategory::None}, amulet{ItemCategory::None}, ironPlate{ItemCategory::None}, keywordHelmet{ItemCategory::None};
     for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet, &amulet, &ironPlate, &keywordHelmet}) item->nativeArmor = true;
     helmet.armor.bipedModelData.bipedObjectSlots.bits = 1 | 2 | 4096;

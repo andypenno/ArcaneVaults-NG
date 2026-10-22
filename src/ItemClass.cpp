@@ -148,6 +148,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (a_item->IsKey())
         return ToMask(ItemCategory::Keys);
 
+    if (a_item->As<RE::ScrollItem>())
+        return ToMask(ItemCategory::Scroll);
+
     // Crafting
     if (auto* ingredient = a_item->As<RE::TESObjectMISC>()) {
         if (utility->SmithingMap.contains(a_item->formID)) {

@@ -54,11 +54,12 @@ Classification precedence is user override, bundled override, then built-in rule
 | Armor | Armor plus Jewelry for non-Head-slot jewelry-keyword records or accessories excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
+| Native spell scroll | Scroll |
 | Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
 | Key | Keys; checked before the miscellaneous-item branch because `TESKey` derives from `TESObjectMISC` |
 | Other types | No built-in category |
 
-Native `RE::ScrollItem` and ammunition have no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
+Ammunition has no explicit built-in branch. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 
