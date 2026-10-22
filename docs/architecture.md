@@ -75,7 +75,7 @@ The furniture hook selects the bench through `Utility::GetBenchType`, which chec
 | Bench | Entry transfer | Exit transfer |
 | --- | --- | --- |
 | Alchemy, including grain mill keyword | Entire Alchemy inventory to player | Player items matching Alchemy to Alchemy |
-| Smithing, including forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts to player | Smithing items and Catalysts to their parent stores |
+| Smithing, including carpenter, forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts to player | Smithing items and Catalysts to their parent stores |
 | Cooking | Entire Food inventory plus Alchemy Reagents to player | Food and Reagents to their parent stores |
 | Enchanting | Entire Soulgem inventory to player | Soulgem items to Soulgem |
 | Staff enchanting | Alchemy Catalysts to player | Catalysts to Alchemy |
