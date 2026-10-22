@@ -108,7 +108,8 @@ namespace Soulgems {
             Container::Construction, Container::Tanning, Container::Gemstone, Container::Sort})
             MoveAll(utility->GetContainer(kind), bank, [kind](auto* gem) {
                 auto* settings = Settings::GetSingleton();
-                return kind != Container::Sort || !settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem);
+                return kind != Container::Sort || (!HasCategory(ClassifyItem(gem), ItemCategory::Ignore) &&
+                    (!settings->GSC_ReturnIgnoredItems || !settings->IsIgnored(gem)));
             });
     }
 
@@ -143,6 +144,7 @@ namespace Soulgems {
         for (const auto& [item, data] : inventory) {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
             if (!gem || !data.second || Protected(gem, *data.second)) continue;
+            if (HasCategory(ClassifyItem(gem), ItemCategory::Ignore)) continue;
             if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(gem)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
             int keep = a_keepEmpty;
@@ -236,6 +238,7 @@ namespace Soulgems {
             auto* gem = item ? item->As<RE::TESSoulGem>() : nullptr;
             if (!gem || !loanForms.contains(gem->GetFormID()) || !data.second || Protected(gem, *data.second)) continue;
             if (!ReadStacks(gem, data.first, *data.second, stacks)) continue;
+            if (HasCategory(ClassifyItem(gem), ItemCategory::Ignore)) continue;
             auto keep = carriedBefore[gem->GetFormID()];
             std::array<bool, 2> retainedExtras{};
             // Ambiguous bare stacks stay with the player until explicit Quick Transfer.

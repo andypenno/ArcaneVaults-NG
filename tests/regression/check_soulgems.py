@@ -142,6 +142,11 @@ struct Settings {
     static Settings* GetSingleton() { static Settings s;return &s; }
 };
 '''
+program += r'''
+std::unordered_set<RE::TESBoundObject*> categoryIgnored;
+CategoryMask ClassifyItem(RE::TESBoundObject* item)noexcept{return CategoryMask{1}<<static_cast<unsigned>(categoryIgnored.contains(item)?ItemCategory::Ignore:ItemCategory::Soulgem);}
+bool HasCategory(CategoryMask mask,ItemCategory category)noexcept{return (mask&(CategoryMask{1}<<static_cast<unsigned>(category)))!=0;}
+'''
 program += implementation
 loan = (ROOT / "src/Events.cpp").read_text()
 loan = loan[loan.index("class CraftingLoanState {"):loan.index("class FurnitureActivation {")]
@@ -149,6 +154,7 @@ program += r'''
 
 namespace SKSE {struct Tasks {void AddTask(std::function<void()> task){task();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;}}
 struct Stores {
+    void RecoverSawnLogs(){}
     void BeginJunkLoan(){}void EndJunkLoan(){}void ResetJunkLoan(){}
     static Stores* GetSingleton() { static Stores s;return &s; }
     void AllToPlayer(Container) {}
@@ -304,6 +310,9 @@ int main() {
         entry.quest=protection==0;entry.favorite=protection==1;entry.worn=protection==2;
         Soulgems::TakeEmpty(25);assert(bank->inventory[&gem].first==3 && player->inventory.empty());
     }
+    reset();categoryIgnored.insert(&gem);player->Put(&gem,8);Soulgems::Deposit(0);assert(player->inventory[&gem].first==8);
+    auto* ignoredSort=u->GetContainer(Container::Sort);ignoredSort->Put(&gem,5);Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;Soulgems::Recover();assert(ignoredSort->inventory[&gem].first==5);
+    categoryIgnored.clear();Settings::GetSingleton()->GSC_ReturnIgnoredItems=true;
     reset();bank->Put(&modStar,3);Soulgems::TakeEmpty(25);
     assert(bank->inventory[&modStar].first==3 && player->inventory.empty());
     reset();player->Put(&gem,25000);bank->Put(&gem,35000);Soulgems::TakeEmpty(30000);

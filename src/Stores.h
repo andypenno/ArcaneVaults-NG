@@ -64,6 +64,7 @@ public:
     void FinishIgnorePicker();
     void ResetIgnorePicker() { ++ignoreSession_; }
     void ReturnIgnoredItems();
+    void RecoverSawnLogs();
     void ResetNavigation();
     void VaultAssignment(RE::TESObjectREFRPtr a_source);
     

@@ -1,6 +1,7 @@
 #pragma once
 #include "Stores.h"
 #include "Soulgems.h"
+#include "InventoryStacks.h"
 #include "Trade.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
@@ -246,10 +247,9 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
     for (const auto& [item, data] : inventory) {
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
-        if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems &&
-            Settings::GetSingleton()->IsIgnored(item)) continue;
-
         const auto categories = ClassifyItem(item);
+        if (a_source == Container::Sort && (HasCategory(categories, ItemCategory::Ignore) ||
+            (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))) continue;
         if (!HasCategory(categories, a_category)) continue;
         
         MoveItems(source, destination, item, data.first);
@@ -262,9 +262,10 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
     auto* destination = utility->GetContainer(a_destination);
     if (!source || !destination || a_source == a_destination) return;
 
-    if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems) {
+    if (a_source == Container::Sort) {
         for (const auto& [item, data] : source->GetInventory()) {
-            if (item && data.first > 0 && !Settings::GetSingleton()->IsIgnored(item))
+            if (item && data.first > 0 && !HasCategory(ClassifyItem(item), ItemCategory::Ignore) &&
+                (!Settings::GetSingleton()->GSC_ReturnIgnoredItems || !Settings::GetSingleton()->IsIgnored(item)))
                 MoveItems(source, destination, item, data.first);
         }
         return;
@@ -1815,12 +1816,13 @@ void Stores::ShowPersonalMenu(RE::TESObjectREFR* a_source) {
 }
 
 void Stores::ReturnIgnoredItems() {
-    if (!Settings::GetSingleton()->GSC_ReturnIgnoredItems) return;
+    const auto* settings = Settings::GetSingleton();
     auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!source || !player) return;
     for (const auto& [item, data] : source->GetInventory()) {
-        if (item && data.first > 0 && Settings::GetSingleton()->IsIgnored(item))
+        if (item && data.first > 0 && (HasCategory(ClassifyItem(item), ItemCategory::Ignore) ||
+            (settings->GSC_ReturnIgnoredItems && settings->IsIgnored(item))))
             MoveItems(source, player, item, data.first);
     }
 }
@@ -2203,6 +2205,7 @@ void Stores::EndJunkLoan() {
         if (!item || !data.second || data.first <= 0) continue;
         const auto loan = junkLoan_.find(item->GetFormID());
         if (loan == junkLoan_.end()) continue;
+        if (HasCategory(ClassifyItem(item), ItemCategory::Ignore)) continue;
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
         double equipped{};
         if (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0) continue;
@@ -2211,4 +2214,23 @@ void Stores::EndJunkLoan() {
         MoveItems(player, destination, item, count);
     }
     ResetJunkLoan();
+}
+
+void Stores::RecoverSawnLogs() {
+    auto* data = RE::TESDataHandler::GetSingleton();
+    auto* logs = data ? data->LookupForm<RE::TESBoundObject>(0x300E, "HearthFires.esm") : nullptr;
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!logs || !player || !HasCategory(ClassifyItem(logs), ItemCategory::Ignore)) return;
+    auto* utility = Utility::GetSingleton();
+    for (auto kind : {Container::Smithing, Container::Construction, Container::Crafting,
+        Container::Smelting, Container::Tanning, Container::Gemstone, Container::Remains, Container::Sort, Container::Junk}) {
+        auto* source = utility->GetContainer(kind);
+        if (!source || source == player) continue;
+        for (;;) {
+            const auto stacks = InventoryStacks::Read(source, [](auto*, auto& entry, auto*) {
+                return !entry.IsQuestObject();
+            }, logs);
+            if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) break;
+        }
+    }
 }

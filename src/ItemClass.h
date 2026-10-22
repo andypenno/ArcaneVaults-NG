@@ -183,7 +183,8 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 40> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 41> categoryNames{{
+    { "Ignore", ItemCategory::Ignore },
     { "HealthPotion", ItemCategory::HealthPotion },
     { "MagickaPotion", ItemCategory::MagickaPotion },
     { "StaminaPotion", ItemCategory::StaminaPotion },

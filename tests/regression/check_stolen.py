@@ -9,6 +9,8 @@ common += r'''
 #include "src/StolenItems.h"
 #include "src/EnchantedItems.h"
 struct Settings {bool GSC_ReturnIgnoredItems=false;bool IsIgnored(RE::TESBoundObject*)const{return false;}bool GSC_AllowRemovingStolenTags=false;static Settings* GetSingleton(){static Settings settings;return &settings;}};
+inline CategoryMask ClassifyItem(RE::TESBoundObject*)noexcept{return CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Junk);}
+inline bool HasCategory(CategoryMask mask,ItemCategory c)noexcept{return (mask&(CategoryMask{1}<<static_cast<unsigned>(c)))!=0;}
 struct MenuOption {std::string text;std::function<void()> action;};
 struct Stores {
     std::vector<MenuOption> options;void AllToStore(Container,Container);

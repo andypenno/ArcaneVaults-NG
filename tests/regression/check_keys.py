@@ -458,6 +458,16 @@ int main() {
     put(&protectedLoan,6);player->inventoryRows=0;player->inventory[&loanItem].first-=5;stores.EndJunkLoan();assert(player->inventoryRows==1 && player->inventory[&protectedLoan].first==6);assert(player->inventory[&loanItem].first==3 && utility->junk.inventory[&loanItem].first==15 && stores.junkLoan_.empty());
     stores.BeginJunkLoan();player->rejectMove=true;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18 && utility->junk.inventory[&loanItem].first==0);player->rejectMove=false;
     stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18);
+    for(bool picker:{false,true}){
+        settings->GSC_ReturnIgnoredItems=picker;player->inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
+        RE::TESBoundObject logs{ItemCategory::Ignore};utility->inbox.inventory[&logs]=entry(100);
+        stores.ReturnIgnoredItems();stores.AllToStore(Container::Sort,Container::Junk);
+        assert(player->inventory[&logs].first==100 && utility->junk.inventory[&logs].first==0);
+        stores.PlayerToStore(ItemCategory::Smithing,Container::Smithing);assert(player->inventory[&logs].first==100);
+        utility->inbox.rejectMove=true;utility->inbox.inventory[&logs]=entry(10);stores.ReturnIgnoredItems();stores.AllToStore(Container::Sort,Container::Junk);
+        assert(utility->inbox.inventory[&logs].first==10 && utility->junk.inventory[&logs].first==0);utility->inbox.rejectMove=false;
+    }
+
 
 }
 '''
@@ -585,6 +595,7 @@ start=item_source.index("    // Books, Scrolls, and Spell Tomes")
 program += item_source[start:item_source.index("\n    return categories;",start)]
 program += "return categories; }\nint main() {\n"
 program += r'''
+    assert(ExpandCategories(ToMask(ItemCategory::Ignore)|ToMask(ItemCategory::Construction))==ToMask(ItemCategory::Ignore));
     assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Map)),ItemCategory::Note));
     RE::TESBoundObject potion{ItemCategory::None};potion.nativeAlchemy=true;RE::EffectSetting health;health.formID=5;RE::Effect effect{&health};RE::Effect missing{nullptr};
     potion.alchemy.effects={nullptr,&missing,&effect};assert(HasCategory(ClassifyItem(&potion),ItemCategory::HealthPotion));
