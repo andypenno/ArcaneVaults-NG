@@ -37,9 +37,14 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
         Stores::GetSingleton()->ResetNavigation();
+        AVEvents::CancelContainerMenuCloseCallback();
+        Stores::GetSingleton()->ResetIgnorePicker();
+        if (message->type == SKSE::MessagingInterface::kNewGame)
+            SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); });
         break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		Utility::GetSingleton()->ConfigurationSpells();
+        SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); });
 		break;
 	}
 	

@@ -57,6 +57,19 @@
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "ignores",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_ignores.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
     }
   ]
 }

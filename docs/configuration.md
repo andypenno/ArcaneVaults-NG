@@ -12,6 +12,7 @@ All paths below are relative to the game's working directory under `Data/SKSE/Pl
 | `ArcaneVaultOverrides.ini` | Bundled overrides, supplied by [ini/ArcaneVaultOverrides.ini](../ini/ArcaneVaultOverrides.ini) |
 | `ArcaneVaultUserOverrides.ini` | User overrides edited by framework UI; takes precedence over bundled data |
 | `ArcaneVaultRedirects.ini` | Global mappings; format and lifecycle in [storage.md](storage.md) |
+| `ArcaneVaultIgnoredItems.ini` | Global ignore list with stable plugin-local identifiers under `[IgnoredItems]` |
 | `ArcaneVaultTranslation.json` | Flat translation object, supplied by [ini/ArcaneVaultTranslation.json](../ini/ArcaneVaultTranslation.json) |
 
 Settings initialization loads options, then bundled overrides, then user overrides. Missing keys get in-memory defaults and are added to the temporary INI object, but an existing settings file is only written by `SaveINI`. UI changes call `SaveINI`; no file watcher reloads changes while running. Integer parsing uses `stoi` without a local exception handler. Most settings read/write return codes are not reported, unlike user-override and redirect save failures.
@@ -76,3 +77,9 @@ User edits replace one item's override. Save clears and rewrites only the Overri
 Framework wrappers come from its submodule's resources header and resolve `SKSEMenuFramework` DLL exports at runtime. Installation detection only checks `Data/SKSE/Plugins/SKSEMenuFramework.dll` existence. Do not treat that check as an API version handshake.
 
 [Compatibility.h](../src/Compatibility.h) stops QuickLoot opening when its event container has a redirect. It does not redirect QuickLoot inventory itself. The QuickLoot submodule supplies request-client headers; the plugin does not link or build the QuickLoot DLL. Papyrus natives call the same shared assignment and offload operations as hotkeys.
+
+## Ignore list
+
+Sneak-activate a container assigned to Arcane Vault or Sort to open an empty Ignore List picker. Items remaining when it closes are added by base record, and every deposited copy is returned. Removing an item before closing cancels that addition. Normal activation, manual vault actions, and crafting loans do not use the list. Quick Transfer, its hotkey, and its spell always skip ignored records.
+
+The Ignore List SKSE page searches names and plugin identifiers, removes individual entries, and confirms Clear All. Entries apply across saves like overrides. Unresolved plugin entries survive saving; dynamically created base forms cannot be persisted and trigger a notification. Save failure leaves the changes active for the running game and reports that they were not saved. Classification overrides remain independent.

@@ -158,6 +158,7 @@ enum class ContainerGroup {
     case Container::TwoHand:      return "Vault.TwoHand";
     case Container::Staff:        return "Vault.Staff";
     case Container::Keys:         return "Vault.Keys";
+    case Container::Ignore:       return "Ignore";
     case Container::None:         return {};
     default: return {};
     }

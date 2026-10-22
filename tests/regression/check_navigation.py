@@ -32,6 +32,7 @@ struct TESObjectREFR {
     unsigned GetFormID() const { return id; }
     ObjectRefHandle GetHandle() { return {this}; }
 };
+struct PlayerCharacter : TESObjectREFR { bool IsSneaking() const { return false; } static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; } };
 ObjectRefHandle::Pointer ObjectRefHandle::get() const { return {object && object->alive ? object : nullptr}; }
 struct BGSOpenCloseForm {
     enum class OPEN_STATE { kClosed, kClosing, kOpen, kOpening };
@@ -85,6 +86,7 @@ struct Stores {
     int page3 = 0, page2 = 0;
     bool archiveCleaned = false;
     void ResetNavigation();
+    void IgnoreMenu(RE::TESObjectREFR*) {}
     void ShowDynamicMessageBox(std::string_view, std::vector<MenuOption>, std::int32_t = -1);
     void CloseStoreObject(RE::TESObjectREFR*, AnimationCallback = {});
     void ShowVaultDetail3Menu(RE::TESObjectREFR*);
@@ -100,7 +102,7 @@ struct Stores {
 void WaitForOpenState(RE::TESObjectREFR* source, RE::BGSOpenCloseForm::OPEN_STATE, Stores::AnimationCallback action) {
     if (action) action(source);
 }
-enum class Container { Trade };
+enum class Container { Trade, Master, Sort };
 struct Utility {
     struct Entry { RE::TESObjectREFR* container; std::function<void(RE::TESObjectREFR*)> action; };
     std::map<Container, Entry> containerMap;

@@ -81,3 +81,5 @@ The furniture hook selects the bench through `Utility::GetBenchType`, which chec
 | Staff enchanting | Alchemy Catalysts to player | Catalysts to Alchemy |
 
 This is category-based movement, not a ledger of borrowed stacks. Player materials matching the return categories can be deposited even if they predated the loan. Protected player inventory is skipped by `PlayerToStore`. The state holds a raw active-furniture pointer and checks the setting again on exit. Failed activation, disabling the setting mid-session, and materials stranded in archive containers need targeted verification; see [development.md](development.md).
+
+Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel pending picker callbacks. Post-load and new-game tasks recover picker contents on the game thread.

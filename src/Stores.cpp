@@ -155,7 +155,7 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
@@ -166,6 +166,8 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
         if (!item || !data.second || data.first <= 0) continue;
+
+        if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
         // Ignore Quest, Favorited and Worn items
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
@@ -218,6 +220,9 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
     for (const auto& [item, data] : inventory) {
         if (!item || data.first <= 0) continue;
 
+        if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems &&
+            Settings::GetSingleton()->IsIgnored(item)) continue;
+
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
         
@@ -231,6 +236,13 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
     auto* destination = utility->GetContainer(a_destination);
     if (!source || !destination || a_source == a_destination) return;
 
+    if (a_source == Container::Sort && Settings::GetSingleton()->GSC_ReturnIgnoredItems) {
+        for (const auto& [item, data] : source->GetInventory()) {
+            if (item && data.first > 0 && !Settings::GetSingleton()->IsIgnored(item))
+                MoveItems(source, destination, item, data.first);
+        }
+        return;
+    }
     auto* inventory = source->GetInventoryChanges();
     if (!inventory) return;
 
@@ -309,6 +321,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 // Sorting
 //===================================================
 void Stores::SortItems() {
+    ReturnIgnoredItems();
     // Sort all items in the sorting container
     StoreToStore(ItemCategory::Keys, Container::Sort, Container::Keys);
     StoreToStore(ItemCategory::Smithing, Container::Sort, Container::Smithing);
@@ -328,52 +341,52 @@ void Stores::OffloadItems() {
     auto* settings = Settings::GetSingleton();
 
     if (settings->GSC_OffloadKeys)
-        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne);
+        PlayerToStore(ItemCategory::Keys, Container::Keys, 0, settings->GSC_KeysKeepOne, true);
 
     // Alchemy
-    if (settings->GSC_OffloadReagent) PlayerToStore(ItemCategory::Reagent, Container::Alchemy);
-    if (settings->GSC_OffloadCatalyst) PlayerToStore(ItemCategory::Catalyst, Container::Alchemy);
-    if (settings->GSC_OffloadIngredient) PlayerToStore(ItemCategory::Ingredient, Container::Alchemy);
+    if (settings->GSC_OffloadReagent) PlayerToStore(ItemCategory::Reagent, Container::Alchemy, 0, 0, true);
+    if (settings->GSC_OffloadCatalyst) PlayerToStore(ItemCategory::Catalyst, Container::Alchemy, 0, 0, true);
+    if (settings->GSC_OffloadIngredient) PlayerToStore(ItemCategory::Ingredient, Container::Alchemy, 0, 0, true);
 
     // Armor
-    if (settings->GSC_OffloadClothing) PlayerToStore(ItemCategory::Clothing, Container::Armor);
-    if (settings->GSC_OffloadHeavyArmor) PlayerToStore(ItemCategory::HeavyArmor, Container::Armor);
-    if (settings->GSC_OffloadLightArmor) PlayerToStore(ItemCategory::LightArmor, Container::Armor);
-    if (settings->GSC_OffloadJewelry) PlayerToStore(ItemCategory::Jewelry, Container::Armor);
+    if (settings->GSC_OffloadClothing) PlayerToStore(ItemCategory::Clothing, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadHeavyArmor) PlayerToStore(ItemCategory::HeavyArmor, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadLightArmor) PlayerToStore(ItemCategory::LightArmor, Container::Armor, 0, 0, true);
+    if (settings->GSC_OffloadJewelry) PlayerToStore(ItemCategory::Jewelry, Container::Armor, 0, 0, true);
 
     // Books
-    if (settings->GSC_OffloadBooks) PlayerToStore(ItemCategory::Book, Container::Book);
-    if (settings->GSC_OffloadSpelltomes) PlayerToStore(ItemCategory::SpellTome, Container::Book);
-    if (settings->GSC_OffloadScrolls) PlayerToStore(ItemCategory::Scroll, Container::Scroll);
+    if (settings->GSC_OffloadBooks) PlayerToStore(ItemCategory::Book, Container::Book, 0, 0, true);
+    if (settings->GSC_OffloadSpelltomes) PlayerToStore(ItemCategory::SpellTome, Container::Book, 0, 0, true);
+    if (settings->GSC_OffloadScrolls) PlayerToStore(ItemCategory::Scroll, Container::Scroll, 0, 0, true);
 
     // Smithing
-    if (settings->GSC_OffloadCrafting) PlayerToStore(ItemCategory::Crafting, Container::Smithing);
-    if (settings->GSC_OffloadConstruction) PlayerToStore(ItemCategory::Construction, Container::Smithing);
-    if (settings->GSC_OffloadGemstone) PlayerToStore(ItemCategory::Gemstone, Container::Smithing);
-    if (settings->GSC_OffloadSmelting) PlayerToStore(ItemCategory::Smelting, Container::Smithing);
-    if (settings->GSC_OffloadTanning) PlayerToStore(ItemCategory::Tanning, Container::Smithing);
+    if (settings->GSC_OffloadCrafting) PlayerToStore(ItemCategory::Crafting, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadConstruction) PlayerToStore(ItemCategory::Construction, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadGemstone) PlayerToStore(ItemCategory::Gemstone, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadSmelting) PlayerToStore(ItemCategory::Smelting, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadTanning) PlayerToStore(ItemCategory::Tanning, Container::Smithing, 0, 0, true);
 
     // Concoction
-    if (settings->GSC_OffloadPotion) PlayerToStore(ItemCategory::Potion, Container::Concoction);
-    if (settings->GSC_OffloadPoison) PlayerToStore(ItemCategory::Poison, Container::Concoction);
+    if (settings->GSC_OffloadPotion) PlayerToStore(ItemCategory::Potion, Container::Concoction, 0, 0, true);
+    if (settings->GSC_OffloadPoison) PlayerToStore(ItemCategory::Poison, Container::Concoction, 0, 0, true);
 
     // Food
-    if (settings->GSC_OffloadCookedFood) PlayerToStore(ItemCategory::CookedFood, Container::Food);
-    if (settings->GSC_OffloadRawFood) PlayerToStore(ItemCategory::RawFood, Container::Food);
+    if (settings->GSC_OffloadCookedFood) PlayerToStore(ItemCategory::CookedFood, Container::Food, 0, 0, true);
+    if (settings->GSC_OffloadRawFood) PlayerToStore(ItemCategory::RawFood, Container::Food, 0, 0, true);
 
     // Soulgem
-    if (settings->GSC_OffloadEmptySoulgem) PlayerToStore(ItemCategory::EmptySoulgem, Container::Soulgem);
-    if (settings->GSC_OffloadFilledSoulgem) PlayerToStore(ItemCategory::FilledSoulgem, Container::Soulgem);
-    if (settings->GSC_OffloadGrandSoulgem) PlayerToStore(ItemCategory::GrandSoulgem, Container::Soulgem);
+    if (settings->GSC_OffloadEmptySoulgem) PlayerToStore(ItemCategory::EmptySoulgem, Container::Soulgem, 0, 0, true);
+    if (settings->GSC_OffloadFilledSoulgem) PlayerToStore(ItemCategory::FilledSoulgem, Container::Soulgem, 0, 0, true);
+    if (settings->GSC_OffloadGrandSoulgem) PlayerToStore(ItemCategory::GrandSoulgem, Container::Soulgem, 0, 0, true);
 
     // Treasure
-    if (settings->GSC_OffloadTreasure) PlayerToStore(ItemCategory::Treasure, Container::Treasure);
+    if (settings->GSC_OffloadTreasure) PlayerToStore(ItemCategory::Treasure, Container::Treasure, 0, 0, true);
 
     // Weapons
-    if (settings->GSC_OffloadArchery) PlayerToStore(ItemCategory::Archery, Container::Weapon);
-    if (settings->GSC_OffloadOneHand) PlayerToStore(ItemCategory::OneHand, Container::Weapon);
-    if (settings->GSC_OffloadTwoHand) PlayerToStore(ItemCategory::TwoHand, Container::Weapon);
-    if (settings->GSC_OffloadStaffHand) PlayerToStore(ItemCategory::Staff, Container::Weapon);
+    if (settings->GSC_OffloadArchery) PlayerToStore(ItemCategory::Archery, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadOneHand) PlayerToStore(ItemCategory::OneHand, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadTwoHand) PlayerToStore(ItemCategory::TwoHand, Container::Weapon, 0, 0, true);
+    if (settings->GSC_OffloadStaffHand) PlayerToStore(ItemCategory::Staff, Container::Weapon, 0, 0, true);
 
     // Final Message
     RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
@@ -1728,4 +1741,51 @@ void Stores::ShowPersonalMenu(RE::TESObjectREFR* a_source) {
         OpenStorageMenu(Container::Personal, source.get(), [this](RE::TESObjectREFR* a_source) {
             if (a_source) CloseStoreObject(a_source);
     });
+}
+
+void Stores::ReturnIgnoredItems() {
+    if (!Settings::GetSingleton()->GSC_ReturnIgnoredItems) return;
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return;
+    for (const auto& [item, data] : source->GetInventory()) {
+        if (item && data.first > 0 && Settings::GetSingleton()->IsIgnored(item))
+            MoveItems(source, player, item, data.first);
+    }
+}
+
+void Stores::FinishIgnorePicker() {
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Ignore);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return;
+    auto* settings = Settings::GetSingleton();
+    bool rejected = false;
+    bool found = false;
+    for (const auto& [item, data] : source->GetInventory()) {
+        if (!item || data.first <= 0) continue;
+        found = true;
+        if (!settings->AddIgnoredItem(item)) rejected = true;
+        MoveItems(source, player, item, data.first);
+    }
+    if (found && !settings->SaveIgnoredItems())
+        RE::SendHUDMessage::ShowHUDMessage(Translate("Ignore.SaveFailed"));
+    if (rejected) RE::SendHUDMessage::ShowHUDMessage(Translate("Ignore.Unstable"));
+}
+
+void Stores::IgnoreMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    FinishIgnorePicker();
+    auto* picker = Utility::GetSingleton()->GetContainer(Container::Ignore);
+    if (!picker) return;
+    for (const auto& [item, count] : picker->GetInventoryCounts())
+        if (count > 0) return;
+    const auto session = ++ignoreSession_;
+    const auto sourceHandle = a_source->GetHandle();
+    AVEvents::RunAfterContainerMenuCloses(picker, [this, session, sourceHandle] {
+        if (session != ignoreSession_) return;
+        FinishIgnorePicker();
+        if (auto source = sourceHandle.get()) CloseStoreObject(source.get());
+    });
+    if (!picker->ActivateRef(RE::PlayerCharacter::GetSingleton(), 0, nullptr, 1, false))
+        AVEvents::CancelContainerMenuCloseCallback();
 }

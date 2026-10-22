@@ -24,6 +24,7 @@ program = r'''
 #include <optional>
 #include <unordered_set>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -80,10 +81,12 @@ struct Utility {
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
-struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
+struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false); void ReturnIgnoredItems(); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
+    std::set<RE::TESBoundObject*> ignored;
+    bool IsIgnored(RE::TESBoundObject* item) const { return ignored.contains(item); }
     template <class Func> void ForEachINIOption(Settings&, Func&&);
 };
 '''
@@ -95,6 +98,8 @@ start=source.index("void Stores::StoreToStore(")
 store_to_store=source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::SortItems(")
 sort_items=source[start:source.index("\n}\n",start)+3]
+start=source.index("void Stores::ReturnIgnoredItems(")
+program += source[start:source.index("\n}\n",start)+3]
 program += method + store_to_player + offload + store_to_store + sort_items + ini_options
 program += r'''
 int main() {
@@ -219,6 +224,13 @@ int main() {
     RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
     stores.PlayerToStore(ItemCategory::Scroll,Container::Book);
     assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
+    player->inventory.clear();chest.inventory.clear();put(&a,4);settings->GSC_OffloadKeys=true;settings->ignored.insert(&a);
+    stores.OffloadItems();assert(player->inventory[&a].first==4 && chest.inventory[&a].first==0);
+    stores.PlayerToStore(ItemCategory::Keys,Container::Keys);assert(player->inventory[&a].first==0 && chest.inventory[&a].first==4);
+    auto& sortInbox=Utility::GetSingleton()->inbox;sortInbox.inventory[&a]={3,std::make_shared<RE::InventoryEntryData>()};
+    settings->GSC_ReturnIgnoredItems=true;stores.SortItems();assert(player->inventory[&a].first==3 && sortInbox.inventory[&a].first==0);
+    sortInbox.inventory[&a]={2,std::make_shared<RE::InventoryEntryData>()};settings->GSC_ReturnIgnoredItems=false;stores.SortItems();
+    assert(sortInbox.inventory[&a].first==0 && chest.inventory[&a].first==6);settings->ignored.clear();
     player->inventory.clear();chest.inventory.clear();auto& inbox=Utility::GetSingleton()->inbox;
     std::array<RE::TESBoundObject,3> ingredients{{{ItemCategory::Ingredient,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)},
         {ItemCategory::Reagent,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)},
