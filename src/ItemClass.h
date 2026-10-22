@@ -36,7 +36,28 @@ enum class Container : std::uint8_t {
     OneHand,
     TwoHand,
     Staff,
-    Keys
+    Keys,
+    Ammunition,
+    Valuables,
+    FilledSoulgems,
+    EmptySoulgems,
+    Junk,
+    Trade,
+    Ignore,
+    Notes,
+    SpellTomes,
+    SkillBooks,
+    Recipes,
+    Maps,
+    StolenItems,
+    Gear,
+    Instruments,
+    HealthPotions,
+    MagickaPotions,
+    StaminaPotions,
+    EnchantedItems,
+    QuickTransfer,
+    Remains
 };
 
 enum class ItemCategory : std::uint8_t {
@@ -76,7 +97,24 @@ enum class ItemCategory : std::uint8_t {
     TwoHand,
     Staff,
     None,
-    Keys
+    Keys,
+    Ammunition,
+    Gold,
+    PreciousIngot,
+    Note,
+    SkillBook,
+    Recipe,
+    Map,
+    Personal,
+    Gear,
+    Lockpick,
+    Instrument,
+    HealthPotion,
+    MagickaPotion,
+    StaminaPotion,
+    Junk,
+    Ignore,
+    Remains
 };
 
 enum class ContainerGroup {
@@ -121,6 +159,7 @@ enum class ContainerGroup {
     case Container::Staff:        return "Vault.Staff";
     case Container::Keys:         return "Vault.Keys";
     case Container::None:         return {};
+    default: return {};
     }
     return {};
 };
