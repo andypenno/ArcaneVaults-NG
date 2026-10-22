@@ -7,6 +7,9 @@
 
 # folders
 build/
+tools/esp/bin/
+tools/esp/obj/
+tools/release/__pycache__/
 vs*/
 view/
 

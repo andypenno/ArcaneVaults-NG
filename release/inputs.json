@@ -1,0 +1,30 @@
+{
+  "upstream_version": "1.2",
+  "caprica": {
+    "url": "https://github.com/Orvid/Caprica/releases/download/v0.3.0/Caprica.v0.3.0.7z",
+    "sha256": "0037e54cf3a1021e976278d9a637e8ae541aaf9ebeb8d274b6c2cfe32f4ee559",
+    "exe_sha256": "389fef19a803c36342fa7f733c96b6e27ef10fcd0b171af10427e29cbe153ec6"
+  },
+  "skyui_lib": {
+    "repository": "https://github.com/schlangster/skyui-lib",
+    "commit": "6802d39861bfbd5c35248134de73846ec2a6b4cd",
+    "files": {
+      "assets/skyui-lib/uilib/UILIB_1_ListMenu.swf": "3399c934ebc2362dc521f32e0e016c0a0cfc47e8f141fd761f0a0d46dfac794c",
+      "assets/skyui-lib/uilib/buttonArt.swf": "dab24e97d0d21f2cf24f2629005bdb9185697deac64f82ceadb38827a7f98b4f"
+    }
+  },
+  "copies": {
+    "SKSE/Plugins/ArcaneVault/ArcaneVaultOverrides.ini": "ini/ArcaneVaultOverrides.ini",
+    "SKSE/Plugins/ArcaneVault/ArcaneVaultTranslation.json": "ini/ArcaneVaultTranslation.json",
+    "Scripts/Source/ArcaneVaults.psc": "scripts/Source/ArcaneVaults.psc",
+    "Scripts/Source/ArcaneSpells.psc": "scripts/Source/ArcaneSpells.psc",
+    "Interface/uilib/UILIB_1_ListMenu.swf": "assets/skyui-lib/uilib/UILIB_1_ListMenu.swf",
+    "Interface/uilib/buttonArt.swf": "assets/skyui-lib/uilib/buttonArt.swf"
+  },
+  "generated": [
+    "ArcaneVaults-LinkedStorage.esp",
+    "SKSE/Plugins/ArcaneVaults-NG.dll",
+    "Scripts/ArcaneVaults.pex",
+    "Scripts/ArcaneSpells.pex"
+  ]
+}
