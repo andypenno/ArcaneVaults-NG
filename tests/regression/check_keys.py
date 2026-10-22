@@ -237,3 +237,89 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
 print("PASS: transfer reserves, large stacks, partial/refused moves, protections and quantity conservation")
+
+program = r'''
+#include <cassert>
+#include <array>
+#include <cstdint>
+#include <string_view>
+namespace RE { struct TESBoundObject; }
+#include "src/ItemClass.h"
+namespace RE {
+struct BIPED_MODEL {
+    enum class BipedObjectSlot : unsigned { kHead=1, kHair=2, kBody=4, kHands=8, kAmulet=32, kRing=64, kFeet=128, kShield=512, kCirclet=4096 };
+    enum class ArmorType { kLightArmor, kHeavyArmor, kClothing };
+};
+struct TESObjectARMO {
+    using BipedObjectSlot = BIPED_MODEL::BipedObjectSlot;
+    using ArmorType = BIPED_MODEL::ArmorType;
+    struct SlotMask {
+        unsigned bits = 0;
+        template<class... Flags> bool all(Flags... flags) const { return (((bits & static_cast<unsigned>(flags)) == static_cast<unsigned>(flags)) && ...); }
+    };
+    struct { SlotMask bipedObjectSlots; ArmorType armorType = ArmorType::kClothing; } bipedModelData;
+    bool jewelryKeyword = false;
+    bool HasKeywordByEditorID(const char*) const { return jewelryKeyword; }
+    bool HasPartOf(BipedObjectSlot) const;
+    bool IsClothing() const;
+    bool IsLightArmor() const;
+    bool IsHeavyArmor() const;
+    bool IsAccessory() const;
+    bool IsHelmet() const;
+    bool IsCirclet() const;
+    bool IsChestpiece() const;
+    bool IsBoots() const;
+    bool IsGauntlets() const;
+    bool IsShield() const;
+};
+struct TESBoundObject {
+    ItemCategory category;
+    bool nativeArmor = false;
+    TESObjectARMO armor{};
+    template<class T> T* As() { return nativeArmor ? &armor : nullptr; }
+};
+}
+'''
+biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
+for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
+    start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
+    body = biped_source[start:biped_source.index("\n\t}", start) + 3]
+    program += body.replace("BGSBipedObjectForm::", "RE::TESObjectARMO::") + "\n"
+item_source = (ROOT / "src/ItemClass.cpp").read_text()
+program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
+program += item_source[item_source.index("bool HasCategory("):item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")]
+program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;\n"
+program += item_source[item_source.index("    // Armor and Clothing"):item_source.index("    // Weapons", item_source.index("    // Armor and Clothing"))]
+program += "return categories; }\nint main() {\n"
+program += r'''
+    RE::TESBoundObject helmet{ItemCategory::None}, hat{ItemCategory::None}, robe{ItemCategory::None}, nativeRing{ItemCategory::None}, circlet{ItemCategory::None}, amulet{ItemCategory::None}, ironPlate{ItemCategory::None}, keywordHelmet{ItemCategory::None};
+    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet, &amulet, &ironPlate, &keywordHelmet}) item->nativeArmor = true;
+    helmet.armor.bipedModelData.bipedObjectSlots.bits = 1 | 2 | 4096;
+    helmet.armor.bipedModelData.armorType = RE::BIPED_MODEL::ArmorType::kHeavyArmor;
+    hat.armor.bipedModelData.bipedObjectSlots.bits = 2 | 4096;
+    robe.armor.bipedModelData.bipedObjectSlots.bits = 4 | 32;
+    nativeRing.armor.bipedModelData.bipedObjectSlots.bits = 64;
+    circlet.armor.bipedModelData.bipedObjectSlots.bits = 4096;
+    amulet.armor.bipedModelData.bipedObjectSlots.bits = 32;
+    for (auto* item : {&ironPlate, &keywordHelmet}) {
+        item->armor.bipedModelData.bipedObjectSlots.bits = 1 | 4096;
+        item->armor.bipedModelData.armorType = RE::BIPED_MODEL::ArmorType::kHeavyArmor;
+        assert(item->armor.IsCirclet() && !item->armor.IsHelmet());
+        assert(HasCategory(ClassifyItem(item), ItemCategory::HeavyArmor));
+    }
+    keywordHelmet.armor.jewelryKeyword = true;
+    assert(HasCategory(ClassifyItem(&keywordHelmet), ItemCategory::HeavyArmor));
+    for (auto* item : {&helmet, &hat, &robe, &ironPlate, &keywordHelmet}) assert(!HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+    assert(HasCategory(ClassifyItem(&helmet), ItemCategory::HeavyArmor));
+    for (auto* item : {&hat, &robe}) assert(HasCategory(ClassifyItem(item), ItemCategory::Clothing));
+    for (auto* item : {&nativeRing, &circlet, &amulet}) assert(HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+
+}
+'''
+with tempfile.TemporaryDirectory(prefix="arcanevault-jewelry-check-") as temporary:
+    path = Path(temporary)
+    (path / "check.cpp").write_text(program)
+    subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
+                    str(path / "check.cpp"), "-o", str(path / "check")], check=True)
+    subprocess.run([str(path / "check")], check=True)
+print("PASS: native armor slot and keyword Jewelry classification")

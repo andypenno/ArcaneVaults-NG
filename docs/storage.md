@@ -51,7 +51,7 @@ Classification precedence is user override, bundled override, then built-in rule
 | `IngredientItem` | Alchemy plus Reagent if food or a cooking input; otherwise Catalyst if a smithing input; otherwise Ingredient |
 | `AlchemyItem` food | Food plus RawFood when raw keyword or cooking cache matches, otherwise CookedFood |
 | Other `AlchemyItem` | Concoction plus Potion/Poison; adds Restorative if any effect matches health/magicka/stamina restoration |
-| Armor | Armor plus Jewelry by keyword or ring/amulet/circlet slots; otherwise Clothing/HeavyArmor/LightArmor |
+| Armor | Armor plus Jewelry for non-Head-slot jewelry-keyword records or accessories excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
 | Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
