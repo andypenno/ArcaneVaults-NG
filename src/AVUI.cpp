@@ -71,6 +71,12 @@ namespace AVUI {
 			changeOption = true;
 		}
 
+		int goldKeepAmount = setting->GSC_GoldKeepAmount;
+		if (InputInt(Translate("Options.GoldKeepAmount"), &goldKeepAmount)) {
+			setting->GSC_GoldKeepAmount = (std::max)(0, goldKeepAmount);
+			changeOption = true;
+		}
+
 		// Configuration Spells
 		if (Checkbox(Translate("Options.AssignSpell"), &setting->GSC_AssignSpell)) {
 			changeOption = true;
@@ -169,6 +175,8 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (Checkbox(Translate("Vault.Septims"), &setting->GSC_OffloadGold))
+				changeOption = true;
 			if (Checkbox(Translate("Vault.Ammunition"), &setting->GSC_OffloadAmmunition))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Keys"), &setting->GSC_OffloadKeys))

@@ -16,7 +16,7 @@ The category helpers iterate inventory snapshots and use `MoveItems` to call `Re
 
 `PlayerToStore` also evaluates Skyrim's standard `GetEquipped` condition for matching items. It resolves the current function on each transfer so mod-installed condition hooks are respected. A successful nonzero result protects the whole base-item stack, as native worn flags already do. Missing or failed condition evaluation leaves the existing quest, favourite, and worn checks in force. Mods keeping worn state private without exposing native flags or this condition cannot be detected through these checks.
 
-`SortItems` drains the Sort container in this order: Ammunition, Keys, Smithing, Food, Alchemy, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+`SortItems` drains the Sort container in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Soulgem, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; unmatched items stay in Sort. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
 
 `OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass.
 
@@ -41,6 +41,10 @@ Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N,
 
 Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
 
+Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Exit, Keep N Septims, Store All Septims, and Take All Septims. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N uses Gold Keep Amount in Options. Take All Septims selects Gold only and handles counts above 9999.
+
+Open temporarily gathers Gold from Treasure, Gemstone and PreciousIngot from Smithing, and Jewelry from Armor. Closing returns gems and precious ingots to Smithing, jewelry to Armor, and Gold plus unrelated manual deposits to Treasure. Materials therefore remain available to the existing Smithing crafting loan. The Gemstone and Jewelry archives keep their existing parents. Opening the Valuables menu also returns any contents left in its reference, including contents persisted while the archive was open. All three parent destinations must exist before gathering or returning.
+
 ## Classification
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
@@ -58,9 +62,13 @@ Classification precedence is user override, bundled override, then built-in rule
 | Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
 | Native spell scroll | Scroll |
 | Soul gem | Soulgem plus EmptySoulgem/FilledSoulgem and optionally GrandSoulgem by maximum capacity |
+| Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
+| Gold/silver ingots | PreciousIngot and Smithing, plus the existing recipe-derived categories |
 | Ammunition | Ammunition; `TESAmmo` covers arrows and bolts, after override precedence |
 | Key | Keys; checked before the miscellaneous-item branch because `TESKey` derives from `TESObjectMISC` |
 | Other types | No built-in category |
+
+The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, verified against [UESP](https://en.uesp.net/wiki/Skyrim:Ores_and_Ingots). Gemstones retain the bundled Gemstone overrides. Mods can classify additional records through Gemstone or PreciousIngot overrides.
 
 Native `TESAmmo` records classify as Ammunition. Gemstone and Treasure rely on overrides rather than generic misc-item rules. A grand-capacity gem need not contain a grand soul to match GrandSoulgem.
 
@@ -140,5 +148,6 @@ The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`.
 
 Sort first returns ignored records when Return Ignored Items is enabled. Its category transfers exclude any ignored copies left after a failed return. Disabling the option restores normal sorting. Player deposit helpers accept an explicit ignore flag; only Quick Transfer passes it, so manual deposits and crafting returns retain their existing policy.
 | Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
+| Valuables | `0xDC9` | Archive | `ValuablesMenu` |
 
 Direct Archery access gathers ammunition alongside bows. On close, it returns ammunition to its vault before returning weapons. A refused ammunition return leaves the archive intact so those copies cannot fall into the Weapon vault.

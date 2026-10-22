@@ -24,6 +24,7 @@ program = r'''
 #include <climits>
 #include <optional>
 #include <unordered_set>
+#include <vector>
 #include <map>
 #include <set>
 #include <memory>
@@ -87,17 +88,23 @@ struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
 struct Utility {
     RE::TESObjectREFR chest,inbox,ammunition,archery;
+    std::map<Container,RE::TESObjectREFR*> custom;
     static Utility* GetSingleton() { static Utility utility; return &utility; }
-    RE::TESObjectREFR* GetContainer(Container container) { return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : &chest; }
+    RE::TESObjectREFR* GetContainer(Container container) { if(custom.contains(container))return custom[container]; return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : &chest; }
 };
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
+struct MenuOption {std::string text;std::function<void()> action;};
 struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
     std::function<void()> onClose;
     void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
+    std::vector<MenuOption> options;Container opened=Container::None;
+    void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
+    void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
+    void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
     void CloseStoreObject(RE::TESObjectREFR*) {}
-    void OpenStorageMenu(Container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){onClose=[source,close]{close(source);};}
+    void OpenStorageMenu(Container container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){opened=container;onClose=[source,close]{close(source);};}
     void AllToStore(Container,Container); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
 '''
 program += r'''struct CSimpleIniA {
@@ -106,7 +113,7 @@ program += r'''struct CSimpleIniA {
     bool GetBoolValue(const char*,const char*,bool fallback){return fallback;}
     const char* GetValue(const char*,const char*,const char*){return text.c_str();}
 };
-namespace std {template<class T> string format(const char*,T){return "";}}
+namespace std {template<class... T> string format(const char*,T...){return "";}}
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
@@ -131,7 +138,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -327,6 +334,24 @@ int main() {
     assert(archery.inventory[&selectedArrows].first==0 && archery.inventory[&bow].first==0);
 
 
+
+    player->inventory.clear();RE::TESObjectREFR treasury,smithing,armor,valuables;auto* utility=Utility::GetSingleton();
+    utility->custom={{Container::Treasure,&treasury},{Container::Smithing,&smithing},{Container::Armor,&armor},{Container::Valuables,&valuables}};
+    RE::TESBoundObject gold{ItemCategory::Gold},gem{ItemCategory::Gemstone},ingot{ItemCategory::PreciousIngot},jewel{ItemCategory::Jewelry},unrelated{ItemCategory::Scroll};
+    auto entry=[](int count){return std::pair{count,std::make_shared<RE::InventoryEntryData>()};};
+    treasury.inventory[&gold]=entry(6000);treasury.inventory[&unrelated]=entry(4);smithing.inventory[&gem]=entry(10);smithing.inventory[&ingot]=entry(20);armor.inventory[&jewel]=entry(3);
+    stores.ValuablesMenu(&activationSource);assert(stores.options.size()==5);
+    auto click=[&](int index){auto action=stores.options.at(index).action;action();};click(0);
+    assert(stores.opened==Container::Valuables && valuables.inventory[&gold].first==6000 && valuables.inventory[&gem].first==10 && valuables.inventory[&ingot].first==20 && valuables.inventory[&jewel].first==3);
+    assert(treasury.inventory[&unrelated].first==4);stores.onClose();
+    assert(treasury.inventory[&gold].first==6000 && smithing.inventory[&gem].first==10 && smithing.inventory[&ingot].first==20 && armor.inventory[&jewel].first==3);
+    settings->GSC_GoldKeepAmount=5000;put(&gold,6200);click(2);assert(player->inventory[&gold].first==5000 && treasury.inventory[&gold].first==7200);
+    click(3);assert(player->inventory[&gold].first==0 && treasury.inventory[&gold].first==12200);
+    click(4);assert(player->inventory[&gold].first==12200 && treasury.inventory[&gold].first==0);
+    settings->ignored.insert(&gold);stores.OffloadItems();assert(player->inventory[&gold].first==12200);settings->ignored.clear();stores.OffloadItems();assert(player->inventory[&gold].first==5000 && treasury.inventory[&gold].first==7200);
+    for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.exists=true;ini.text=text;settings->get_value(ini,reserve,"General","GoldKeepAmount");assert(reserve==5000);}
+    utility->custom.clear();
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -341,11 +366,13 @@ program = r'''
 #include <cassert>
 #include <array>
 #include <cstdint>
+#include <set>
 #include <string_view>
 #include <type_traits>
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+struct TESObjectMISC {};
 struct TESAmmo {};
 struct ScrollItem {};
 struct BIPED_MODEL {
@@ -376,6 +403,8 @@ struct TESObjectARMO {
 };
 struct TESBoundObject {
     ItemCategory category;
+    unsigned formID=0;unsigned GetFormID()const{return formID;}bool IsGold()const{return formID==0xF;}
+    bool nativeMisc=false;TESObjectMISC misc{};
     bool nativeArmor = false;
     TESObjectARMO armor{};
     bool nativeAmmo = false;
@@ -383,13 +412,15 @@ struct TESBoundObject {
     bool nativeScroll = false;
     ScrollItem scroll{};
     template<class T> T* As() {
-        if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
+        if constexpr (std::is_same_v<T, TESObjectMISC>) return nativeMisc ? &misc : nullptr;
+        else if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
         else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
         else return nativeArmor ? &armor : nullptr;
     }
 };
 }
 '''
+program += "struct Utility {std::set<unsigned> SmithingMap,SmeltingMap,TanningMap,ConstructionMap;static Utility* GetSingleton(){static Utility u;return &u;}};\n"
 biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
 for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
     start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
@@ -398,12 +429,18 @@ for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAcces
 item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
 program += item_source[item_source.index("bool HasCategory("):item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")]
-program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;\n"
+program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;auto* utility=Utility::GetSingleton();\n"
+gold_start=item_source.index("    if (a_item->IsGold())")
+program += item_source[gold_start:item_source.index("    if (a_item->IsKey())",gold_start)]
+start=item_source.index("    // Crafting",gold_start)
+program += item_source[start:item_source.index("    // Ingredients",start)]
 scroll_start = item_source.index("    if (a_item->As<RE::ScrollItem>())")
 program += item_source[scroll_start:item_source.index("    // Crafting", scroll_start)]
 program += item_source[item_source.index("    // Armor and Clothing"):item_source.index("    // Weapons", item_source.index("    // Armor and Clothing"))]
 program += "return categories; }\nint main() {\n"
 program += r'''
+    RE::TESBoundObject nativeGold{ItemCategory::None},nativeIngot{ItemCategory::None};nativeGold.formID=0xF;nativeIngot.formID=0x5AD9E;nativeIngot.nativeMisc=true;
+    assert(HasCategory(ClassifyItem(&nativeGold),ItemCategory::Gold));assert(HasCategory(ClassifyItem(&nativeIngot),ItemCategory::PreciousIngot) && HasCategory(ClassifyItem(&nativeIngot),ItemCategory::Smithing));
     RE::TESBoundObject nativeSpellScroll{ItemCategory::None}, ordinary{ItemCategory::None};
     RE::TESBoundObject nativeAmmo{ItemCategory::None};nativeAmmo.nativeAmmo=true;
     assert(HasCategory(ClassifyItem(&nativeAmmo),ItemCategory::Ammunition));
