@@ -22,6 +22,7 @@ program = r'''
 #include <functional>
 #include <climits>
 #include <optional>
+#include <unordered_set>
 #include <map>
 #include <memory>
 #include <string>
@@ -51,6 +52,22 @@ struct TESObjectREFR {
 };
 struct PlayerCharacter : TESObjectREFR {
     static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
+};
+struct SCRIPT_FUNCTION {
+    using Condition_t = bool(TESObjectREFR*, void*, void*, double&);
+    Condition_t* conditionFunction = nullptr;
+    inline static bool available = true, succeeds = true;
+    inline static int calls = 0;
+    inline static std::unordered_set<TESBoundObject*> equipped;
+    static bool GetEquipped(TESObjectREFR* actor, void* item, void* other, double& result) {
+        assert(actor == PlayerCharacter::GetSingleton() && !other);
+        ++calls; result = equipped.contains(static_cast<TESBoundObject*>(item)) ? 1.0 : 0.0;
+        return succeeds;
+    }
+    static SCRIPT_FUNCTION* LocateScriptCommand(std::string_view name) {
+        assert(name == "GetEquipped");
+        static SCRIPT_FUNCTION command{GetEquipped}; return available ? &command : nullptr;
+    }
 };
 struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
 }
@@ -160,6 +177,43 @@ int main() {
     stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,0);stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,-1);
     assert(player->inventory[&a].first==41000);
 
+    auto& armorVault=chest;
+    player->inventory.clear(); armorVault.inventory.clear();
+    std::array<RE::TESBoundObject,10> virtualRings{};
+    RE::TESBoundObject spare{ItemCategory::Jewelry}, equippedSpare{ItemCategory::Jewelry},
+        vanillaWorn{ItemCategory::Jewelry}, protectedQuest{ItemCategory::Jewelry}, protectedFavorite{ItemCategory::Jewelry};
+    for (auto& ring : virtualRings) {
+        ring.category=ItemCategory::Jewelry; put(&ring,2); RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+    }
+    put(&spare,3); put(&equippedSpare,4); RE::SCRIPT_FUNCTION::equipped.insert(&equippedSpare);
+    put(&vanillaWorn,2,false,false,true); put(&protectedQuest,2,true); put(&protectedFavorite,2,false,true);
+    settings->GSC_OffloadJewelry=true; stores.OffloadItems();
+    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==2 && armorVault.inventory[&ring].first==0);
+    assert(player->inventory[&equippedSpare].first==4 && armorVault.inventory[&equippedSpare].first==0);
+    assert(player->inventory[&spare].first==0 && armorVault.inventory[&spare].first==3);
+    for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
+    auto* command=RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+    command->conditionFunction=[](RE::TESObjectREFR*,void*,void*,double& result) { result=0; return true; };
+    stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
+    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==0 && armorVault.inventory[&ring].first==2);
+    assert(player->inventory[&equippedSpare].first==0 && armorVault.inventory[&equippedSpare].first==4);
+    command->conditionFunction=RE::SCRIPT_FUNCTION::GetEquipped;
+    for (int failure=0; failure<3; ++failure) {
+        put(&equippedSpare,2);
+        RE::SCRIPT_FUNCTION::available=failure!=0;
+        command->conditionFunction=failure==1 ? nullptr : RE::SCRIPT_FUNCTION::GetEquipped;
+        RE::SCRIPT_FUNCTION::succeeds=false;
+        stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
+        assert(player->inventory[&equippedSpare].first==0);
+        for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
+    }
+    RE::SCRIPT_FUNCTION::succeeds=true;
+    put(&nonkey,5); RE::SCRIPT_FUNCTION::equipped.insert(&nonkey);
+    stores.PlayerToStore(ItemCategory::Scroll,Container::Book);
+    assert(player->inventory[&nonkey].first==5);
+    RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
+    stores.PlayerToStore(ItemCategory::Scroll,Container::Book);
+    assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
