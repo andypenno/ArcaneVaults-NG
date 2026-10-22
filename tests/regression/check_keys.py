@@ -387,7 +387,7 @@ struct Stores {
     void ReturnIgnoredItems();
     void RecoverSawnLogs();
     void FinishIgnorePicker();
-    void OffloadItemsNow();
+    void OffloadItemsNow(std::function<void()> complete = {});
 void OffloadItems(){OffloadItemsNow();}
     void KeepAmmunition(bool = false);
     void TakeAmmunition();

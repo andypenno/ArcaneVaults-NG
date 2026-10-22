@@ -28,10 +28,6 @@ public:
     }
 
 private:
-    void OffloadItemsNow();
-    std::unordered_set<RE::FormID> sortFavorites_;
-    void CaptureSortFavorites();
-    bool ReturnSortFavorites();
     std::vector<MenuAction> actions;
 };
 
@@ -70,11 +66,16 @@ public:
     void ReturnIgnoredItems();
     void RecoverSawnLogs();
     void ResetSortFavorites() { sortFavorites_.clear(); }
+    void BeginJunkLoan();
+    void EndJunkLoan();
+    void ResetJunkLoan() { junkLoan_.clear(); }
     void ResetNavigation();
     void VaultAssignment(RE::TESObjectREFRPtr a_source);
     
     // Container Functions
     void VaultMenu(RE::TESObjectREFR* a_source);
+    void ShowVaultsMenu(RE::TESObjectREFR* a_source);
+    void ShowVaultArchivesMenu(RE::TESObjectREFR* a_source);
     void SortingMenu(RE::TESObjectREFR* a_source);
     void AlchemyMenu(RE::TESObjectREFR* a_source);
     void SoulgemMenu(RE::TESObjectREFR* a_source);
@@ -89,9 +90,7 @@ public:
     void ConsolidateBooks();
     void ConsolidateRemains();
     void ConsolidatePotions();
-    void BeginJunkLoan();
-    void EndJunkLoan();
-    void ResetJunkLoan() { junkLoan_.clear(); }
+    void EnchantedItemsMenu(RE::TESObjectREFR* a_source);
     void OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,
         RE::TESObjectREFR* a_source, bool a_returnToParent = false);
     void ScrollMenu(RE::TESObjectREFR* a_source);
@@ -107,15 +106,16 @@ public:
     void WeaponStaffMenu(RE::TESObjectREFR* a_source);
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
-    void EnchantedItemsMenu(RE::TESObjectREFR* a_source);
-    void StolenItemsMenu(RE::TESObjectREFR* a_source);
     void TradeMenu(RE::TESObjectREFR* a_source);
-    void GearMenu(RE::TESObjectREFR* a_source);
     void JunkMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
+    void GearMenu(RE::TESObjectREFR* a_source);
     void KeysMenu(RE::TESObjectREFR* a_source);
     void AmmunitionMenu(RE::TESObjectREFR* a_source);
     void ValuablesMenu(RE::TESObjectREFR* a_source);
+    void StolenItemsMenu(RE::TESObjectREFR* a_source);
+    void ShowStolenItemsMenu(RE::TESObjectREFR* a_source);
+    void OpenStolenItems(RE::TESObjectREFR* a_source);
     void ReturnValuables();
     void PotionMenu(RE::TESObjectREFR* a_source);
     void PotionPositiveMenu(RE::TESObjectREFR* a_source);
@@ -128,22 +128,24 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
-    std::unordered_map<RE::FormID, std::pair<int, int>> junkLoan_;
+    void OffloadItemsNow(std::function<void()> complete = {});
+    void ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup group);
+    std::unordered_set<RE::FormID> sortFavorites_;
+    void CaptureSortFavorites();
+    bool ReturnSortFavorites();
     std::uint64_t ignoreSession_{};
+    std::unordered_map<RE::FormID, std::pair<int, int>> junkLoan_;
     RE::ObjectRefHandle navigationSource_;
     MenuAction returnToVault_;
     void ShowVaultMenu(RE::TESObjectREFR* a_source);
-    void ShowVaultsMenu(RE::TESObjectREFR* a_source);
-    void ShowVaultArchivesMenu(RE::TESObjectREFR* a_source);
-    void ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup group);
     void ShowSortingMenu(RE::TESObjectREFR* a_source);
+    void ShowGearMenu(RE::TESObjectREFR* a_source);
     void ShowAlchemyMenu(RE::TESObjectREFR* a_source);
     void ShowSoulgemMenu(RE::TESObjectREFR* a_source);
     void ShowFoodMenu(RE::TESObjectREFR* a_source);
     void ShowFoodCookedMenu(RE::TESObjectREFR* a_source);
     void ShowFoodRawMenu(RE::TESObjectREFR* a_source);
     void ShowFoodSaltMenu(RE::TESObjectREFR* a_source);
-    void ShowGearMenu(RE::TESObjectREFR* a_source);
     void ShowBookMenu(RE::TESObjectREFR* a_source);
     void ShowNotesMenu(RE::TESObjectREFR* a_source);
     void ShowScrollMenu(RE::TESObjectREFR* a_source);
@@ -159,8 +161,6 @@ private:
     void ShowWeaponStaffMenu(RE::TESObjectREFR* a_source);
     void ShowGemstoneMenu(RE::TESObjectREFR* a_source);
     void ShowTreasureMenu(RE::TESObjectREFR* a_source);
-    void OpenStolenItems(RE::TESObjectREFR* a_source);
-    void ShowStolenItemsMenu(RE::TESObjectREFR* a_source);
     void ShowTradeMenu(RE::TESObjectREFR* a_source);
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
     void ShowKeysMenu(RE::TESObjectREFR* a_source);

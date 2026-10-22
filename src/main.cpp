@@ -9,12 +9,11 @@
 #include "Translation.h"
 #include "Papyrus.h"
 #include "DepositLearning.h"
-#include "TransferFeedback.h"
-#include "InventoryPreview.h"
-#include "PlayerEquipment.h"
-#include "Stores.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
+#include "PlayerEquipment.h"
+#include "TransferFeedback.h"
+#include "InventoryPreview.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -30,8 +29,8 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		Utility::GetSingleton()->LoadAllForms();
 		Settings::GetSingleton()->Init();
 		AVEvents::Init();
-        StolenItems::Init();
-        EnchantedItems::Init();
+		StolenItems::Init();
+		EnchantedItems::Init();
 		Menus::Init();
 		AVUI::Register();		
 		break;
@@ -47,18 +46,18 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 	case SKSE::MessagingInterface::kNewGame:
 		TransferFeedback::Reset();
 		PlayerEquipment::Reset();
-		Stores::GetSingleton()->ResetSortFavorites();
+		StolenItems::Reset();
 		DepositLearning::Reset();
-        StolenItems::Reset();
-        AVEvents::ResetCraftingLoan();
-        AVEvents::CancelContainerMenuCloseCallback();
-        Stores::GetSingleton()->ResetIgnorePicker();
-        if (message->type == SKSE::MessagingInterface::kNewGame)
-            SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); EnchantedItems::Recover(); Stores::GetSingleton()->RecoverSawnLogs(); });
-        break;
+		AVEvents::ResetCraftingLoan();
+		AVEvents::CancelContainerMenuCloseCallback();
+		Stores::GetSingleton()->ResetIgnorePicker();
+		Stores::GetSingleton()->ResetSortFavorites();
+		if (message->type == SKSE::MessagingInterface::kNewGame)
+			SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); EnchantedItems::Recover(); });
+		break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		Utility::GetSingleton()->ConfigurationSpells();
-        SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); EnchantedItems::Recover(); Stores::GetSingleton()->RecoverSawnLogs(); });
+		SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); EnchantedItems::Recover(); Stores::GetSingleton()->RecoverSawnLogs(); });
 		break;
 	}
 	

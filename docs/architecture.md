@@ -41,7 +41,7 @@ flowchart TD
 
 Assignment starts through the hotkey or Papyrus native, then [Utility::ContainerRedirect](../src/Utility.cpp) inspects the crosshair target. It accepts a container, or an activator with a default linked reference whose base is a container. With ownership restriction on, assignment requires an owned cell, or an exterior non-respawning container. Cell ownership means the player's actor base or a faction the player belongs to.
 
-[Stores::VaultAssignment](../src/Stores.cpp) offers Master, Sort, grouped Vault/Archive choices, removal, and exit. Grouped choices are sorted by display name. [ContainerSelectionState](../src/ContainerMenu.cpp) retains the source smart pointer and exact displayed choices. Completion either runs a synthetic Back/Exit action or resolves the selected destination FormID and adds the mapping.
+[Stores::VaultAssignment](../src/Stores.cpp) offers Master, Sort, Quick Transfer, grouped Vault/Archive choices, removal, and exit. Grouped choices are sorted by display name. [ContainerSelectionState](../src/ContainerMenu.cpp) retains the source smart pointer and exact displayed choices. Completion either runs a synthetic Back/Exit action or resolves the selected destination FormID and adds the mapping.
 
 [Events.cpp](../src/Events.cpp) patches these vtable slots:
 
@@ -58,7 +58,13 @@ Container activation also has a thread-local guard, but the current source does 
 
 ## Menus and asynchronous work
 
-Storage interaction has two UI implementations. `Stores` queues engine message boxes whose actions run through SKSE's task interface. `ContainerListMenu` registers as `GSCContainerListMenu`, pauses the game, uses cursor/menu input, and loads `uilib/uilib_1_listmenu` through Scaleform.
+Storage interaction has two UI implementations. `Stores` queues engine message boxes whose actions run through SKSE's task interface. Quick Transfer builds its action queue first and uses the enabled deposit rules to select equipment requiring UI inspection. It defers its completion callback until inspection has closed; its lifecycle is described in [storage.md](storage.md). `ContainerListMenu` registers as `GSCContainerListMenu`, pauses the game, uses cursor/menu input, and loads `uilib/uilib_1_listmenu` through Scaleform.
+
+With SKSE Menu Framework installed, Quick Transfer draws a compact, centred sorting panel above existing menus, with a stationary gold sigil that pulses every 2.6 seconds, a single translated sorting label and a light background dim. Animation advances only while frames render. It starts inventory work after two overlay render callbacks, or a bounded 250 ms fallback if rendering does not run. Transfer work runs on the game thread in slices with a 4 ms cooperative budget and bounded action/removal counts. Each continuation waits for another overlay render callback, with the same 250 ms fallback for a stalled renderer. A delayed game task also separates slices without the framework. Equipment capture, row parsing, validation and queued inventory/job enumeration yield between bounded chunks. Archive recovery uses per-item moves and the removal cap applies across the whole frame batch. Native inventory materialization, menu creation and individual transfer calls remain indivisible. Button presses are filtered while busy; releases pass through. The overlay does not write native control masks or replace the underlying menu. Completion removes it before returning to Arcane Vault. Failed inspection closure removes it to expose Skyrim's ordinary inventory recovery. Pre-load/new-game cancels both the overlay barrier and equipment request.
+
+Message boxes with Exit display the physical Open action first, show withdrawals before Keep and Store All actions, preserve other storage actions, then show contextual Back and Exit. The shared builder recognizes the existing translated Open labels and maps cancellation to the final Exit. Confirmation boxes without Exit preserve their supplied order and cancel action. Armor and Weapon provide Open actions that consolidate their child archives before opening the entire parent vault.
+
+Open Vaults and Open Archives share a registered, UI-managed SkyUILib list. The browser invokes the destination's registered action, carries contextual Back and Exit, and does not assign redirects. The former paginated vault menus are removed.
 
 The SkyUILib bridge passes option labels as separate ActionScript arguments, configures gamepad mode, and replaces the movie's `exitMenu` callback. The callback reads `_root.listDialog.menuList.listState.activeEntry.itemIndex`, completes selection, and hides the registered menu. This movie contract is external to the repository.
 
@@ -67,6 +73,8 @@ The SkyUILib bridge passes option labels as separate ActionScript arguments, con
 `OpenStorageMenu` registers one close callback for the destination, then activates that destination. The event sink only arms the callback when `ContainerMenu` opens on the matching target. On close it clears state before queuing the callback. Failed activation cancels the registration and invokes the return action. This is a single pending interaction, not a callback collection.
 
 `RedirectedContainerState` also receives container open/close events, but its `Begin` and `Cancel` have no call sites in current first-party code. Do not infer an active second redirect lifecycle from the class name.
+
+The owned inspection menu suppresses its `UpdateItem3D` callback and `PostDisplay` through `InventoryPreview` hooks. Ordinary inventory menus retain their native callbacks and rendering. Successful closure, cancellation and failed-close manual recovery end suppression. The message hook increments an inspection revision so resumed row traversal can reject a rebuilt menu list. Hiding the GFx movie alone does not control this separate 3D rendering path.
 
 ## Crafting loans
 
@@ -77,21 +85,17 @@ The furniture hook selects the bench through `Utility::GetBenchType`, which chec
 | Alchemy, including grain mill keyword | Entire Alchemy inventory to player | Player items matching Alchemy to Alchemy |
 | Smithing, including carpenter, forge, tanning, smelter, tempering keywords | Entire Smithing inventory plus Alchemy Catalysts and banked gems present in the existing recipe caches | Smithing items/Catalysts to their parent stores; identifiable unused gem loans to Soulgem |
 | Cooking | Entire Food inventory plus Alchemy Reagents to player | Food and Reagents to their parent stores |
-| Enchanting | Eligible filled gems from Soulgem | Identifiable unused gem loans to Soulgem; pre-existing carried gems retained |
+| Enchanting | Filled gems when Crafting Loan is enabled | Unused gems to Soulgem |
 | Staff enchanting | Alchemy Catalysts to player | Catalysts to Alchemy |
 
-Non-gem materials retain category-based returns and can include materials carried before the loan. Soul gems record pre-loan counts by base form and empty/filled state, plus borrowed and directly linked forms. Returns inspect current stacks, preserve pre-existing counts, and cap the returned total by the loan. Unrecognized mod transformations and ambiguous bare stacks stay on the player for explicit Quick Transfer. Consumed gems are not recreated. Both gem archives consolidate before lending.
-
-The session captures the bench type, returns loans even if the option changes during crafting, and rolls back after failed furniture activation. Load/new-game messages clear pending loan bookkeeping without transferring items. Carpenter stations use the loaded Hearthfire keyword. Mod filling/consumption changes are left to the installed mod; game testing remains necessary.
-
-Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel pending picker callbacks. Post-load and new-game tasks recover picker contents on the game thread.
-
-`Utility::LoadAllForms` caches loaded skill-book record identities alongside recipe inputs before gameplay can change their teaching state.
-
-`ContainerSelectionState` supports assignment and action browsing through the same SkyUILib list. Vault and Archive browsers supply registered actions and a cancel callback; assignment retains its redirect behavior.
-
-Crafting sessions retain the station handle and a generation counter. Menu-close and furniture-exit work returns loans only for the matching session. Wrong actors, stale furniture and duplicate exits are ignored. Load reset invalidates queued exits without transferring items. The accepted loan options remain captured until return.
-
 All Crafting Materials is disabled by default. When enabled alongside Crafting Loan, every recognized station borrows Smithing, Food, Alchemy, eligible Junk and empty/filled soul gems, without recipe filtering. Armor, Weapons, Gear and other non-material vaults remain excluded. The session captures this mode on entry so changing either option while crafting does not alter its return path. Disabling the option preserves the station-specific table above.
+
+Normal non-gem vault loans retain category-based returns and can include materials carried before the loan. Junk loans capture carried and verified moved counts and return excess to Junk before those category returns. Junk returns read only recorded loan forms; soul-gem snapshots exclude unrelated item data. Shared player deposits reject unrelated categories before fetching fresh entry data and reuse the physical transfer helper's verified moved count. Soul gems record pre-loan counts by base form and empty/filled state, plus borrowed and directly linked forms. Returns inspect current stacks, preserve pre-existing counts, and cap the returned total by the loan. Unrecognized mod transformations and ambiguous bare stacks stay on the player for explicit Quick Transfer. Consumed gems are not recreated. Both gem archives consolidate before lending.
+
+Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel the pending container callback and invalidate its picker session. Post-load and new-game tasks recover picker contents on the game thread.
+
+Displayed storage names and menu titles consistently use the Vault suffix for both parent and archive destinations. Vault/Archive groups remain separate for browsing and routing; Quick Transfer retains its action name.
+
+Crafting loans are controlled by Crafting Loan and contain materials and soul gems. Enchanted equipment is available only through manual vault access. The retired EnchantedItemsLoan INI key is ignored. Existing carried copies remain carried; normal archive recovery clears old origin markers without recreating items.
 
 Carpenter stations bearing the loaded Hearthfire crafting keyword participate in ordinary Smithing loans. Construction materials sort into Smithing and unused loans return afterwards, except records classified Ignore. Sawn Logs default to Ignore and remain carried. Stored-log recovery runs after loading a save and before loan entry; it uses explicit verified moves rather than native bulk lending. Hidden resource display remains controlled by Skyrim.

@@ -239,6 +239,66 @@
       "timeout_seconds": 180,
       "sanitize": true,
       "release": true
+    },
+    {
+      "id": "engine_boundaries",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_engine_boundaries.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "quick_transfer_idle",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_quick_transfer_idle.py",
+        "--output",
+        "{results}/idle.json",
+        "--probe-scheduling"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "quick_transfer_frames",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_quick_transfer_frames.py",
+        "--output",
+        "{results}/frames.json"
+      ],
+      "timeout_seconds": 600,
+      "sanitize": true,
+      "release": true
+    },
+    {
+      "id": "quick_transfer_pipeline",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_quick_transfer_pipeline.py",
+        "--feedback",
+        "--output",
+        "{results}/pipeline.json"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
     }
   ]
 }

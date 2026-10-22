@@ -12,13 +12,40 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 | `AllToStore` | `InventoryChanges::RemoveAllItems` outside Sort; Sort protects favourites and configured ignores; rejects identical source/destination enums |
 | `AllToPlayer` | `InventoryChanges::RemoveAllItems` from the selected store |
 
-The category helpers iterate inventory snapshots and use `MoveItems` to call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. It checks the remaining source count after each removal and retries partial moves until the requested quantity is transferred. A refused move stops immediately; no fixed 9999 cap is imposed. This includes non-gem crafting-loan returns. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` also uses actual counts for zero requests, clamps positive requests to available counts, and rejects negative requests. Its optional carried target additionally limits withdrawals to the shortfall per base record; a target of zero withdraws nothing. Claims about individual enchanted instances or extra data require runtime checks.
+The category helpers iterate inventory snapshots. `StoreToStore` and `StoreToPlayer` use `MoveItems` with a null extra-list argument. `PlayerToStore` uses `InventoryStacks` to select physical copies and passes their extra lists to `RemoveItem`. Both paths use `kStoreInContainer`, observe source counts and retry partial moves until the requested quantity transfers. A refused move stops immediately; no fixed 9999 cap is imposed. This includes non-gem crafting-loan returns. `PlayerToStore` subtracts its retained count before clamping a positive request; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToPlayer` clamps requests to available counts. Its optional carried target limits withdrawals to the shortfall per base record; a target of zero withdraws nothing. Engine preservation of individual enchanted instances still requires runtime checks.
 
-`PlayerToStore` also evaluates Skyrim's standard `GetEquipped` condition for matching items. It resolves the current function on each transfer so mod-installed condition hooks are respected. A successful nonzero result protects the whole base-item stack, as native worn flags already do. Missing or failed condition evaluation leaves the existing quest, favourite, and worn checks in force. Mods keeping worn state private without exposing native flags or this condition cannot be detected through these checks.
+`PlayerToStore` skips bases already at or below Keep N before equipment and physical-stack reads. It reuses the initial stack read until the first move, then refreshes after each successful move that needs another iteration. Category withdrawals filter entries before copying them. Equipment capture filters out non-equipment before copying inventory entries.
 
-`SortItems` first recovers physical soul gems into the Soulgem Vault, then drains the Sort container in this order: Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; the final fallback moves unmatched items to Junk unless the Ignore policy retains them. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+Quick Transfer uses `PlayerEquipment::Run` to inspect ambiguous armor/weapon groups. Quest, fully favourite, ignored and disabled-category groups require no inspection. Inspection eligibility uses the same enabled category rules as the queued deposits. A single carried copy already proven worn by native flags or the standard GetEquipped condition also needs no inspection. Empty and fully protected equipment inventories finish conservatively without opening InventoryMenu. Unprotected or uncertain copies retain fresh UI inspection, including duplicate bases. An existing item menu receives conservative protection. It waits for the originating message box to close, opens the registered InventoryMenu through `UIMessageQueue`, reads standard equipState/isEquipped fields, and closes that menu before running transfers. Inspection polls until candidate rows have matching physical identities, counts and valid equipment fields within the shared acquisition deadline. A group reported equipped by GetEquipped also needs an identified equipped row. One recovery refresh is scheduled three quarters of the way through the acquisition time remaining when the menu opens. Opening delays therefore cannot schedule the refresh beyond the acquisition deadline or extend that deadline. Missing or malformed groups remain protected at expiry. Equipment reads reject non-object row values before accessing their fields. Skyrim owns the menu, input contexts and control restoration. The plugin never invokes the native menu factory or ProcessMessage directly and never resets control flags. Completion callbacks run only after the inspection menu closes. Arcane Vault returns directly to its message box without requesting another physical opening animation. Assigned Quick Transfer and the hotkey share the same inspection path.
 
-`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal is direct storage without a classification pass. Personal, Junk, and Trade are on the third main-vault page. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
+Equipment capture, post-menu validation and queued deposit preparation use `InventoryStacks::ReadPart` in bounded steps. A cursor resumes its list position instead of rewalking its prefix. Container-change and equip events invalidate readers of the affected source/base. Every continuation also checks the current entry, list head and total before using its iterator. Missing event services reject the read. UI row readers check the owned menu's message revision before resuming, and recheck owner, count and equipment markers. These guards depend on normal engine event delivery; inventory pointers are borrowed, not owned.
+
+Quick Transfer validates the complete physical group before moving any of it. It prepares equipment identities and soul states across frames, then moves at most the existing slice allowance. The cursor accepts only the selected source-to-destination events during a verified removal; other changes invalidate the prepared group. The next transfer slice acquires fresh physical data. Equipment snapshots subtract verified removals without synchronously recapturing the whole group after each move. Per-instance favourites, native worn flags, UI-equipped copies, quest items and ignores remain protected. Manual deposits retain their synchronous fresh-stack path.
+
+Count-only lookups merge inventory-change deltas with base-container stock without copying extra-data lists. Leveled change entries exclude base stock, matching CommonLib's inventory semantics. Archive listings use the same scalar count helper before consuming bounded ranges.
+
+Only armor/weapon groups enter the equipment snapshot; unrelated menu rows do not participate. Physical counts and extra-list identities are captured by value on the game thread before opening InventoryMenu. The UI callback reads only menu rows and matches those stored values through pointer identity or unambiguous ExtraUniqueID pairs; it does not query or initialise the player inventory. Captured pointers are compared as identities, never dereferenced after crossing into the UI callback. Row owner, type and counts must match. After menu closure, physical pointers, counts, unique IDs and native worn flags must still match fresh inventory before the captured equipment selection is used. Changed groups receive conservative protection. Missing/malformed rows protect the whole armor/weapon base; a positive GetEquipped/native worn result without an identified worn row also protects the whole base. An equipped row grouping indistinguishable copies protects the entire group. Clearly unworn matching spares can transfer. Native ExtraWorn/ExtraWornLeft remain protected. Quest/favourite records, configured ignores and current ammunition retain their protections.
+
+An already open item menu is left untouched and equipment receives conservative protection. Inspection failure falls back to conservative transfers. Requests serialize Quick Transfer operations and use bounded delayed polling rather than draining the global UI queue. Waiting for the originating message box, opening and reading share a one-second acquisition deadline. The first chunked row pass taking over 100 ms grants one additional acquisition budget after that finite pass. Native closure has its own one-second recovery deadline; it never forces control flags or transfers before Hide completes. Opening/reading timeout queues normal Hide; normal Hide is retried while the request owns the menu. Closing timeout cancels the transfer and reveals the ordinary menu so it can be exited. Pre-load/new-game cancels work and queues Hide for the owned inspection menu, including a pending Show. No inventory transfer runs from a stale request. The user verified the managed lifecycle and worn/spare ring behavior in Skyrim. The row-index and filtered-lookup optimizations still need game testing.
+
+Outside the scoped Quick Transfer snapshot, player deposits use native worn flags and the standard GetEquipped condition to protect whole equipped base records. Manual vault actions and crafting returns therefore still retain matching spares when equipped copies cannot be identified safely.
+
+Quick Transfer skips physical revalidation when there is no equipment snapshot. Archive and player count listings retain owned count maps and consume bounded ranges between frames. Populated archives recover through verified per-item moves. Soul-gem recovery/deposit actions select one base, prepare its physical stacks across frames and resume from fresh state after a transfer slice; retained explicit gems stay carried rather than being parked in a buffer across frames. Bulk helpers remain synchronous outside Quick Transfer.
+
+Synchronous player transfers re-read physical stacks after each removal. Quick Transfer revalidates between transfer slices. When explicit equipped copies remain protected, bare copies receive game-heap extra lists in signed-16-bit chunks so null-list removal cannot choose the worn copy. Failed allocation or transfer leaves remaining copies on the player; malformed counts and duplicate extra-list pointers leave that record untouched. The shared Materialize helper also supplies extra lists for archive origin markers.
+
+
+`SortItems` consolidates book/note archives and old note storage, returns favourited records, returns ignored records when configured, recovers physical soul gems, then drains Sort in this order: Personal, Gear, Gold, Ammunition, Keys, Smithing, Food, Alchemy, Scroll, Note, Book, Treasure, Armor, Weapon, Concoction. Each pass sees the remaining inventory. An item with multiple category bits goes to the first applicable store; a final AllToStore pass moves every remaining item into Junk. The Alchemy pass selects the parent bit and includes Ingredients, Reagents, and Catalysts.
+
+`ItemCategory::Ignore` is appended without changing older category ordinals. It overrides other category bits and native soul-gem classification. Sort returns these records regardless of Return Ignored Items and excludes failed returns from category passes, soul-gem recovery and the Junk fallback. Quick Transfer and material-loan returns leave them carried. Junk and soul-gem loan cleanup also preserve them. The separate ignore list and its Sort toggle retain their existing rules.
+
+Sawn Logs have a bundled Ignore override. `RecoverSawnLogs` resolves HearthFires.esm local 0x300E and transfers existing non-quest stock from Smithing, Construction, Crafting, Smelting, Tanning, Gemstone, Sort and Junk using verified physical moves. It runs on the game thread after loading a save and before a crafting loan. Each move rereads stock; refusal stops that source and preserves the remainder. Missing forms/containers are skipped, repeated recovery does not duplicate stock, and a user classification replacing Ignore disables recovery. It never grants replacement logs or changes Hearthfire globals. Skyrim still controls their hidden display and construction behaviour.
+
+Opening Sort captures favourite physical copies using native ExtraHotkey data and the dedicated AV_SortFavorite keyword at 0xDF0 before deposit can clear their favourite metadata. Closing Sort returns marked/favourited copies and restores their favourite state; ordinary copies sharing their base can sort normally. The notification reports actual returns. Return Ignored Items does not disable favourite protection. Failed returns remain in Sort, excluded from category transfers, soul-gem recovery and Junk. Their captured identities survive reopening while items remain in Sort; loading a save or starting a game clears the transient capture.
+
+`OffloadItems` independently checks configured leaf categories and moves matching player items to parent stores. Quick Transfer queues ordered category and per-base actions, retaining only base forms and equipment identities between frames. Each resumed equipment deposit compares fresh physical identities, protects changed groups, and refreshes expected identities after successful moves. Shared helpers remain synchronous outside the scoped Quick Transfer batch. Load/reset discards pending actions and suppresses stale confirmation/menu callbacks. Yielding permits rendering but adds scheduling time; it does not shorten an individual native call. See [configuration.md](configuration.md) for defaults. Master is a menu entry point; Sort is the sorting inbox; Personal opens directly for manual storage and receives items explicitly classified as Personal. All main vaults, including Personal, Junk, Trade and Gear, appear in the scrolling Open Vaults list. Junk is independent storage for the final Sort remainder, including items deliberately skipped by other passes. Quick Transfer never sweeps unmatched player inventory into Junk.
+
+A Quick Transfer assignment runs `OffloadItems` and returns to gameplay without opening the assigned container or reopening Arcane Vault. Quick Transfer uses appended enum value `Container::QuickTransfer`, non-respawning base `0xDEE` and persistent reference `0xDEF`. It is a Special destination, excluded from vault/archive browsing, crafting loans and archive gathering. Assignments use the existing reference-based global/per-save persistence. Sneaking opens the ignore picker. Normal activation retains every shared Quick Transfer protection and quantity setting.
 
 ## Vaults and archives
 
@@ -26,22 +53,30 @@ Most archive actions temporarily move matching items from their parent vault int
 
 | Parent | Archives |
 | --- | --- |
-| Smithing | Crafting, Smelting, Tanning, Construction, Gemstone |
+| Smithing | Crafting, Smelting, Tanning, Construction, Gemstone, Remains |
 | Alchemy | Reagent, labeled Spice in storage UI |
-| Concoction | Potion, Poison, Restorative |
+| Concoction | Potion, Poison, Restorative, HealthPotions, MagickaPotions, StaminaPotions |
 | Food | CookedFood, RawFood |
 | Armor | Clothing, HeavyArmor, LightArmor, Jewelry |
 | Weapon | Archery, OneHand, TwoHand, Staff |
 
-Do not assume every parent menu consolidates exactly the same children. `ShowVaultDetail1Menu` has its own consolidation actions, while category-specific menus have others. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
+Direct Archery archive access pools bows/crossbows from Weapon and arrows/bolts from Ammunition. Closing returns ammunition to its own vault before returning the remainder to Weapon. Failed ammunition returns leave the archive contents in place for a later direct visit. The Weapon menu and its Archery shortcut retain their existing weapon-only behavior.
 
-Keep One/Keep Three labels do not define transfer semantics. The Alchemy Keep One action deposits ingredients then withdraws one per item. Book Transfer One Copy and Scroll Keep One/Keep Three first withdraw the entire store, then deposit one or three per item. Verify the actual inventory delta when changing those menus.
+Remains gathers its Smithing subtype and returns everything to Smithing on close. Smithing menu access and crafting entry also recover effective Remains items from Junk; user Junk and Ignore overrides remain authoritative. Crafting entry performs this recovery before the generic Junk loan at every supported station. Quicksort uses queued per-item recovery, including archive leftovers, and its shared count-only transfer reads avoid copying physical-stack descriptors. Refused transfers remain in their source for a later visit.
 
-Ammunition is an independent vault for arrows and bolts. Its menu offers Keep N, Store All, Take All, Open, and Exit. N comes from the Options setting described in [configuration.md](configuration.md). Keep N deposits only the excess above N per carried ammunition record; it never tops up smaller stacks from storage. Equipped, favorited, and quest entries remain untouched. Take All returns the entire inventory. Ammunition appears on the second main-vault page and in the vault binding list.
+Parent menus consolidate their own child archives; the scrolling vault browser invokes those registered menu actions. The Armor/Weapon Unclassified actions drain children, separate recognized types into archives, open the parent with the remainder, then reunite them on close.
 
-Keys is an independent vault. Its menu offers Keep One, Store All, Take Up To 1, Take All, Open, and Exit. Keep One retains one of each carried key record and deposits only duplicates. Take Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Take All returns the entire vault inventory, including manual deposits. Keys also appears in the second main-vault page and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
+Alchemy Transfer All selects the Alchemy parent category, including Ingredients, Reagents, and Catalysts, and preserves quest, favourited, and worn entries.
 
-Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Exit, Keep N Septims, Store All Septims, and Take All Septims. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N uses Gold Keep Amount in Options. Take All Septims selects Gold only and handles counts above 9999.
+Alchemy Keep N deposits only excess matching the full Alchemy category, and Take Up To N withdraws only its shortfall per base record. Both use Alchemy Keep Amount in Quantities, default 1. Store All still deposits all eligible Alchemy items. Scroll Keep N and Take Up To N use Scroll Keep Amount in Quantities, default 3. Keep N deposits only excess per base record; Take Up To N withdraws only the shortfall. Neither action empties the vault first. Zero deposits all eligible copies through Keep N and withdraws nothing through Take Up To N.
+
+Ammunition is an independent vault for arrows and bolts. Its menu offers Open, Withdraw Up To N, Withdraw All, Keep N, Store All, and Exit. N comes from Ammunition Keep Amount in Quantities, default 100. Keep Selected Ammunition in Options selects the reserve policy below. Withdraw All returns the entire inventory. Ammunition appears in the scrolling vault browser and in the vault binding list.
+
+Keys is an independent vault. Its menu offers Open, Withdraw Up To 1, Withdraw All, Keep 1, Store All, and Exit. Keep 1 retains one of each carried key record and deposits only duplicates. Withdraw Up To 1 withdraws only missing key records and leaves carried duplicates unchanged. Withdraw All returns the entire vault inventory, including manual deposits. Keys also appears in the scrolling vault browser and the vault binding list. Quick Transfer defaults are described in [configuration.md](configuration.md).
+
+Books and Notes offer Open, Withdraw Up To 1, Keep 1, Store All, their existing child vaults, and Exit. Withdraw fills missing records without depositing carried duplicates. Keep deposits only excess copies per carried record, preserves protected copies, and never withdraws absent records. Books opens Spell Tomes and Skill Books; Notes opens Recipes and Maps.
+
+Valuables is a composite archive reached through Bind Archive. Its menu offers Open, Withdraw Up To N Septims, Withdraw All Septims, Keep N Septims, Store All Septims, and Exit. Exit is the cancel action. Treasure opens directly without a Valuables submenu. The Septim actions deposit into or retrieve from Treasure; Keep N and Withdraw Up To N use Gold Keep Amount in Quantities. Withdraw fills only the carried shortfall and leaves other Treasure items stored. Withdraw All Septims selects Gold only and handles counts above 9999.
 
 Open temporarily gathers Gold from Treasure, Gemstone and PreciousIngot from Smithing, and Jewelry from Armor. Closing returns gems and precious ingots to Smithing, jewelry to Armor, and Gold plus unrelated manual deposits to Treasure. Materials therefore remain available to the existing Smithing crafting loan. The Gemstone and Jewelry archives keep their existing parents. Opening the Valuables menu also returns any contents left in its reference, including contents persisted while the archive was open. All three parent destinations must exist before gathering or returning.
 
@@ -53,7 +88,9 @@ Confirmation rechecks stack identity, counts, prices, and the configured percent
 
 ## Soul gem storage
 
-[Soulgems.cpp](../src/Soulgems.cpp) handles physical `TESSoulGem` records independently of category overrides. Generic category transfers skip them. Quick Transfer deposits all eligible filled gems and retains up to the configured number of empties per base record. It never withdraws to refill a reserve. The bank menu offers Keep N Empty, Store All, Filled Soulgems, Empty Soulgems, Open Vault, and Exit. Empty Soulgems offers Take All Empty Soulgems, Open, and Exit; Filled Soulgems opens directly. Both archives are bindable near an enchanter and return their inventories to the existing bank on close.
+[Soulgems.cpp](../src/Soulgems.cpp) handles physical `TESSoulGem` records independently of category overrides. Generic category transfers skip them. Quick Transfer deposits all eligible filled gems and retains up to the configured number of empties per base record. It never withdraws to refill a reserve. The bank menu offers Open Vault, Take Up To N empty gems, Keep N Empty, Store All, Filled Soulgems, Empty Soulgems, contextual Back, and Exit. Both soul gem archives open directly. Both archives are bindable near an enchanter and return their inventories to the existing bank on close.
+
+Take Up To N withdraws only the shortfall below the configured empty reserve per base record. Existing filled copies do not count toward that reserve; stacks already above the target stay unchanged. Zero withdraws nothing. Malformed carried stacks prevent top-up for that record. Top-up consolidates the archives afterwards.
 
 Stack classification uses explicit `ExtraSoul` data, including an explicit zero, before the base record's soul. Each extra list supplies its own count; the remainder uses base-record state. Duplicate extra-list pointers, invalid soul levels, or counts exceeding the inventory total leave that record untouched. Moves preserve base records and pass the selected extra list to Skyrim. Splitting moves explicit stacks first so null extra-list transfers cannot select another state. Deposits temporarily park retained explicit empties when the base record is filled, then return them to the player.
 
@@ -65,7 +102,7 @@ Bank access, Quick Transfer, Sort, and gem loans recover misplaced soul gems fro
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
 
-Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, and alchemy leaf categories. SpellTome and SkillBook imply Book, and Recipe implies Note. Potion does not imply Restorative.
+Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, alchemy, book, and note leaf categories. SpellTome and SkillBook imply Book; Recipe and Map imply Note; Lockpick and Instrument imply Gear. It does not infer every related leaf bit; Potion does not imply Restorative.
 
 | Engine type | Built-in classification |
 | --- | --- |
@@ -73,10 +110,10 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 | `IngredientItem` | Alchemy plus Reagent if food or a cooking input; otherwise Catalyst if a smithing input; otherwise Ingredient |
 | `AlchemyItem` food | Food plus RawFood when raw keyword or cooking cache matches, otherwise CookedFood |
 | Other `AlchemyItem` | Concoction plus Potion/Poison; adds Restorative if any effect matches health/magicka/stamina restoration |
-| Armor | Armor plus Jewelry for non-Head-slot jewelry-keyword records or accessories excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
+| Armor | Armor plus Jewelry when the Head slot is absent and either the jewelry keyword or CommonLib accessory detection matches. Accessory detection also excludes helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
-| Book | Spell-teaching books are SpellTome; loaded skill books remain SkillBook after reading; recipes are Recipe plus Note; native notes and note mesh paths are Note; other books are Book |
-| Native spell scroll | Scroll |
+| Native spell scroll | Scroll through the engine ScrollItem type; explicit overrides still win |
+| Book | Spell-teaching forms become Book/SpellTome; skill-teaching forms become Book/SkillBook; recipe-keyword forms become Note/Recipe; forms with Note/Scroll type or "note" in their mesh path become Note; remaining forms become Book |
 | Soul gem | Soulgem before miscellaneous items and overrides; filled/empty state belongs to inventory stacks |
 | Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
 | Gold/silver ingots | PreciousIngot and Smithing, plus the existing recipe-derived categories |
@@ -86,7 +123,9 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 
 The vanilla precious ingot IDs are Gold `0x0005AD9E` and Silver `0x0005ACE3`, verified against [UESP](https://en.uesp.net/wiki/Skyrim:Ores_and_Ingots). Gemstones retain the bundled Gemstone overrides. Mods can classify additional records through Gemstone or PreciousIngot overrides.
 
-Native `TESAmmo` records classify as Ammunition. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
+Rare Curios Welkynd Stones use the bundled `ccBGSSSE037-Curios.esl|0x000800 = Treasure` override. The identity is documented by the [Rare Curios/The Cause patch author](https://www.nexusmods.com/skyrimspecialedition/mods/189779). Other plugins' stone records are not inferred from display names.
+
+Native `RE::ScrollItem` records, including mod-added spell scrolls, classify as Scroll without per-form overrides. Dragonborn's throwable spider scrolls use the same path; a [published KID configuration and runtime log](https://www.nexusmods.com/skyrimspecialedition/mods/55728?comment_id=110378683&tab=posts) identifies `DLC2ExpSpider` items through its native Scroll filter. Note-style BOOK records belong to Notes; native SCRL records remain Scroll. Gemstone and Treasure rely on overrides rather than generic misc-item rules. Legacy EmptySoulgem/FilledSoulgem/GrandSoulgem enum values remain reserved; the soul gem module evaluates physical state.
 
 `Utility::CacheTemperRecipes` scans loaded constructible objects once at data load. Despite its name, it gathers recipe input FormIDs from forge, smelting, tanning, carpenter/building, and cooking keywords. Construction also accepts bench editor IDs containing `BYOHBuilding` or `BYOHHouse`. Mods' loaded recipes affect classification. `CookingMap` is declared but not populated or consumed in current code; `RawFoodMap` is the cooking-input cache actually used.
 
@@ -114,7 +153,11 @@ Assignment changes update memory immediately. Global redirects are written by th
 
 ## Menu navigation
 
-The scrolling Vault and Archive browsers retain their source handle and a callback to rebuild the originating list. Submenus append Back when that context exists, preserving their existing Exit/cancel index. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
+Existing quantity menus use Open, Withdraw Up To N, any existing Withdraw All, Keep N, Store All, child actions, contextual Back, then Exit. This applies to Keys, Ammunition, Alchemy, Soulgems, Books, Scrolls, Valuables, Gear and Notes. Inventory-only destinations retain direct access. Gear's quantity actions and Store All affect Lockpicks only. Soulgem withdrawal and Keep labels specify Empty; Store All retains the existing filled-and-empty deposit policy.
+
+Vault and archive browsers retain their source handle and a callback to rebuild the originating list. Submenus include Back when that context exists, with Exit last and cancellation mapped to Exit. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
+
+Arcane Vault's Open Vaults and Open Archives actions share the scrolling SkyUILib browser. Entries are sorted by display name and selecting one invokes its registered storage action; contextual Back returns to the originating list. Back or cancellation in either list returns to Arcane Vault, and Exit closes the source. Browse choices always carry actions and never create redirects.
 
 Direct bound-container activation clears navigation before running its action, so it shows no contextual Back. Assignment and pre-load/new-game handling also clear navigation. The stored callback resolves a handle rather than retaining a raw source pointer.
 
@@ -128,6 +171,7 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Sort | `0xDB9` | Special | `SortingMenu` |
 | Smithing | `0xDA7` | Vault | `SmithMenu` |
 | Crafting | `0xDA8` | Archive | `SmithCraftMenu` |
+| Remains | `0xDF2` | Archive | `OpenBookArchive` with Smithing parent |
 | Smelting | `0xDAA` | Archive | `SmithSmeltMenu` |
 | Tanning | `0xDAB` | Archive | `SmithTanMenu` |
 | Construction | `0xDA9` | Archive | `SmithConstructMenu` |
@@ -153,55 +197,136 @@ The table below is extracted from `Utility::LoadContainers`. IDs are local refer
 | Jewelry | `0xD99` | Archive | `ArmorJewelryMenu` |
 | Clothing | `0xD96` | Archive | `ArmorClothingMenu` |
 | Book | `0xD9A` | Vault | `BookMenu` |
+| Notes | `0xDD5` | Vault | `NotesMenu` |
+| SpellTomes | `0xDD7` | Archive | `OpenBookArchive` from Book |
+| SkillBooks | `0xDD9` | Archive | `OpenBookArchive` from Book |
+| Recipes | `0xDDB` | Archive | `OpenBookArchive` from Notes |
+| Maps | `0xDDD` | Archive | `OpenBookArchive` from Notes |
+| StolenItems | `0xDDF` | Archive | `StolenItemsMenu` |
 | Scroll | `0xD9B` | Vault | `ScrollMenu` |
 | Treasure | `0xDAD` | Vault | `TreasureMenu` |
 | Personal | `0xDA1` | Vault | `PersonalMenu` |
+| Gear | `0xDE2` | Vault | `GearMenu` |
+| Instruments | `0xDE4` | Archive | `OpenBookArchive` from Gear |
+| HealthPotions | `0xDE6` | Archive | `OpenBookArchive` from Concoction |
+| MagickaPotions | `0xDE8` | Archive | `OpenBookArchive` from Concoction |
+| StaminaPotions | `0xDEA` | Archive | `OpenBookArchive` from Concoction |
+| EnchantedItems | `0xDEC` | Archive | `EnchantedItemsMenu` |
 | Junk | `0xDCF` | Vault | `JunkMenu` |
 | Trade | `0xDD1` | Vault | `TradeMenu` |
 | Keys | `0xDC5` | Vault | `KeysMenu` |
-
-## Ignore picker
-
-The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`. It is persistent, non-respawning, empty, and excluded from assignment choices. Sneaking is checked in the shared activation dispatcher for Master and Sort only. The close callback is target-specific; a session counter invalidates queued callbacks across game loads. Post-load and new-game tasks finish any residual picker inventory and return its contents. Failed returns stay in the persistent picker and prevent reopening it until recovery succeeds.
-
-Sort first returns ignored records when Return Ignored Items is enabled. Its category transfers exclude any ignored copies left after a failed return. Disabling the option restores normal sorting. Player deposit helpers accept an explicit ignore flag; only Quick Transfer passes it, so manual deposits and crafting returns retain their existing policy.
 | Ammunition | `0xDC7` | Vault | `AmmunitionMenu` |
 | FilledSoulgems | `0xDCB` | Archive | `FilledSoulgemsMenu` |
 | EmptySoulgems | `0xDCD` | Archive | `EmptySoulgemsMenu` |
 | Valuables | `0xDC9` | Archive | `ValuablesMenu` |
 
-Direct Archery access gathers ammunition alongside bows. On close, it returns ammunition to its vault before returning weapons. A refused ammunition return leaves the archive intact so those copies cannot fall into the Weapon vault.
+## Gear and Instruments
 
-Books and Notes menus link directly to Spell Tomes, Skill Books and Recipes. Archives return their contents to the parent before navigation resumes. Consolidation also migrates old Book and Note records from Scroll storage. Skill-book identities are cached from loaded forms before reading can consume their teaching data. Native note flags and a case-insensitive `note` mesh-path match identify notes.
+Gear receives ordinary lockpicks and native carryable lights, including mod-added torches. Explicit overrides retain priority. Instruments use bundled overrides for Skyrim's flutes `0xDABA7` and `0x105177`, lute `0xDABAB`, and drum `0xDABA9`, documented in [UESP's miscellaneous items](https://en.uesp.net/wiki/Skyrim:Miscellaneous_Items). Quest copies share those records and retain normal player-transfer protections. Camping and other equipment can learn a Gear override; the Instruments archive can learn Instrument, which implies Gear.
 
-Maps is a Notes archive at reference `0xDDD`. Bundled Map overrides cover 13 official treasure maps and 8 Fishing maps. Map implies Note, and archive close returns maps to Notes. Additional maps can use Map overrides.
+The Gear menu is Open, Exit, contextual Back, Keep N Lockpicks, Take Up To N Lockpicks. Exit cancels. Back appears only when entered through another menu. Amount actions affect Lockpick records only. Keep N deposits excess; Take Up To N fills the carried shortfall from available stock. Zero deposits all eligible lockpicks and withdraws none. Manual actions retain normal player protections but disregard Quick Transfer ignores.
 
-Gear holds lockpicks, carryable lights and Instrument overrides. Lockpick and Instrument imply Gear. The Instruments archive uses the shared archive gather/return helper. Gear Keep and Withdraw Up To use the lockpick reserve without transferring unrelated Gear records. Sorting and Quick Transfer consolidate Instruments first.
+The Gear Quick Transfer checkbox defaults off. When enabled, lockpicks use Lockpick Keep Amount and other Gear items deposit without a reserve. Quick Transfer preserves quest, favourite, worn, standard-equipped and ignored records. Sort deposits all eligible Gear without a carried reserve. The Skeleton Key retains its existing classification.
 
-`InventoryStacks` provides physical extra-list reads, bounded cursors and validated moves for archive consumers. Reads reject duplicate lists, nonpositive counts and explicit totals above the aggregate. Prepared cursors invalidate on relevant inventory/equipment events. Moves preserve the selected extra list and verify source and destination counts; materialization caps each native ExtraCount to its signed 16-bit range.
+Instruments has no Gear-menu shortcut. Open Archives and direct archive assignments gather Instrument records from Gear, then return the archive inventory to Gear on close. Gear opening, Sort and Quick Transfer also return residual archive items to Gear. The persistent, non-respawning ESP bases are `0xDE1` and `0xDE3`; their references are listed above.
 
-Arcane Vault opens alphabetically sorted, scrolling Vault and Archive lists from the registered groups. List entries call their registered action with the originating source handle. Back and Exit are explicit rows. Browse completion does not assign a redirect, and selection handlers run after SkyUILib queues the current list closure.
+## Ignore picker
 
-The Stolen Items archive gathers foreign-owned physical copies from registered main vaults. Trade, Sort and Ignore are excluded, and duplicate vault references are visited once. A keyword link records each origin. Returns validate the origin, reacquire extra lists after movement and retain unknown or refused copies for recovery. Clearing ownership requires an enabled setting and a current confirmation generation.
+The appended hidden `Container::Ignore` uses reference `0xDD3` and base `0xDD2`. It is persistent, non-respawning, empty, and excluded from assignment choices. Sneaking is checked in the shared activation dispatcher for Master, Sort and Quick Transfer. The close callback is target-specific; a session counter invalidates queued callbacks across game loads. Post-load and new-game tasks finish any residual picker inventory and return its contents. Failed returns stay in the persistent picker and prevent reopening it until recovery succeeds.
 
-Enchanted Items gathers eligible physical copies from Weapon and Armor after consolidating their children. Staff enchantments, disallowed records, quest entries and cyclic enchantment chains are excluded. Origin links return copies to their parent, and recovery reacquires lists after each move. Unmarked manual deposits return to the player. This is manual archive access, with no crafting-loan option.
+Sort first returns ignored records when Return Ignored Items is enabled. Its category transfers, soul-gem recovery, and Junk fallback exclude any ignored copies left after a failed return. Disabling the option restores normal sorting. Player deposit helpers accept an explicit ignore flag; only Quick Transfer passes it, so manual deposits and crafting returns retain their existing policy.
 
-Health, Magicka and Stamina potion archives classify positive, non-hostile value modifiers for each attribute and its regeneration rates. Positive dual-value secondary effects may join a second archive. Food, poisons, detrimental effects and nonpositive magnitudes do not qualify. Attribute overrides imply Potion and Concoction. Opening an attribute archive consolidates sibling potions first and returns contents to Concoction on close. Restore-effect lookup tolerates missing caches and null effects.
+## Junk crafting loans
 
-Armor and Weapon Open actions consolidate all four child archives before opening the parent. Their Unclassified actions retain the separate filtered view. Closing the combined parent returns to its menu.
+Every recognized crafting bench also borrows eligible Junk items when Crafting Loan is enabled. The Junk session starts after normal vault loans and records carried counts plus actual borrowed counts per base record. On exit it returns up to the borrowed amount above the captured carried count to Junk, before soul-gem and category returns. Consumed items are not recreated; partial engine moves use the shared retry helper. Quest, favourited, worn, and standard GetEquipped-protected player entries are retained. Quick Transfer ignores do not suppress this explicit loan.
 
-Crafting loans include stored Junk through a per-base ledger. Lending records the carried count and the amount actually borrowed. Return caps at the unconsumed borrowed amount above the prior carried count. Quest, favourite, worn and native-equipped records remain protected. Refused returns stay carried.
+Loan counts use runtime form IDs only during the active session. Load/reset discards bookkeeping without transferring saved inventory, as with existing crafting loans. A transformed item with a different base record stays on the player. The ledger preserves counts, not identities of copies sharing a base record; engine removal selects the returned copies and preserves their extra data. Carpenter bench detection is unchanged.
 
-Junk lending records the shared mover's actual moved count without rereading the source. Junk and soul-gem returns request inventory entries only for their loaned base records. Soul-gem scans filter out unrelated base records before building entry data.
+## Books and Notes archives
 
-`ItemCategory::Ignore` is appended without changing older category ordinals. It overrides other category bits and native soul-gem classification. Sort returns these records regardless of Return Ignored Items and excludes failed returns from category passes, soul-gem recovery and the Junk fallback. Quick Transfer and material-loan returns leave them carried. Junk and soul-gem loan cleanup also preserve them. The separate ignore list and its Sort toggle retain their existing rules.
+Books has direct Spell Tomes and Skill Books archive actions. Notes has direct Recipes and Maps archive actions. Each archive is also directly assignable. Opening gathers matching items from the parent. Closing returns all contents to that parent, including manually added items. Books archive visits return to Books; Notes archive visits return to Notes. A direct archive assignment closes the source. Parent menus retain contextual Back to the originating Arcane Vault page. Both parents offer Store All, Take Up To 1, Open, and Exit.
 
-Sawn Logs have a bundled Ignore override. `RecoverSawnLogs` resolves HearthFires.esm local 0x300E and transfers existing non-quest stock from Smithing, Construction, Crafting, Smelting, Tanning, Gemstone, Sort and Junk using verified physical moves. It runs on the game thread after loading a save and before a crafting loan. Each move rereads stock; refusal stops that source and preserves the remainder. Missing forms/containers are skipped, repeated recovery does not duplicate stock, and a user classification replacing Ignore disables recovery. It never grants replacement logs or changes Hearthfire globals. Skyrim still controls their hidden display and construction behaviour.
+`ConsolidateBooks` returns child contents to parents and migrates Note/Book records from legacy Scroll storage, plus Note records from Books. It runs before Books/Notes/archive menus, Sort, and Quick Transfer. Native scrolls remain in Scroll. If a source disappears before the close callback runs, the next consolidation recovers the archive contents. Player protections and the ignore list still apply through their existing transfer paths.
 
-Remains gathers its Smithing subtype and returns everything to Smithing on close. Smithing menu access and crafting entry also recover effective Remains items from Junk; user Junk and Ignore overrides remain authoritative. Crafting entry performs this recovery before the generic Junk loan at every supported station. Quicksort uses queued per-item recovery, including archive leftovers, and its shared count-only transfer reads avoid copying physical-stack descriptors. Refused transfers remain in their source for a later visit.
+Skill-book identities are captured from loaded native book records during `kDataLoaded`, before saved read state is applied. Skyrim consumes skill-teaching data when a book is read, so classification also checks that cache. It survives save loads and new games, requires no save record, and includes mod-added native skill books. Explicit overrides still win; spell tomes retain priority.
 
-Existing quantity menus use Open, Withdraw Up To N, any existing Withdraw All, Keep N, Store All, child actions, contextual Back, then Exit. This applies to Keys, Ammunition, Alchemy, Soulgems, Books, Scrolls, Valuables, Gear and Notes. Inventory-only destinations retain direct access. Gear's quantity actions and Store All affect Lockpicks only. Soulgem withdrawal and Keep labels specify Empty; Store All retains the existing filled-and-empty deposit policy.
+Spell/skill-teaching flags and cached skill-book identity take precedence over the recipe keyword and note detection. Ordinary notes match either the Note/Scroll type or a mesh path containing "note", ignoring case, as SKSE does for SkyUI. Special Edition no longer reliably uses the type field. This also migrates matching notes already stored in Books during consolidation. Recipes use `VendorItemRecipe`; no translated item names are matched. Maps use bundled plugin-local overrides for vanilla, Dragonborn and Fishing records. Unmarked mod-added maps use their ordinary Book/Note classification until an override assigns Map. The displayed name is Maps Vault; the category is Map, the destination is Maps and the translation key is Vault.Maps. The retired category spelling is not accepted. Missing optional plugins are skipped by the normal override loader, and user overrides take precedence.
 
-A Quick Transfer assignment runs `OffloadItems` and returns to gameplay without opening the assigned container or reopening Arcane Vault. Quick Transfer uses appended enum value `Container::QuickTransfer`, non-respawning base `0xDEE` and persistent reference `0xDEF`. It is a Special destination, excluded from vault/archive browsing, crafting loans and archive gathering. Assignments use the existing reference-based global/per-save persistence. Sneaking opens the ignore picker. Normal activation retains every shared Quick Transfer protection and quantity setting.
+The [published in-game record extraction](https://www.nexusmods.com/skyrimspecialedition/mods/32763?tab=docs) identifies the vanilla and Dragonborn records. UESP's linked map entries identify the Fishing records, supplied by [ccBGSSSE001-Fish.esm](https://en.uesp.net/wiki/Skyrim:Fishing):
+
+| Map | Plugin | Local ID |
+| --- | --- | --- |
+| I | Skyrim.esm | `0x0EF07A` |
+| II | Skyrim.esm | `0x0F33CE` |
+| III | Skyrim.esm | `0x0F33CF` |
+| IV | Skyrim.esm | `0x0F33D1` |
+| V | Skyrim.esm | `0x0F33D4` |
+| VI | Skyrim.esm | `0x0F33D0` |
+| VII | Skyrim.esm | `0x0F33D5` |
+| VIII | Skyrim.esm | `0x0F33D3` |
+| IX | Skyrim.esm | `0x0F33CD` |
+| X | Skyrim.esm | `0x0F33E0` |
+| Fort Neugrad | Skyrim.esm | `0x0F33D2` |
+| Velehk Sain | Skyrim.esm | `0x0DDEFB` |
+| Deathbrand | Dragonborn.esm | `0x02BAAE` |
+| [Fishing: Eastmarch](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Eastmarch) | ccBGSSSE001-Fish.esm | `0x070CCC` |
+| [Fishing: Falkreath](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Falkreath) | ccBGSSSE001-Fish.esm | `0x070CCD` |
+| [Fishing: Haafingar](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Haafingar) | ccBGSSSE001-Fish.esm | `0x070CCE` |
+| [Fishing: Hjaalmarch](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Hjaalmarch) | ccBGSSSE001-Fish.esm | `0x070CCF` |
+| [Fishing: The Pale](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Pale) | ccBGSSSE001-Fish.esm | `0x070CD0` |
+| [Fishing: The Reach](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Reach) | ccBGSSSE001-Fish.esm | `0x070CD1` |
+| [Fishing: The Rift](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Rift) | ccBGSSSE001-Fish.esm | `0x070CD2` |
+| [Fishing: Whiterun](https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Whiterun) | ccBGSSSE001-Fish.esm | `0x070CD3` |
+
+## Ammunition reserve modes
+
+Keep Selected Ammunition defaults off. Selection is the union of current ammunition from `GetCurrentAmmo`, native worn/favourite inventory flags, and the standard GetEquipped condition. It is captured once at the beginning of an action. Being equipped and favourited gives one reserve per base record; several selected records each have their own reserve. No item-name or mod-specific rules are used.
+
+| Action | Toggle off | Toggle on |
+| --- | --- | --- |
+| Quick Transfer or Keep N | Leave selected stacks untouched; keep up to N of every other eligible type | Keep up to N of selected types; deposit every other eligible type completely |
+| Take Up To N | Top up each stored ammunition type to N carried copies | Top up only selected types to N carried copies |
+| No selection | Deposits keep N per type; withdrawal tops up all stored types | Deposit every eligible type; withdraw nothing |
+| N = 0 | Deposit unselected types completely; keep selected stacks; withdraw nothing | Deposit all eligible types, including selected; withdraw nothing |
+
+Quest items remain protected from player deposits. Quick Transfer always exempts ignored records entirely. Manual Keep N and Take Up To N disregard that ignore list. Neither deposit action withdraws to fill a reserve; withdrawal counts carried copies, takes only the shortfall and available stock, and never deposits excess. The engine may clear equipped/favourite state when the last copy is deposited at N = 0; the mod does not restore selection by recreating items.
+
+Store All is independent of the toggle and preserves quest, favourite, native worn, standard GetEquipped, and current-ammunition protections. Take All and Open retain their existing behavior. Sort moves deposited ammunition without a reserve, subject to Return Ignored Items. Shared transfers still preserve other item categories' equipment/favourite protections.
+
+## Broad category overrides
+
+Override parsing and formatting accept parent categories and Restorative. Parent categories do not expand into children. Quick Transfer deposits a parent-only override when any checkbox in that family is enabled; it excludes named child bits so a disabled subtype remains protected. These transfers use the shared quest, favourite, equipment, and ignore checks. Manual parent vault transfers and Sort already match the parent bit. [configuration.md](configuration.md#learning-from-deposits) describes the opt-in deposit workflow.
+
+## Stolen Items archive
+
+[StolenItems.cpp](../src/StolenItems.cpp) gathers ownership-bearing physical stacks from registered main vaults, including Personal and Junk, and excludes Sort, Ignore, Trade, and archives. It uses `InventoryEntryData::IsOwnedBy(player, stackOwner, true)` for each extra list. The aggregate base-record owner does not select clean copies. Implicit copies without an ownership extra are clean. Malformed counts or duplicate extra-list pointers are skipped without moving the affected record.
+
+The companion adds container `0xDDE`, persistent reference `0xDDF`, and private keyword `AV_StolenOrigin` at `0xDE0`. Gathering adds a keyword-qualified `ExtraLinkedRef` to the source vault on each selected stack. The design relies on native extra-data comparison distinguishing source links and native inventory saves remapping them. The regression model covers these contracts; actual engine merge/save behavior remains unverified. No new SKSE co-save record is added. Return removes only the private link, preserving other linked references and item metadata. Withdrawn copies keep their ownership and lose the private marker through the container event handler. Untagged manual deposits return to the player on close.
+
+Each explicit transfer checks observed source/destination count changes and re-reads stacks after progress. It handles partial engine removals without keeping destroyed list pointers. Destination count capacity is checked before transfer. A refused move, an unresolved marked source, or inconsistent archive counts leaves remaining contents for recovery. Opening the archive allows withdrawal of retained contents even after a recovery failure. New-game/load resets invalidate queued withdrawal cleanup and clearing confirmations; post-load/new-game tasks recover archive contents and remove stale markers from vault/player inventories.
+
+Arcane Vault has an Archives entry containing Stolen Items. Binding the archive directly also works. With the default-off clearing option disabled, activation opens the gathered inventory directly. Enabled activation shows Open, Exit, and Remove All Stolen Tags. Contextual Back appears before the clearing action. Clearing requires confirmation, defaults to No, rechecks the setting and game generation, gathers current stolen copies, removes only `ExtraOwnership`, then returns them to their sources. Successful clearing leaves the next opening empty unless new stolen copies arrive. Transfer failures preserve remaining inventory and show a recovery message.
+
+`check_stolen.py` exercises the actual selector, transfer/recovery code, and archive menus. Its save/load check models native link persistence and load-order remapping. Native extra-data comparison and save handling still require in-game verification.
+
+## Attribute potion archives
+
+Health Potions, Magicka Potions and Stamina Potions gather their matching categories from Concoction. `ClassifyPotionEffects` reads loaded native effects rather than matching vanilla potion IDs. Automatic classification excludes food, poisons, hostile or detrimental effects, and nonpositive magnitudes. ValueModifier, PeakValueModifier and DualValueModifier effects select the corresponding Health, Magicka or Stamina category through the attribute, regeneration rate or regeneration multiplier actor value. Dual modifiers also consider the secondary attribute when its weight is positive. Script-only effects without this metadata need an explicit override.
+
+HealthPotion, MagickaPotion and StaminaPotion imply Potion and Concoction. Explicit overrides retain priority. A potion affecting several attributes matches several archives; opening one moves the existing copies rather than duplicating them. `ConsolidatePotions` returns all six potion/poison archives to Concoction before opening a potion view or running Sort or Quick Transfer. Closing a new archive returns its remaining contents to Concoction. All three are available through Open Archives and direct assignment.
+
+## Enchanted Items archive
+
+`EnchantedItems.cpp` pools qualifying physical stacks from Weapon and Armor after consolidating their category archives. Armor includes clothing and jewelry. Each stack uses its ExtraEnchantment when present, otherwise the base item's enchantment. Plain copies sharing an enchanted copy's base record remain in their vault.
+
+The filter uses Skyrim's default-object disallow-enchanting keyword on the item, effective enchantment and inherited base-enchantment chain. Known enchantments and player-applied enchantments remain eligible. Quest entries, staves, staff enchantments, blocked artifacts, cyclic enchantment chains and uncertain eligibility are excluded. Eligibility depends on loaded record metadata, not artifact names or mod-specific lists. Missing restriction metadata leaves items in their parent vault.
+
+`InventoryStacks.cpp` shares stack validation, count checks, transfers and origin-marker cleanup with Stolen Items. Duplicate extra-list pointers or inconsistent counts reject the affected inventory entry. Implicit enchanted stacks receive live extra lists in signed-16-bit count chunks before moving. MarkOrigin allocates game-heap storage and invokes the SE/AE/VR engine constructor through Address Library; CommonLib declares but does not implement its C++ constructor. The separate `AV_EnchantedOrigin` keyword at `0xDED` records each stack's source without replacing ownership or enchantment data. Closing or post-load recovery returns marked items to their original vault; unmarked manual deposits return to the player. Withdrawn items lose only this archive's origin marker. Failed returns stay stored for recovery.
+
+Enchanted Items is available through Open Archives and direct assignment. It has no new sale action or Quick Transfer category, and its mixed, per-copy filter cannot teach a base-record override.
+
+Ordinary items explicitly classified as Soulgem route to the Soulgem vault through Sort and enabled Quick Transfer. They remain ordinary inventory items; soul states, empty-gem reserves and gem-specific loans apply only to native soul gems.
+
+Explicit Junk overrides are routed before other Sort categories and have an independent Quick Transfer checkbox. Unclassified player inventory is never swept into Junk. Existing Junk crafting loans still return unused borrowed items to Junk.
 
 Favourite selection uses per-copy ExtraHotkey metadata. Ambiguous aggregate favourites retain conservative base protection. The Sort marker survives transfers and save/load, and failed favourite returns stay protected in Sort. Ordinary same-base implicit copies are materialized before removal so native null-list selection cannot take the favourite.
