@@ -8,6 +8,7 @@
 #include "AVUI.h"
 #include "Translation.h"
 #include "Papyrus.h"
+#include "Stores.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -33,6 +34,10 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		} else
 			logger::warn("QuickLoot IE API unavailable");
 		break;
+	case SKSE::MessagingInterface::kPreLoadGame:
+	case SKSE::MessagingInterface::kNewGame:
+        Stores::GetSingleton()->ResetNavigation();
+        break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		Utility::GetSingleton()->ConfigurationSpells();
 		break;
