@@ -11,6 +11,23 @@
 #include <thread>
 
 namespace {
+    void MoveItems(RE::TESObjectREFR* source, RE::TESObjectREFR* destination, RE::TESBoundObject* item, int count) {
+        if (!source || !destination || source == destination || !item || count <= 0) return;
+        const auto countItems = [source, item] {
+            const auto counts = source->GetInventoryCounts([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+            const auto found = counts.find(item);
+            return found == counts.end() ? 0 : (std::max)(0, found->second);
+        };
+        int available = countItems();
+        while (count > 0 && available > 0) {
+            source->RemoveItem(item, (std::min)(count, available), RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+            const int after = countItems();
+            if (after >= available) return;
+            count -= (std::min)(count, available - after);
+            available = after;
+        }
+    }
+
     using OpenState = RE::BGSOpenCloseForm::OPEN_STATE;
 
     struct OpenStatePoll
@@ -118,15 +135,15 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player || !chest) return;
+    if (!player || !chest || i_count < 0 || a_keepCount < 0) return;
 
     const auto inventory = player->GetInventory();
     for (const auto& [item, data] : inventory) {
-        if (!item || data.first <= 0) continue;
+        if (!item || !data.second || data.first <= 0) continue;
 
         // Ignore Quest, Favorited and Worn items
         if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
@@ -134,11 +151,10 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
 
-        // If the input is zero, move all
-        if (i_count == 0)
-            player->RemoveItem(item, 9999, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
-        else
-            player->RemoveItem(item, i_count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, chest);
+        int count = data.first - a_keepCount;
+        if (i_count > 0) count = std::min(count, i_count);
+        if (count > 0)
+            MoveItems(player, chest, item, count);
     }
 }
 
@@ -146,7 +162,7 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
-    if (!player || !chest) return;
+    if (!player || !chest || i_count < 0) return;
 
     const auto inventory = chest->GetInventory();
     for (const auto& [item, data] : inventory) {
@@ -155,11 +171,8 @@ void Stores::StoreToPlayer(ItemCategory a_category, Container a_chest, int i_cou
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
 
-        // If the input is zero, move all
-        if (i_count == 0)
-            chest->RemoveItem(item, 9999, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player);
-        else
-            chest->RemoveItem(item, i_count, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, player);
+        const int count = i_count == 0 ? data.first : (std::min)(data.first, i_count);
+        MoveItems(chest, player, item, count);
     }
 }
 
@@ -176,7 +189,7 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category)) continue;
         
-        source->RemoveItem(item, 9999, RE::ITEM_REMOVE_REASON::kStoreInContainer, nullptr, destination);
+        MoveItems(source, destination, item, data.first);
     }
 }
 

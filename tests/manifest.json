@@ -31,6 +31,19 @@
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "keys",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_keys.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
     }
   ]
 }
