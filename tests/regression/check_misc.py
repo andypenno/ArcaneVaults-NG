@@ -49,7 +49,7 @@ namespace logger { template<class... Args> void info(const char*, Args...) {} te
 struct Settings {static Settings* GetSingleton(){static Settings settings;return &settings;}void ProcessOverrideFile(const wchar_t*,std::unordered_map<RE::FormID,CategoryMask>&);};
 '''
 category_source=(ROOT/'src/ItemClass.cpp').read_text()
-program+=category_source[category_source.index('CategoryMask ToMask('):category_source.index('CategoryMask ClassifyItem(')]
+program+=category_source[category_source.index('CategoryMask ToMask('):category_source.index('namespace {')]
 settings=(ROOT/'src/Settings.cpp').read_text()
 start=settings.index('\tstd::optional<std::pair<std::string_view, RE::FormID>> ParseFormIdentifier(')
 program+=settings[start:settings.index('\n\t}',start)+3]

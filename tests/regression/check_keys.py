@@ -118,7 +118,7 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     void GearMenu(RE::TESObjectREFR*);void ShowGearMenu(RE::TESObjectREFR*);
     void JunkMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);void ShowBookMenu(RE::TESObjectREFR*);void NotesMenu(RE::TESObjectREFR*);void ShowNotesMenu(RE::TESObjectREFR*);
-    void ConsolidateBooks();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
+    void ConsolidateBooks();void ConsolidatePotions();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
     void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
     void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
@@ -157,7 +157,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -437,6 +437,15 @@ int main() {
     ini.text="-1";ini.exists=true;settings->get_value(ini,reserve,"General","LockpickKeepAmount");assert(reserve==25);
     utility->custom.clear();
 
+
+    player->inventory.clear();chest.inventory.clear();RE::TESObjectREFR concoctions,healthArchive,magickaArchive,staminaArchive;
+    utility->custom={{Container::Concoction,&concoctions},{Container::HealthPotions,&healthArchive},{Container::MagickaPotions,&magickaArchive},{Container::StaminaPotions,&staminaArchive}};
+    RE::TESBoundObject healthDrink{ItemCategory::HealthPotion},magickaDrink{ItemCategory::MagickaPotion},staminaDrink{ItemCategory::StaminaPotion};
+    healthArchive.inventory[&healthDrink]=entry(4);magickaArchive.inventory[&magickaDrink]=entry(5);staminaArchive.inventory[&staminaDrink]=entry(6);stores.ConsolidatePotions();
+    assert(concoctions.inventory[&healthDrink].first==4 && concoctions.inventory[&magickaDrink].first==5 && concoctions.inventory[&staminaDrink].first==6);
+    stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,&activationSource);assert(stores.opened==Container::HealthPotions && healthArchive.inventory[&healthDrink].first==4);stores.onClose();assert(concoctions.inventory[&healthDrink].first==4);
+    utility->custom.clear();
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -468,6 +477,15 @@ struct TESObjectBOOK {
     bool HasKeywordByEditorID(const char*)const{return recipe;}unsigned GetFormID()const{return id;}
 };
 struct TESDataHandler {std::vector<TESObjectBOOK*> books;template<class T>const auto& GetFormArray(){return books;}};
+enum class ActorValue {kHealth,kHealRate,kHealRateMult,kMagicka,kMagickaRate,kMagickaRateMult,kStamina,kStaminaRate,kStaminaRateMult,kOther};
+namespace EffectArchetypes {enum class ArchetypeID {kValueModifier,kPeakValueModifier,kDualValueModifier,kOther};}
+struct EffectSetting {
+    unsigned formID=0;bool hostile=false,detrimental=false;
+    struct Data {ActorValue primaryAV=ActorValue::kHealth,secondaryAV=ActorValue::kMagicka;float secondAVWeight=0;EffectArchetypes::ArchetypeID archetype=EffectArchetypes::ArchetypeID::kValueModifier;}data;
+    bool IsHostile()const{return hostile;}bool IsDetrimental()const{return detrimental;}auto GetArchetype()const{return data.archetype;}unsigned GetFormID()const{return formID;}
+};
+struct Effect {EffectSetting* baseEffect;float magnitude=10;float GetMagnitude()const{return magnitude;}};
+struct AlchemyItem {bool food=false,poison=false;std::vector<Effect*> effects;bool IsFood()const{return food;}bool IsPoison()const{return poison;}};
 struct TESObjectLIGH {bool carryable=true;bool CanBeCarried()const{return carryable;}};
 struct TESObjectMISC {};
 struct TESAmmo {};
@@ -501,6 +519,8 @@ struct TESObjectARMO {
 struct TESBoundObject {
     ItemCategory category;
     unsigned formID=0;unsigned GetFormID()const{return formID;}bool IsGold()const{return formID==0xF;}
+    bool nativeAlchemy=false;AlchemyItem alchemy{};
+    bool HasKeywordByEditorID(const char*)const{return false;}
     bool nativeLight=false;TESObjectLIGH light{};
     bool nativeBook=false;TESObjectBOOK book{};
     bool nativeMisc=false;TESObjectMISC misc{};
@@ -511,7 +531,8 @@ struct TESBoundObject {
     bool nativeScroll = false;
     ScrollItem scroll{};
     template<class T> T* As() {
-        if constexpr (std::is_same_v<T, TESObjectLIGH>) return nativeLight ? &light : nullptr;
+        if constexpr (std::is_same_v<T, AlchemyItem>) return nativeAlchemy ? &alchemy : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectLIGH>) return nativeLight ? &light : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectMISC>) return nativeMisc ? &misc : nullptr;
         else if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
@@ -521,8 +542,10 @@ struct TESBoundObject {
 };
 }
 '''
-program += "struct Utility {std::set<unsigned> SmithingMap,SmeltingMap,TanningMap,ConstructionMap,SkillBookMap;void CacheSkillBooks(RE::TESDataHandler*);static Utility* GetSingleton(){static Utility u;return &u;}};\n"
+program += "struct Utility {std::set<unsigned> SmithingMap,SmeltingMap,TanningMap,ConstructionMap,SkillBookMap,RawFoodMap;RE::EffectSetting* RestoreHealth=nullptr;RE::EffectSetting* RestoreMagicka=nullptr;RE::EffectSetting* RestoreStamina=nullptr;bool FoundRestore(RE::AlchemyItem*);void CacheSkillBooks(RE::TESDataHandler*);static Utility* GetSingleton(){static Utility u;return &u;}};\n"
 utility_source=(ROOT / "src/Utility.cpp").read_text()
+a=utility_source.index("bool Utility::FoundRestore(")
+program += utility_source[a:utility_source.index("\n}\n",a)+3]
 a=utility_source.index("void Utility::CacheSkillBooks(")
 program += utility_source[a:utility_source.index("\n}\n",a)+3]
 biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
@@ -542,12 +565,23 @@ start=item_source.index("    // Crafting",gold_start)
 program += item_source[start:item_source.index("    // Ingredients",start)]
 scroll_start = item_source.index("    if (a_item->As<RE::ScrollItem>())")
 program += item_source[scroll_start:item_source.index("    // Crafting", scroll_start)]
+a=item_source.index("    // Food, Potions, and Poisons")
+program += item_source[a:item_source.index("    // Armor and Clothing",a)]
 program += item_source[item_source.index("    // Armor and Clothing"):item_source.index("    // Weapons", item_source.index("    // Armor and Clothing"))]
 start=item_source.index("    // Books, Scrolls, and Spell Tomes")
 program += item_source[start:item_source.index("\n    return categories;",start)]
 program += "return categories; }\nint main() {\n"
 program += r'''
     assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Map)),ItemCategory::Note));
+    RE::TESBoundObject potion{ItemCategory::None};potion.nativeAlchemy=true;RE::EffectSetting health;health.formID=5;RE::Effect effect{&health};RE::Effect missing{nullptr};
+    potion.alchemy.effects={nullptr,&missing,&effect};assert(HasCategory(ClassifyItem(&potion),ItemCategory::HealthPotion));
+    auto* potionUtility=Utility::GetSingleton();assert(!potionUtility->FoundRestore(nullptr));potionUtility->RestoreHealth=&health;assert(potionUtility->FoundRestore(&potion.alchemy));
+    health.data.archetype=RE::EffectArchetypes::ArchetypeID::kDualValueModifier;health.data.secondAVWeight=1;
+    assert(HasCategory(ClassifyPotionEffects(&potion.alchemy),ItemCategory::MagickaPotion));health.data.secondAVWeight=0;assert(!HasCategory(ClassifyPotionEffects(&potion.alchemy),ItemCategory::MagickaPotion));
+    for(auto [value,category]:{std::pair{RE::ActorValue::kHealth,ItemCategory::HealthPotion},std::pair{RE::ActorValue::kHealRate,ItemCategory::HealthPotion},std::pair{RE::ActorValue::kHealRateMult,ItemCategory::HealthPotion},std::pair{RE::ActorValue::kMagicka,ItemCategory::MagickaPotion},std::pair{RE::ActorValue::kMagickaRate,ItemCategory::MagickaPotion},std::pair{RE::ActorValue::kMagickaRateMult,ItemCategory::MagickaPotion},std::pair{RE::ActorValue::kStamina,ItemCategory::StaminaPotion},std::pair{RE::ActorValue::kStaminaRate,ItemCategory::StaminaPotion},std::pair{RE::ActorValue::kStaminaRateMult,ItemCategory::StaminaPotion}}){health.data.primaryAV=value;assert(HasCategory(ClassifyPotionEffects(&potion.alchemy),category));}
+    health.hostile=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);health.hostile=false;health.detrimental=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);health.detrimental=false;
+    effect.magnitude=0;assert(ClassifyPotionEffects(&potion.alchemy)==0);effect.magnitude=10;potion.alchemy.poison=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);potion.alchemy.poison=false;potion.alchemy.food=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);potion.alchemy.food=false;
+    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::HealthPotion)),ItemCategory::Potion) && HasCategory(ExpandCategories(ToMask(ItemCategory::HealthPotion)),ItemCategory::Concoction));
     RE::TESBoundObject nativeBook{ItemCategory::None};nativeBook.nativeBook=true;nativeBook.book.id=0x12345;
     assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));nativeBook.book.skill=true;
     RE::TESDataHandler data;data.books={&nativeBook.book,nullptr};Utility::GetSingleton()->CacheSkillBooks(&data);nativeBook.book.skill=false;

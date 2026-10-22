@@ -172,5 +172,8 @@
 	"Stolen.Cleared": "Stolen tags removed. Items returned to their vaults.",
 	"Stolen.TransferFailed": "Some items could not be transferred. Remaining archive items are kept for recovery.",
 	"Vault.EnchantedItems": "Enchanted Items",
-	"Enchanted.TransferFailed": "Some items could not be transferred. They remain safely stored."
+	"Enchanted.TransferFailed": "Some items could not be transferred. They remain safely stored.",
+	"Vault.HealthPotions": "Health Potions",
+	"Vault.MagickaPotions": "Magicka Potions",
+	"Vault.StaminaPotions": "Stamina Potions"
 }

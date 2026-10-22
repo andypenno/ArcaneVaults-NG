@@ -174,13 +174,19 @@ enum class ContainerGroup {
     case Container::Instruments: return "Vault.Instruments";
     case Container::StolenItems: return "Vault.StolenItems";
     case Container::EnchantedItems: return "Vault.EnchantedItems";
+    case Container::HealthPotions: return "Vault.HealthPotions";
+    case Container::MagickaPotions: return "Vault.MagickaPotions";
+    case Container::StaminaPotions: return "Vault.StaminaPotions";
     case Container::None:         return {};
     default: return {};
     }
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 37> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 40> categoryNames{{
+    { "HealthPotion", ItemCategory::HealthPotion },
+    { "MagickaPotion", ItemCategory::MagickaPotion },
+    { "StaminaPotion", ItemCategory::StaminaPotion },
     { "Gear", ItemCategory::Gear },
     { "Lockpick", ItemCategory::Lockpick },
     { "Instrument", ItemCategory::Instrument },

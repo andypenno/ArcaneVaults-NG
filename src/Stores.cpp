@@ -345,6 +345,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 //===================================================
 void Stores::SortItems() {
     ConsolidateBooks();
+    ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
     ReturnIgnoredItems();
     Soulgems::Recover();
@@ -371,6 +372,7 @@ void Stores::SortItems() {
 
 void Stores::OffloadItems() {
     ConsolidateBooks();
+    ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
     auto* settings = Settings::GetSingleton();
 
@@ -810,6 +812,7 @@ void Stores::PotionMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
@@ -876,6 +879,7 @@ void Stores::PotionPositiveMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionPositiveMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
 
     // Transfer Items
@@ -896,6 +900,7 @@ void Stores::PotionNegativeMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionNegativeMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
 
     // Transfer Items
@@ -916,6 +921,7 @@ void Stores::PotionRestoreMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowPotionRestoreMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidatePotions();
     const auto sourceHandle = a_source->GetHandle();
 
     // Transfer Items
@@ -1960,6 +1966,7 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
     RE::TESObjectREFR* a_source, bool a_returnToParent) {
     if (!a_source) return;
     ConsolidateBooks();
+    if (a_parent == Container::Concoction) ConsolidatePotions();
     AllToStore(a_archive, a_parent);
     StoreToStore(a_category, a_parent, a_archive);
     OpenStoreObject(a_source, [this, a_archive, a_parent, a_returnToParent](RE::TESObjectREFR* source) {
@@ -2144,4 +2151,10 @@ void Stores::EnchantedItemsMenu(RE::TESObjectREFR* a_source) {
             CloseStoreObject(closed);
         });
     });
+}
+
+void Stores::ConsolidatePotions() {
+    for (auto archive : {Container::Potion, Container::Poison, Container::Restorative,
+        Container::HealthPotions, Container::MagickaPotions, Container::StaminaPotions})
+        AllToStore(archive, Container::Concoction);
 }
