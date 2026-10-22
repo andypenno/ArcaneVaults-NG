@@ -10,6 +10,7 @@
 #include "Papyrus.h"
 #include "Stores.h"
 #include "StolenItems.h"
+#include "EnchantedItems.h"
 
 using namespace RE::BSScript;
 using namespace SKSE;
@@ -25,6 +26,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		Settings::GetSingleton()->Init();
 		AVEvents::Init();
         StolenItems::Init();
+        EnchantedItems::Init();
 		Menus::Init();
 		AVUI::Register();		
 		break;
@@ -43,11 +45,11 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
         AVEvents::CancelContainerMenuCloseCallback();
         Stores::GetSingleton()->ResetIgnorePicker();
         if (message->type == SKSE::MessagingInterface::kNewGame)
-            SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); });
+            SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); EnchantedItems::Recover(); });
         break;
 	case SKSE::MessagingInterface::kPostLoadGame:
 		Utility::GetSingleton()->ConfigurationSpells();
-        SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); });
+        SKSE::GetTaskInterface()->AddTask([] { Stores::GetSingleton()->FinishIgnorePicker(); StolenItems::Recover(); EnchantedItems::Recover(); });
 		break;
 	}
 	

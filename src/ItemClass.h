@@ -173,6 +173,7 @@ enum class ContainerGroup {
     case Container::Gear:        return "Vault.Gear";
     case Container::Instruments: return "Vault.Instruments";
     case Container::StolenItems: return "Vault.StolenItems";
+    case Container::EnchantedItems: return "Vault.EnchantedItems";
     case Container::None:         return {};
     default: return {};
     }

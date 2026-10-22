@@ -3,6 +3,7 @@
 #include "Soulgems.h"
 #include "Trade.h"
 #include "StolenItems.h"
+#include "EnchantedItems.h"
 #include "Events.h"
 #include "ContainerMenu.h"
 #include "RedirectManager.h"
@@ -2127,4 +2128,20 @@ void Stores::ShowStolenItemsMenu(RE::TESObjectREFR* a_source) {
     }});
     const auto title = std::format("{} {}", Translate("Vault.StolenItems"), Translate("Vault.Vault"));
     ShowDynamicMessageBox(title, std::move(options), 1);
+}
+
+void Stores::EnchantedItemsMenu(RE::TESObjectREFR* a_source) {
+    if (!a_source) return;
+    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) {
+        if (!EnchantedItems::Gather()) {
+            RE::SendHUDMessage::ShowHUDMessage(Translate("Enchanted.TransferFailed"));
+            CloseStoreObject(source);
+            return;
+        }
+        OpenStorageMenu(Container::EnchantedItems, source, [this](RE::TESObjectREFR* closed) {
+            if (!EnchantedItems::Recover())
+                RE::SendHUDMessage::ShowHUDMessage(Translate("Enchanted.TransferFailed"));
+            CloseStoreObject(closed);
+        });
+    });
 }

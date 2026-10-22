@@ -96,6 +96,7 @@ public:
     void WeaponStaffMenu(RE::TESObjectREFR* a_source);
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
+    void EnchantedItemsMenu(RE::TESObjectREFR* a_source);
     void StolenItemsMenu(RE::TESObjectREFR* a_source);
     void TradeMenu(RE::TESObjectREFR* a_source);
     void GearMenu(RE::TESObjectREFR* a_source);

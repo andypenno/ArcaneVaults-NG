@@ -347,6 +347,7 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Gear, RE::FormID(0xDE2), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->GearMenu(source); });
     AddContainer(dataHandler, Container::Instruments, RE::FormID(0xDE4), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Instruments, Container::Gear, ItemCategory::Instrument, source); });
     AddContainer(dataHandler, Container::StolenItems, RE::FormID(0xDDF), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->StolenItemsMenu(source); });
+    AddContainer(dataHandler, Container::EnchantedItems, RE::FormID(0xDEC), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->EnchantedItemsMenu(source); });
 }
 
 void Utility::CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandler) {

@@ -170,5 +170,7 @@
 	"Stolen.RemoveAllTags": "Remove All Stolen Tags",
 	"Stolen.Confirm": "Remove stolen tags from all stolen copies stored in your vaults? Their other properties and counts will remain unchanged.",
 	"Stolen.Cleared": "Stolen tags removed. Items returned to their vaults.",
-	"Stolen.TransferFailed": "Some items could not be transferred. Remaining archive items are kept for recovery."
+	"Stolen.TransferFailed": "Some items could not be transferred. Remaining archive items are kept for recovery.",
+	"Vault.EnchantedItems": "Enchanted Items",
+	"Enchanted.TransferFailed": "Some items could not be transferred. They remain safely stored."
 }
