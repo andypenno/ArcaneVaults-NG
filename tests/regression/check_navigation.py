@@ -2,10 +2,18 @@
 
 from pathlib import Path
 import re
+import argparse
+import json
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--probe-return", type=Path, help="Record production and direct-menu Quick Transfer returns with a simulated clock")
+args = parser.parse_args()
+translations = json.loads((ROOT / "ini/ArcaneVaultTranslation.json").read_text())
+for key, label in {"Vault.StoreAll": "Store All", "Vault.WithdrawAll": "Withdraw All"}.items():
+    assert [name for name, text in translations.items() if text == label] == [key]
 program = r'''
 #include <cassert>
 #include <algorithm>
@@ -24,6 +32,7 @@ struct ObjectRefHandle {
         TESObjectREFR* object;
         explicit operator bool() const { return object != nullptr; }
         TESObjectREFR* get() const { return object; }
+        TESObjectREFR* operator->() const { return object; }
     };
     Pointer get() const;
     std::uintptr_t native_handle() const { return reinterpret_cast<std::uintptr_t>(object); }
@@ -79,7 +88,7 @@ struct Tasks {
 Tasks* GetTaskInterface() { static Tasks tasks; return &tasks; }
 }
 const char* Translate(const char* key) { return key; }
-enum class Container { Trade, Master, Sort, Armor, Weapon, HeavyArmor, LightArmor, Clothing, Jewelry, Archery, OneHand, TwoHand, Staff };
+enum class Container { QuickTransfer, Trade, Master, Sort, Armor, Weapon, HeavyArmor, LightArmor, Clothing, Jewelry, Archery, OneHand, TwoHand, Staff };
 '''
 header = (ROOT / "src/Stores.h").read_text()
 program += header[header.index("using MenuAction"):header.index("class Stores {")]
@@ -107,7 +116,7 @@ struct Stores {
     void GearMenu(RE::TESObjectREFR* source) { PersonalMenu(source); }
     void JunkMenu(RE::TESObjectREFR* source) { PersonalMenu(source); }
     void TradeMenu(RE::TESObjectREFR* source) {
-        ShowDynamicMessageBox("Trade", {{"Vault.OpenContainer", [] {}}, {"Vault.Exit", [this, source] { CloseStoreObject(source); }}}, 1);
+        ShowDynamicMessageBox("Trade", {{"Vault.Open", [] {}}, {"Vault.Exit", [this, source] { CloseStoreObject(source); }}}, 1);
     }
 };
 void WaitForOpenState(RE::TESObjectREFR* source, RE::BGSOpenCloseForm::OPEN_STATE, Stores::AnimationCallback action) {
@@ -120,7 +129,17 @@ struct Utility {
 };
 '''
 source = (ROOT / "src/Stores.cpp").read_text()
-for kind in ("Armor", "Weapon"):
+open_keys={"Vault.Open"}
+storage_menus=[]
+for match in re.finditer(r'void Stores::(\w+)\(',source):
+    block=source[match.start():source.index('\n}',match.start())+2]
+    if match.group(1).startswith("ShowVault") or match.group(1)=="VaultAssignment": continue
+    if 'ShowDynamicMessageBox(' in block and 'std::vector<MenuOption> options' in block and ('Translate("Vault.Vault")' in block or 'Translate("Vault.Archive")' in block):
+        keys=set(re.findall(r'options\.push_back\(\{Translate\("([^"]+)"\)',block))
+        assert keys & open_keys,match.group(1)
+        storage_menus.append(match.group(1))
+assert {"ShowArmorMenu","ShowWeaponMenu","ShowTradeMenu","ShowGearMenu"}<=set(storage_menus)
+for kind in ("Armor","Weapon"):
     start=source.index(f"void Stores::Show{kind}Menu(")
     begin=source.index('    options.push_back({Translate("Vault.Open")',start)
     end=source.index('\n    }});',begin)+len('\n    }});')
@@ -143,14 +162,14 @@ int main() {
     int returnedToList=0;
     auto browse=[&]{root.open=true;stores->navigationSource_=root.GetHandle();stores->returnToVault_=[&]{++returnedToList;};};
     browse();stores->TradeMenu(&root);
-    assert(RE::box->buttonText.size()==3 && RE::box->buttonText[2]=="Vault.Back" && RE::box->buttonText[1]=="Vault.Exit");
-    click(2);assert(returnedToList==1 && stores->returnToVault_);
+    assert(RE::box->buttonText.size()==3 && RE::box->buttonText[1]=="Vault.Back" && RE::box->buttonText[2]=="Vault.Exit");
+    click(1);assert(returnedToList==1 && stores->returnToVault_);
     stores->PersonalMenu(&root);SKSE::GetTaskInterface()->Flush();
     assert(stores->archiveCleaned && root.open && returnedToList==2);
     stores->ShowDynamicMessageBox("Confirm", {{"Cancel", [] {}}, {"Sell All", [] {}}}, 0);
     assert(RE::box->buttonText.size()==2 && RE::box->cancelButtonIndex==0);
     click(0);assert(stores->returnToVault_);
-    stores->TradeMenu(&root);click(1);assert(!root.open && !stores->returnToVault_);
+    stores->TradeMenu(&root);click(2);assert(!root.open && !stores->returnToVault_);
     browse();const int before=returnedToList;
     stores->CloseStoreObject(&root);stores->ResetNavigation();SKSE::GetTaskInterface()->Flush();
     assert(returnedToList==before && !stores->returnToVault_);
@@ -164,7 +183,31 @@ int main() {
     assert(!utility.RunContainerAction(nullptr, &direct));
     click(1); assert(!direct.open);
 
+    for (const char* open : {"Vault.Open"}) {
+        for (bool contextual : {false,true}) {
+            int selected=-1,back=0;
+            stores->returnToVault_=contextual?MenuAction{[&]{++back;}}:MenuAction{};
+            stores->ShowDynamicMessageBox("Storage", {{"First",[&]{selected=1;}}, {"Vault.Exit",[&]{selected=4;}},
+                {"Second",[&]{selected=2;}}, {open,[&]{selected=0;}}},1);
+            const std::vector<std::string> expected=contextual?std::vector<std::string>{open,"First","Second","Vault.Back","Vault.Exit"}:
+                std::vector<std::string>{open,"First","Second","Vault.Exit"};
+            assert(RE::box->buttonText==expected && RE::box->cancelButtonIndex==static_cast<int>(expected.size()-1));
+            click(0);assert(selected==0);click(1);assert(selected==1);click(2);assert(selected==2);
+            if(contextual){click(3);assert(back==1 && stores->returnToVault_);}
+            click(RE::box->cancelButtonIndex);assert(selected==4 && !stores->returnToVault_);
+        }
+    }
 
+    stores->returnToVault_=[]{};
+    for(const auto* keep:{"Vault.KeepAmount 25","Vault.KeepAmount 1","Vault.KeepAmount 3"}){
+        stores->ShowDynamicMessageBox("Quantities",{{"Vault.StoreAll",[]{}},{keep,[]{}},{"Vault.Exit",[]{}},
+            {"Vault.TakeUpToAmount 25",[]{}},{"Vault.Open",[]{}},{"Vault.WithdrawAll",[]{}}},2);
+        assert((RE::box->buttonText==std::vector<std::string>{"Vault.Open","Vault.TakeUpToAmount 25","Vault.WithdrawAll",keep,"Vault.StoreAll","Vault.Back","Vault.Exit"}));
+        assert(RE::box->cancelButtonIndex==6);
+    }
+    stores->ResetNavigation();
+    stores->ShowDynamicMessageBox("No escape", {{"Vault.Exit",[]{}},{"Vault.Open",[]{}}},-1);
+    assert(!RE::box->isCancellable && RE::box->cancelButtonIndex==-1 && RE::box->buttonText.front()=="Vault.Open");
     stores->returned.clear();stores->TestOpenArmor(&direct);
     assert(stores->opened==Container::Armor && stores->returned.size()==4);
     for(const auto& pair:stores->returned)assert(pair.second==Container::Armor);
@@ -173,13 +216,5 @@ int main() {
     assert(stores->opened==Container::Weapon && stores->returned.size()==4);
     for(const auto& pair:stores->returned)assert(pair.second==Container::Weapon);
     stores->onClose();assert(stores->revisited==2);
-
 }
 '''
-with tempfile.TemporaryDirectory(prefix="arcanevault-navigation-check-") as directory:
-    path = Path(directory)
-    (path / "check.cpp").write_text(program)
-    subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", str(path / "check.cpp"),
-                    "-o", str(path / "check")], check=True)
-    subprocess.run([str(path / "check")], check=True)
-print("PASS: all storage Open aliases, stable action order, Back before Exit, cancel mapping, confirmations, direct bindings and navigation lifetime")

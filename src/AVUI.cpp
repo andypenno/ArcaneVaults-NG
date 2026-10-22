@@ -80,7 +80,6 @@ namespace AVUI {
 			changeOption = true;
 		if (Checkbox(Translate("Options.KeepSelectedAmmunition"), &setting->GSC_KeepSelectedAmmunition))
 			changeOption = true;
-
 		if (Checkbox(Translate("Options.AllowRemovingStolenTags"), &setting->GSC_AllowRemovingStolenTags))
 			changeOption = true;
 
@@ -110,15 +109,15 @@ namespace AVUI {
 			changeOption = true;
 		}
 
-		int soulgemKeepAmount = setting->GSC_SoulgemKeepAmount;
-		if (InputInt(Translate("Options.SoulgemKeepAmount"), &soulgemKeepAmount)) {
-			setting->GSC_SoulgemKeepAmount = (std::max)(0, soulgemKeepAmount);
-			changeOption = true;
-		}
-
 		int lockpickKeepAmount = setting->GSC_LockpickKeepAmount;
 		if (InputInt(Translate("Options.LockpickKeepAmount"), &lockpickKeepAmount)) {
 			setting->GSC_LockpickKeepAmount = (std::max)(0, lockpickKeepAmount);
+			changeOption = true;
+		}
+
+		int soulgemKeepAmount = setting->GSC_SoulgemKeepAmount;
+		if (InputInt(Translate("Options.SoulgemKeepAmount"), &soulgemKeepAmount)) {
+			setting->GSC_SoulgemKeepAmount = (std::max)(0, soulgemKeepAmount);
 			changeOption = true;
 		}
 
@@ -221,10 +220,6 @@ namespace AVUI {
 		}
 
 		if (CollapsingHeader(Translate("Vault.More"), ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (Checkbox(Translate("Vault.Gear"), &setting->GSC_OffloadGear))
-                changeOption = true;
-            if (Checkbox(Translate("Vault.Junk"), &setting->GSC_OffloadJunk))
-                changeOption = true;
 			if (Checkbox(Translate("Vault.Septims"), &setting->GSC_OffloadGold))
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Ammunition"), &setting->GSC_OffloadAmmunition))
@@ -236,12 +231,17 @@ namespace AVUI {
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Treasure"), &setting->GSC_OffloadTreasure))
 				changeOption = true;
+			if (Checkbox(Translate("Vault.Gear"), &setting->GSC_OffloadGear))
+				changeOption = true;
+			if (Checkbox(Translate("Vault.Junk"), &setting->GSC_OffloadJunk))
+				setting->SaveINI();
 			if (Checkbox(Translate("Vault.Personal"), &setting->GSC_OffloadPersonal))
 				changeOption = true;
 		}
 
 		if (changeOption)
 			setting->SaveINI();
+
 	}
 
 	void __stdcall RenderIgnoredItems() {

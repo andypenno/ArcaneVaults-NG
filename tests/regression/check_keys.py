@@ -22,6 +22,8 @@ settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
 program = r'''
 #include <algorithm>
+#include <sstream>
+#include <iostream>
 #include <array>
 #include <cassert>
 #include <charconv>
@@ -108,12 +110,14 @@ CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryM
 CategoryMask ToMask(ItemCategory category)noexcept{return category==ItemCategory::None?0:CategoryMask{1}<<static_cast<unsigned>(category);}
 bool HasAnyCategory(CategoryMask mask,CategoryMask wanted)noexcept{return (mask & wanted)!=0;}
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
-const char* Translate(const char*) { return ""; }
-namespace Soulgems {void Recover(){} void Deposit(int,bool){}}
+const char* Translate(const char* key) { return key; }
+namespace Soulgems {inline int lastTarget=-1;void Recover(){} void Deposit(int,bool=false){} void TakeEmpty(int amount){lastTarget=amount;}}
 struct MenuOption {std::string text;std::function<void()> action;};
-struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
+namespace RE {using ObjectRefHandle=Handle;}
+struct Stores { void KeysMenu(RE::TESObjectREFR*);void ShowKeysMenu(RE::TESObjectREFR*);void AmmunitionMenu(RE::TESObjectREFR*);void ShowAmmunitionMenu(RE::TESObjectREFR*);void SoulgemMenu(RE::TESObjectREFR*);void ShowSoulgemMenu(RE::TESObjectREFR*);void FilledSoulgemsMenu(RE::TESObjectREFR*){}void EmptySoulgemsMenu(RE::TESObjectREFR*){}void AllToPlayer(Container);void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
     std::function<void()> onClose;
     void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
+    std::string title;bool closed=false;
     std::vector<MenuOption> options;Container opened=Container::None;
     void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
     void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
@@ -128,7 +132,7 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
     void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
-    void CloseStoreObject(RE::TESObjectREFR*) {}
+    void CloseStoreObject(RE::TESObjectREFR*) {closed=true;}
     void OpenStorageMenu(Container container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){opened=container;onClose=[source,close]{close(source);};}
     void AllToStore(Container,Container); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
 '''
@@ -138,7 +142,7 @@ program += r'''struct CSimpleIniA {
     bool GetBoolValue(const char*,const char*,bool fallback){return fallback;}
     const char* GetValue(const char*,const char*,const char*){return text.c_str();}
 };
-namespace std {template<class... T> string format(const char*,T...){return "";}template<class T> int make_format_args(T value){return value;}inline string vformat(const char*,int){return "";}}
+namespace std {template<class... T> string format(const char* pattern,T... values){string result=pattern;auto append=[&](auto value){std::ostringstream stream;stream<<value;auto position=result.find("{}");if(position!=string::npos)result.replace(position,2,stream.str());};(append(values),...);return result;}template<class T> int make_format_args(T value){return value;}inline string vformat(const char*,int){return "";}}
 '''
 program += "namespace DepositLearning {inline void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int){}}\n"
 program += "struct Settings {\n" + settings_fields + r'''
@@ -166,7 +170,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions", "ConsolidateRemains", "BeginJunkLoan", "EndJunkLoan"]:
+for name in ["KeysMenu", "ShowKeysMenu", "AmmunitionMenu", "ShowAmmunitionMenu", "SoulgemMenu", "ShowSoulgemMenu", "AllToPlayer", "KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions", "ConsolidateRemains", "BeginJunkLoan", "EndJunkLoan"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -372,7 +376,7 @@ int main() {
     RE::TESBoundObject gold{ItemCategory::Gold},gem{ItemCategory::Gemstone},ingot{ItemCategory::PreciousIngot},jewel{ItemCategory::Jewelry},unrelated{ItemCategory::Scroll};
     auto entry=[](int count){return std::pair{count,std::make_shared<RE::InventoryEntryData>()};};
     treasury.inventory[&gold]=entry(6000);treasury.inventory[&unrelated]=entry(4);smithing.inventory[&gem]=entry(10);smithing.inventory[&ingot]=entry(20);armor.inventory[&jewel]=entry(3);
-    stores.ValuablesMenu(&activationSource);assert(stores.options.size()==5);
+    stores.ValuablesMenu(&activationSource);assert(stores.options.size()==6);
     auto click=[&](int index){auto action=stores.options.at(index).action;action();};click(0);
     assert(stores.opened==Container::Valuables && valuables.inventory[&gold].first==6000 && valuables.inventory[&gem].first==10 && valuables.inventory[&ingot].first==20 && valuables.inventory[&jewel].first==3);
     assert(treasury.inventory[&unrelated].first==4);stores.onClose();
@@ -442,7 +446,7 @@ int main() {
     assert(player->inventory[&picks].first==25 && gear.inventory[&picks].first==75 && player->inventory[&equipment].first==0 && gear.inventory[&equipment].first==7 && gear.inventory[&instrument].first==3);
     stores.OpenBookArchive(Container::Instruments,Container::Gear,ItemCategory::Instrument,&activationSource);
     assert(stores.opened==Container::Instruments && instruments.inventory[&instrument].first==3 && gear.inventory[&equipment].first==7);stores.onClose();assert(gear.inventory[&instrument].first==3);
-    stores.GearMenu(&activationSource);assert(stores.options.size()==4);put(&picks,60);click(2);assert(player->inventory[&picks].first==25);player->inventory[&picks].first=0;click(3);assert(player->inventory[&picks].first==25);
+    stores.GearMenu(&activationSource);assert(stores.options.size()==5);put(&picks,60);click(2);assert(player->inventory[&picks].first==25);player->inventory[&picks].first=0;click(3);assert(player->inventory[&picks].first==25);
     ini.text="-1";ini.exists=true;settings->get_value(ini,reserve,"General","LockpickKeepAmount");assert(reserve==25);
     utility->custom.clear();
 

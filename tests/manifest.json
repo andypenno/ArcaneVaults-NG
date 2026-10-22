@@ -187,6 +187,19 @@
       "timeout_seconds": 180,
       "sanitize": false,
       "release": true
+    },
+    {
+      "id": "quantity-menus",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_quantity_menus.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
     }
   ]
 }
