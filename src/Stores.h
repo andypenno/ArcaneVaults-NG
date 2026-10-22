@@ -69,9 +69,6 @@ public:
     
     // Container Functions
     void VaultMenu(RE::TESObjectREFR* a_source);
-    void VaultDetail1Menu(RE::TESObjectREFR* a_source);
-    void VaultDetail3Menu(RE::TESObjectREFR* a_source);
-    void VaultDetail2Menu(RE::TESObjectREFR* a_source);
     void SortingMenu(RE::TESObjectREFR* a_source);
     void AlchemyMenu(RE::TESObjectREFR* a_source);
     void SoulgemMenu(RE::TESObjectREFR* a_source);
@@ -122,9 +119,9 @@ private:
     RE::ObjectRefHandle navigationSource_;
     MenuAction returnToVault_;
     void ShowVaultMenu(RE::TESObjectREFR* a_source);
-    void ShowVaultDetail1Menu(RE::TESObjectREFR* a_source);
-    void ShowVaultDetail3Menu(RE::TESObjectREFR* a_source);
-    void ShowVaultDetail2Menu(RE::TESObjectREFR* a_source);
+    void ShowVaultsMenu(RE::TESObjectREFR* a_source);
+    void ShowVaultArchivesMenu(RE::TESObjectREFR* a_source);
+    void ShowStorageListMenu(RE::TESObjectREFR* a_source, ContainerGroup group);
     void ShowSortingMenu(RE::TESObjectREFR* a_source);
     void ShowAlchemyMenu(RE::TESObjectREFR* a_source);
     void ShowSoulgemMenu(RE::TESObjectREFR* a_source);

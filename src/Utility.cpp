@@ -71,42 +71,12 @@ std::vector<Utility::ContainerChoice> Utility::GetContainerChoices() const {
     return choices;
 }
 
-std::vector<Utility::ContainerChoice> Utility::GetVaultChoices() const {
-    std::vector<ContainerChoice> choices;
-    choices.reserve(containerMap.size());
-
-    for (const auto& [name, entry] : containerMap) {
-        if (!entry.container || entry.a_group != ContainerGroup::Vault) continue;
-        choices.push_back(ContainerChoice{
-            .name = entry.container->GetDisplayFullName(),
-            .formID = entry.container->GetFormID()
-        });
-    }
-
-    std::ranges::sort(choices, [](const ContainerChoice& lhs, const ContainerChoice& rhs) {
-        return lhs.name < rhs.name;
-    });
-
-    return choices;
+std::vector<Utility::ContainerChoice> Utility::GetVaultChoices(RE::TESObjectREFR* source) const {
+    return GetGroupedChoices(ContainerGroup::Vault, source);
 }
 
-std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices() const {
-    std::vector<ContainerChoice> choices;
-    choices.reserve(containerMap.size());
-
-    for (const auto& [name, entry] : containerMap) {
-        if (!entry.container || entry.a_group != ContainerGroup::Archive) continue;
-        choices.push_back(ContainerChoice{
-            .name = entry.container->GetDisplayFullName(),
-            .formID = entry.container->GetFormID()
-        });
-    }
-
-    std::ranges::sort(choices, [](const ContainerChoice& lhs, const ContainerChoice& rhs) {
-        return lhs.name < rhs.name;
-    });
-
-    return choices;
+std::vector<Utility::ContainerChoice> Utility::GetArchiveChoices(RE::TESObjectREFR* source) const {
+    return GetGroupedChoices(ContainerGroup::Archive, source);
 }
 
 bool Utility::PlayerOwnsCurrentCell() {
@@ -447,4 +417,30 @@ void Utility::CacheSkillBooks(RE::TESDataHandler* dataHandler) {
         if (book && book->TeachesSkill() && !book->TeachesSpell())
             SkillBookMap.insert(book->GetFormID());
     }
+}
+
+std::vector<Utility::ContainerChoice> Utility::GetGroupedChoices(ContainerGroup group, RE::TESObjectREFR* source) const {
+    std::vector<ContainerChoice> choices;
+    choices.reserve(containerMap.size());
+
+    for (const auto& [name, entry] : containerMap) {
+        if (!entry.container || entry.a_group != group) continue;
+        ContainerChoice choice{
+            .name = entry.container->GetDisplayFullName(),
+            .formID = entry.container->GetFormID()
+        };
+        if (source && entry.action) {
+            const auto handle = source->GetHandle();
+            choice.action = [handle, action = entry.action] {
+                if (auto source = handle.get()) action(source.get());
+            };
+        }
+        if (!source || choice.action) choices.push_back(std::move(choice));
+    }
+
+    std::ranges::sort(choices, [](const ContainerChoice& lhs, const ContainerChoice& rhs) {
+        return lhs.name < rhs.name;
+    });
+
+    return choices;
 }

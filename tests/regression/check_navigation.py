@@ -1,12 +1,14 @@
 """Exercise actual message-box navigation, exit, and container-close handling."""
 
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 program = r'''
 #include <cassert>
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -32,8 +34,11 @@ struct TESObjectREFR {
     unsigned GetFormID() const { return id; }
     ObjectRefHandle GetHandle() { return {this}; }
 };
-struct PlayerCharacter : TESObjectREFR { bool IsSneaking() const { return false; } static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; } };
 ObjectRefHandle::Pointer ObjectRefHandle::get() const { return {object && object->alive ? object : nullptr}; }
+struct PlayerCharacter {
+    static PlayerCharacter* GetSingleton() { static PlayerCharacter p; return &p; }
+    bool IsSneaking() const { return false; }
+};
 struct BGSOpenCloseForm {
     enum class OPEN_STATE { kClosed, kClosing, kOpen, kOpening };
     static OPEN_STATE GetOpenState(TESObjectREFR* source) { return source->open ? OPEN_STATE::kOpen : OPEN_STATE::kClosed; }
@@ -74,6 +79,7 @@ struct Tasks {
 Tasks* GetTaskInterface() { static Tasks tasks; return &tasks; }
 }
 const char* Translate(const char* key) { return key; }
+enum class Container { Trade, Master, Sort, Armor, Weapon, HeavyArmor, LightArmor, Clothing, Jewelry, Archery, OneHand, TwoHand, Staff };
 '''
 header = (ROOT / "src/Stores.h").read_text()
 program += header[header.index("using MenuAction"):header.index("class Stores {")]
@@ -83,27 +89,30 @@ struct Stores {
     MenuAction returnToVault_;
     using AnimationCallback = std::function<void(RE::TESObjectREFR*)>;
     static Stores* GetSingleton() { static Stores stores; return &stores; }
-    int page3 = 0, page2 = 0;
+
     bool archiveCleaned = false;
+    std::vector<std::pair<Container,Container>> returned;
+    Container opened=Container::Sort;MenuAction onClose;int revisited=0;
+    void AllToStore(Container child,Container parent){returned.emplace_back(child,parent);}
+    void OpenStorageMenu(Container kind,RE::TESObjectREFR* source,AnimationCallback callback){opened=kind;onClose=[source,callback]{callback(source);};}
+    void ArmorMenu(RE::TESObjectREFR*){++revisited;}
+    void WeaponMenu(RE::TESObjectREFR*){++revisited;}
+    void TestOpenArmor(RE::TESObjectREFR*);
+    void TestOpenWeapon(RE::TESObjectREFR*);
     void ResetNavigation();
-    void IgnoreMenu(RE::TESObjectREFR*) {}
-    void GearMenu(RE::TESObjectREFR*) {}
     void ShowDynamicMessageBox(std::string_view, std::vector<MenuOption>, std::int32_t = -1);
     void CloseStoreObject(RE::TESObjectREFR*, AnimationCallback = {});
-    void ShowVaultDetail3Menu(RE::TESObjectREFR*);
-    void VaultDetail3Menu(RE::TESObjectREFR*);
-    void VaultDetail2Menu(RE::TESObjectREFR*) { ++page2; }
-    void OpenStoreObject(RE::TESObjectREFR* source, AnimationCallback action) { source->open = true; ++page3; action(source); }
     void PersonalMenu(RE::TESObjectREFR* source) { CloseStoreObject(source); archiveCleaned = true; }
+    void IgnoreMenu(RE::TESObjectREFR*) {}
+    void GearMenu(RE::TESObjectREFR* source) { PersonalMenu(source); }
     void JunkMenu(RE::TESObjectREFR* source) { PersonalMenu(source); }
     void TradeMenu(RE::TESObjectREFR* source) {
-        ShowDynamicMessageBox("Trade", {{"Open", [] {}}, {"Vault.Exit", [this, source] { CloseStoreObject(source); }}}, 1);
+        ShowDynamicMessageBox("Trade", {{"Vault.OpenContainer", [] {}}, {"Vault.Exit", [this, source] { CloseStoreObject(source); }}}, 1);
     }
 };
 void WaitForOpenState(RE::TESObjectREFR* source, RE::BGSOpenCloseForm::OPEN_STATE, Stores::AnimationCallback action) {
     if (action) action(source);
 }
-enum class Container { Trade, Master, Sort };
 struct Utility {
     struct Entry { RE::TESObjectREFR* container; std::function<void(RE::TESObjectREFR*)> action; };
     std::map<Container, Entry> containerMap;
@@ -111,7 +120,7 @@ struct Utility {
 };
 '''
 source = (ROOT / "src/Stores.cpp").read_text()
-for name in ["ResetNavigation", "ShowDynamicMessageBox", "CloseStoreObject", "ShowVaultDetail3Menu", "VaultDetail3Menu"]:
+for name in ["ResetNavigation", "ShowDynamicMessageBox", "CloseStoreObject"]:
     start = source.index(f"void Stores::{name}(")
     program += source[start:source.index("\n}\n", start) + 3]
 utility = (ROOT / "src/Utility.cpp").read_text()
@@ -125,32 +134,31 @@ int main() {
     stores->TradeMenu(&direct);
     assert(RE::box->buttonText.size() == 2 && RE::box->cancelButtonIndex == 1);
     click(1); assert(!direct.open && !stores->returnToVault_);
-    stores->VaultDetail3Menu(&root);
-    assert(RE::box->buttonText.size() == 6 && RE::box->cancelButtonIndex == 5);
-    click(2);
-    assert(RE::box->buttonText.size() == 3 && RE::box->buttonText[2] == "Vault.Back");
-    assert(RE::box->cancelButtonIndex == 1);
-    click(2); assert(stores->page3 == 2 && RE::box->buttonText.size() == 6);
-    click(1); assert(stores->archiveCleaned && root.open && stores->page3 == 3);
+    int returnedToList=0;
+    auto browse=[&]{root.open=true;stores->navigationSource_=root.GetHandle();stores->returnToVault_=[&]{++returnedToList;};};
+    browse();stores->TradeMenu(&root);
+    assert(RE::box->buttonText.size()==3 && RE::box->buttonText[2]=="Vault.Back" && RE::box->buttonText[1]=="Vault.Exit");
+    click(2);assert(returnedToList==1 && stores->returnToVault_);
+    stores->PersonalMenu(&root);SKSE::GetTaskInterface()->Flush();
+    assert(stores->archiveCleaned && root.open && returnedToList==2);
     stores->ShowDynamicMessageBox("Confirm", {{"Cancel", [] {}}, {"Sell All", [] {}}}, 0);
-    assert(RE::box->buttonText.size() == 2 && RE::box->cancelButtonIndex == 0);
-    click(0); assert(stores->returnToVault_);
-    stores->VaultDetail3Menu(&root);
-    click(5); assert(!root.open && !stores->returnToVault_);
-
-    stores->VaultDetail3Menu(&root); const int before = stores->page3;
-    stores->CloseStoreObject(&root); stores->ResetNavigation(); SKSE::GetTaskInterface()->Flush();
-    assert(stores->page3 == before && !stores->returnToVault_);
-    stores->VaultDetail3Menu(&root); root.alive = false;
-    stores->CloseStoreObject(&root); SKSE::GetTaskInterface()->Flush();
-    assert(stores->page3 == before + 1);
-    root.alive = true; stores->VaultDetail3Menu(&root);
+    assert(RE::box->buttonText.size()==2 && RE::box->cancelButtonIndex==0);
+    click(0);assert(stores->returnToVault_);
+    stores->TradeMenu(&root);click(1);assert(!root.open && !stores->returnToVault_);
+    browse();const int before=returnedToList;
+    stores->CloseStoreObject(&root);stores->ResetNavigation();SKSE::GetTaskInterface()->Flush();
+    assert(returnedToList==before && !stores->returnToVault_);
+    browse();root.alive=false;stores->CloseStoreObject(&root);SKSE::GetTaskInterface()->Flush();
+    assert(returnedToList==before);
+    root.alive=true;browse();
     Utility utility;
     utility.containerMap[Container::Trade] = {&bank, [stores](RE::TESObjectREFR* source) { stores->TradeMenu(source); }};
     assert(utility.RunContainerAction(&bank, &direct));
     assert(!stores->returnToVault_ && RE::box->buttonText.size() == 2);
     assert(!utility.RunContainerAction(nullptr, &direct));
     click(1); assert(!direct.open);
+
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-navigation-check-") as directory:
@@ -159,4 +167,4 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-navigation-check-") as dire
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", str(path / "check.cpp"),
                     "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
-print("PASS: contextual Back, originating page, plain-container return, Exit/cancel indices, confirmations, direct bindings, reset, and expired handles")
+print("PASS: all storage Open aliases, stable action order, Back before Exit, cancel mapping, confirmations, direct bindings and navigation lifetime")

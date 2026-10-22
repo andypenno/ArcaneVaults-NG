@@ -87,3 +87,5 @@ The session captures the bench type, returns loans even if the option changes du
 Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel pending picker callbacks. Post-load and new-game tasks recover picker contents on the game thread.
 
 `Utility::LoadAllForms` caches loaded skill-book record identities alongside recipe inputs before gameplay can change their teaching state.
+
+`ContainerSelectionState` supports assignment and action browsing through the same SkyUILib list. Vault and Archive browsers supply registered actions and a cancel callback; assignment retains its redirect behavior.

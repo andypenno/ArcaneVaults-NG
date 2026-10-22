@@ -122,6 +122,19 @@
       "timeout_seconds": 180,
       "sanitize": true,
       "release": true
+    },
+    {
+      "id": "archives",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_archives.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": false,
+      "release": true
     }
   ]
 }

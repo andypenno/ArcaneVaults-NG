@@ -161,5 +161,6 @@
 	"Vault.Instruments": "Instruments",
 	"Vault.KeepLockpicks": "Keep {0} Lockpicks",
 	"Vault.TakeLockpicks": "Take Up To {0} Lockpicks",
-	"Options.LockpickKeepAmount": "Lockpick Keep Amount"
+	"Options.LockpickKeepAmount": "Lockpick Keep Amount",
+	"Vault.Archives": "Archives"
 }

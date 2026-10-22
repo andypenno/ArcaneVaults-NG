@@ -114,7 +114,7 @@ Assignment changes update memory immediately. Global redirects are written by th
 
 ## Menu navigation
 
-Main-vault pages retain their source handle and a callback to rebuild the originating page. Submenus append Back when that context exists, preserving their existing Exit/cancel index. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
+The scrolling Vault and Archive browsers retain their source handle and a callback to rebuild the originating list. Submenus append Back when that context exists, preserving their existing Exit/cancel index. Confirmations without Exit do not gain Back. Plain-container close callbacks queue a return after archive cleanup; explicit Exit clears the context and closes the source.
 
 Direct bound-container activation clears navigation before running its action, so it shows no contextual Back. Assignment and pre-load/new-game handling also clear navigation. The stored callback resolves a handle rather than retaining a raw source pointer.
 
@@ -179,3 +179,5 @@ Maps is a Notes archive at reference `0xDDD`. Bundled Map overrides cover 13 off
 Gear holds lockpicks, carryable lights and Instrument overrides. Lockpick and Instrument imply Gear. The Instruments archive uses the shared archive gather/return helper. Gear Keep and Withdraw Up To use the lockpick reserve without transferring unrelated Gear records. Sorting and Quick Transfer consolidate Instruments first.
 
 `InventoryStacks` provides physical extra-list reads, bounded cursors and validated moves for archive consumers. Reads reject duplicate lists, nonpositive counts and explicit totals above the aggregate. Prepared cursors invalidate on relevant inventory/equipment events. Moves preserve the selected extra list and verify source and destination counts; materialization caps each native ExtraCount to its signed 16-bit range.
+
+Arcane Vault opens alphabetically sorted, scrolling Vault and Archive lists from the registered groups. List entries call their registered action with the originating source handle. Back and Exit are explicit rows. Browse completion does not assign a redirect, and selection handlers run after SkyUILib queues the current list closure.

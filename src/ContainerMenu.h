@@ -8,7 +8,8 @@ public:
     
     static ContainerSelectionState* GetSingleton();
 
-    void Begin(RE::TESObjectREFRPtr source, std::vector<ContainerChoice> choices);
+    void Begin(RE::TESObjectREFRPtr source, std::vector<ContainerChoice> choices,
+        std::string title = "Select destination", std::function<void()> onCancel = {});
     [[nodiscard]] bool Complete(std::int32_t selectedIndex);
     void Reset();
 
@@ -16,9 +17,13 @@ public:
         return choices_;
     }
 
+    [[nodiscard]] const auto& GetTitle() const { return title_; }
+
 private:
     RE::TESObjectREFRPtr source_;
     std::vector<ContainerChoice> choices_;
+    std::string title_;
+    std::function<void()> onCancel_;
 };
 
 class ContainerListMenu final : public RE::IMenu {
