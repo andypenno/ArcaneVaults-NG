@@ -163,6 +163,7 @@ enum class ContainerGroup {
     case Container::Valuables:    return "Vault.Valuables";
     case Container::FilledSoulgems: return "Vault.FilledSoulgems";
     case Container::EmptySoulgems: return "Vault.EmptySoulgems";
+    case Container::Trade:        return "Vault.Trade";
     case Container::Junk:         return "Vault.Junk";
     case Container::None:         return {};
     default: return {};

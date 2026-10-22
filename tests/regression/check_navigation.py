@@ -110,10 +110,9 @@ struct Utility {
 };
 '''
 source = (ROOT / "src/Stores.cpp").read_text()
-for name in ["ResetNavigation", "ShowDynamicMessageBox", "CloseStoreObject"]:
+for name in ["ResetNavigation", "ShowDynamicMessageBox", "CloseStoreObject", "ShowVaultDetail3Menu", "VaultDetail3Menu"]:
     start = source.index(f"void Stores::{name}(")
     program += source[start:source.index("\n}\n", start) + 3]
-program += 'void Stores::ShowVaultDetail3Menu(RE::TESObjectREFR* a_source) {\n    if (!a_source) return;\n    const auto handle = a_source->GetHandle();\n    navigationSource_ = handle;\n    returnToVault_ = [this, handle] {\n        if (auto source = handle.get()) VaultDetail3Menu(source.get());\n    };\n    std::vector<MenuOption> options;\n    options.push_back({Translate("Vault.Personal"), [this, handle] {\n        if (auto source = handle.get()) PersonalMenu(source.get());\n    }});\n    options.push_back({Translate("Vault.Junk"), [this, handle] {\n        if (auto source = handle.get()) JunkMenu(source.get());\n    }});\n    options.push_back({Translate("Vault.Trade"), [this, handle] {\n        if (auto source = handle.get()) TradeMenu(source.get());\n    }});\n    options.push_back({Translate("Vault.Back"), [this, handle] {\n        if (auto source = handle.get()) VaultDetail2Menu(source.get());\n    }});\n    options.push_back({Translate("Vault.Exit"), [this, handle] {\n        if (auto source = handle.get()) CloseStoreObject(source.get());\n    }});\n    ShowDynamicMessageBox(Translate("Vault.Arcane"), std::move(options), 4);\n}\nvoid Stores::VaultDetail3Menu(RE::TESObjectREFR* a_source) {\n    if (!a_source) return;\n    OpenStoreObject(a_source, [this](RE::TESObjectREFR* source) { ShowVaultDetail3Menu(source); });\n}\n'
 utility = (ROOT / "src/Utility.cpp").read_text()
 start = utility.index("bool Utility::RunContainerAction(")
 program += utility[start:utility.index("\n}\n", start) + 3]
