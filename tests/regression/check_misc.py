@@ -114,3 +114,18 @@ with tempfile.TemporaryDirectory(prefix="arcanevault-quantities-check-") as temp
     subprocess.run(["c++","-std=c++20","-Wall","-Wextra","-Werror",str(path / "check.cpp"),"-o",str(path / "check")],check=True)
     subprocess.run([str(path / "check")],check=True)
 print("PASS: actual Quantities UI clamps and persists reserve edits")
+
+import re
+from support.data import overrides
+categories=set(re.findall(r'\{\s*"(\w+)"\s*,\s*ItemCategory::', (ROOT / 'src/ItemClass.h').read_text()))
+defaults=overrides((ROOT / 'ini/ArcaneVaultOverrides.ini').read_text(),categories)
+for identity,expected in {
+    ('ccbgssse037-curios.esl',0x800):['Treasure'],
+    ('skyrim.esm',0xB9BE0):['Junk'],
+    ('cceejsse005-cave.esm',0x51E2D):['Junk'],
+    ('dragonborn.esm',0x17749):['Catalyst'],
+    ('skyrim.esm',0x319E3):['Junk'],
+    ('hearthfires.esm',0x300E):['Ignore'],
+    ('hearthfires.esm',0x303F):['Remains','Construction'],
+}.items():assert defaults[identity]==expected,(identity,defaults[identity])
+print('PASS: official defaults retain catalysts, junk, treasure, sawn-log Ignore and construction overlaps')
