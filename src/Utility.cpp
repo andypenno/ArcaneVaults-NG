@@ -303,6 +303,7 @@ void Utility::LoadAllForms() {
     // Storage Containers
     LoadContainers(dataHandler);
     CacheTemperRecipes(dataHandler);
+    CacheSkillBooks(dataHandler);
 
     logger::info("All forms are loaded.");
 }
@@ -357,6 +358,10 @@ void Utility::LoadContainers([[maybe_unused]] RE::TESDataHandler* dataHandler) {
     AddContainer(dataHandler, Container::Clothing, RE::FormID(0xD96), ContainerGroup::Archive, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ArmorClothingMenu(a_source); });
 
     // Books and Scrolls
+    AddContainer(dataHandler, Container::Notes, RE::FormID(0xDD5), ContainerGroup::Vault, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->NotesMenu(source); });
+    AddContainer(dataHandler, Container::SpellTomes, RE::FormID(0xDD7), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SpellTomes, Container::Book, ItemCategory::SpellTome, source); });
+    AddContainer(dataHandler, Container::SkillBooks, RE::FormID(0xDD9), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::SkillBooks, Container::Book, ItemCategory::SkillBook, source); });
+    AddContainer(dataHandler, Container::Recipes, RE::FormID(0xDDB), ContainerGroup::Archive, [](RE::TESObjectREFR* source) { Stores::GetSingleton()->OpenBookArchive(Container::Recipes, Container::Notes, ItemCategory::Recipe, source); });
     AddContainer(dataHandler, Container::Book, RE::FormID(0xD9A), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->BookMenu(a_source); });
     AddContainer(dataHandler, Container::Scroll, RE::FormID(0xD9B), ContainerGroup::Vault, [](RE::TESObjectREFR* a_source) { Stores::GetSingleton()->ScrollMenu(a_source); });
     
@@ -429,4 +434,14 @@ void Utility::CacheTemperRecipes([[maybe_unused]] RE::TESDataHandler* dataHandle
     logger::info("Loaded: {} Tanning Items", TanningMap.size());
     logger::info("Loaded: {} Construction Items", ConstructionMap.size());
     logger::info("Loaded: {} Raw Food Items", RawFoodMap.size());
+}
+
+void Utility::CacheSkillBooks(RE::TESDataHandler* dataHandler) {
+    SkillBookMap.clear();
+    if (!dataHandler) return;
+    // Reading consumes skill-teaching data, so retain the loaded record identities.
+    for (auto* book : dataHandler->GetFormArray<RE::TESObjectBOOK>()) {
+        if (book && book->TeachesSkill() && !book->TeachesSpell())
+            SkillBookMap.insert(book->GetFormID());
+    }
 }

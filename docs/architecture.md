@@ -85,3 +85,5 @@ Non-gem materials retain category-based returns and can include materials carrie
 The session captures the bench type, returns loans even if the option changes during crafting, and rolls back after failed furniture activation. Load/new-game messages clear pending loan bookkeeping without transferring items. Carpenter stations use the loaded Hearthfire keyword. Mod filling/consumption changes are left to the installed mod; game testing remains necessary.
 
 Ignore-list activation and recovery are described in [storage.md](storage.md). Pre-load and new-game messages cancel pending picker callbacks. Post-load and new-game tasks recover picker contents on the game thread.
+
+`Utility::LoadAllForms` caches loaded skill-book record identities alongside recipe inputs before gameplay can change their teaching state.

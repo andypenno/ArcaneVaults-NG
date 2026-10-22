@@ -102,3 +102,5 @@ With Keep Selected Ammunition enabled, Keep N retains N selected copies and depo
 The Junk category supports classification overrides. Quick Transfer deposits explicitly classified Junk when its checkbox is enabled. It leaves unclassified player items carried. Sort sends unmatched deposits to Junk after category routing and ignored-item recovery.
 
 The Quantities settings page edits ammunition, Septim, empty soul gem, Alchemy and Scroll reserves. Alchemy defaults to 1 per base record; Scroll defaults to 3. Keep N deposits excess without withdrawing. Withdraw Up To N tops up only the shortfall. Zero targets withdraw nothing. Invalid or overflowing values fall back to their defaults. Sale Percentage remains last on Options.
+
+Notes has an independent Quick Transfer checkbox, disabled by default. Recipe overrides imply Note; SpellTome and SkillBook imply Book. Books and Notes Withdraw Up To 1 only supplies missing base records.

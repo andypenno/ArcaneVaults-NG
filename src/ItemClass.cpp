@@ -1,6 +1,7 @@
 #include "ItemClass.h"
 #include "Settings.h"
 #include "Utility.h"
+#include <cctype>
 
 CategoryMask ToMask(ItemCategory a_category) noexcept {
     const auto bit = static_cast<std::uint8_t>(a_category);
@@ -133,6 +134,11 @@ bool HasAllCategories(CategoryMask a_categories, CategoryMask a_wanted) noexcept
 
     if (HasAnyCategory(categories, alchemyTypes))
         categories |= ItemCategory::Alchemy;
+
+    if (HasAnyCategory(categories, ItemCategory::SpellTome | ItemCategory::SkillBook))
+        categories |= ItemCategory::Book;
+    if (HasCategory(categories, ItemCategory::Recipe))
+        categories |= ItemCategory::Note;
 
     return categories;
 }
@@ -281,13 +287,18 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
 
     // Books, Scrolls, and Spell Tomes
     if (auto* book = a_item->As<RE::TESObjectBOOK>()) {
-        if (book->IsNoteScroll())
-            categories |= ItemCategory::Scroll;
-        else {
+        if (book->TeachesSpell())
+            categories |= ItemCategory::Book | ItemCategory::SpellTome;
+        else if (book->TeachesSkill() || utility->SkillBookMap.contains(book->GetFormID()))
+            categories |= ItemCategory::Book | ItemCategory::SkillBook;
+        else if (book->HasKeywordByEditorID("VendorItemRecipe"))
+            categories |= ItemCategory::Note | ItemCategory::Recipe;
+        else if (book->IsNoteScroll() ||
+            !std::ranges::search(std::string_view{book->model.c_str()}, std::string_view{"note"},
+                [](char value, char wanted) { return std::tolower(static_cast<unsigned char>(value)) == wanted; }).empty())
+            categories |= ItemCategory::Note;
+        else
             categories |= ItemCategory::Book;
-            if (book->TeachesSpell()) 
-                categories |= ItemCategory::SpellTome;
-        }
 
         return categories;
     }

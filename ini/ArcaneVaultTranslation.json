@@ -151,5 +151,9 @@
 	"Options.KeepSelectedAmmunition": "Keep Selected Ammunition",
 	"Quantities": "Quantities",
 	"Options.AlchemyKeepAmount": "Alchemy Keep Amount",
-	"Options.ScrollKeepAmount": "Scroll Keep Amount"
+	"Options.ScrollKeepAmount": "Scroll Keep Amount",
+	"Vault.Notes": "Notes",
+	"Vault.SpellTomes": "Spell Tomes",
+	"Vault.SkillBooks": "Skill Books",
+	"Vault.Recipes": "Recipes"
 }

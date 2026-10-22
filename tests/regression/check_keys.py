@@ -3,8 +3,13 @@
 from pathlib import Path
 import subprocess
 import tempfile
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
+header=(ROOT / "src/ItemClass.h").read_text()
+container_enum=header[header.index("enum class Container :"):header.index("enum class ItemCategory :")]
+container_names=set(re.findall(r"^\s+(\w+)[,\n]",container_enum,re.M))
+assert set(re.findall(r"\bContainer::(\w+)",(ROOT / "src/Utility.cpp").read_text())) <= container_names
 source = (ROOT / "src/Stores.cpp").read_text()
 start = source.index("void Stores::PlayerToStore(")
 method = source[start:source.index("\n}\n", start) + 3]
@@ -108,6 +113,8 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
     void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
     void JunkMenu(RE::TESObjectREFR*);
+    void BookMenu(RE::TESObjectREFR*);void ShowBookMenu(RE::TESObjectREFR*);void NotesMenu(RE::TESObjectREFR*);void ShowNotesMenu(RE::TESObjectREFR*);
+    void ConsolidateBooks();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
     void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
     void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
@@ -146,7 +153,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -393,6 +400,20 @@ int main() {
         ini.text="0";settings->get_value(ini,reserve,"General",key);assert(reserve==0);
     }
 
+
+    player->inventory.clear();utility->custom.clear();RE::TESObjectREFR books,notes,spellArchive,skillArchive,recipeArchive,legacyScroll;
+    utility->custom={{Container::Book,&books},{Container::Notes,&notes},{Container::SpellTomes,&spellArchive},{Container::SkillBooks,&skillArchive},{Container::Recipes,&recipeArchive},{Container::Scroll,&legacyScroll}};
+    RE::TESBoundObject plainBook{ItemCategory::Book},spellBook{ItemCategory::SpellTome,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Book)},skillBook{ItemCategory::SkillBook,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Book)},recipe{ItemCategory::Recipe,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Note)},note{ItemCategory::Note};
+    spellArchive.inventory[&spellBook]=entry(2);skillArchive.inventory[&skillBook]=entry(3);recipeArchive.inventory[&recipe]=entry(4);legacyScroll.inventory[&note]=entry(5);books.inventory[&note]=entry(6);
+    stores.ConsolidateBooks();assert(books.inventory[&spellBook].first==2 && books.inventory[&skillBook].first==3 && notes.inventory[&recipe].first==4 && notes.inventory[&note].first==11);
+    stores.BookMenu(&activationSource);click(2);assert(stores.opened==Container::SpellTomes && spellArchive.inventory[&spellBook].first==2);stores.onClose();assert(books.inventory[&spellBook].first==2);
+    stores.BookMenu(&activationSource);click(3);assert(stores.opened==Container::SkillBooks && skillArchive.inventory[&skillBook].first==3);stores.onClose();assert(books.inventory[&skillBook].first==3);
+    stores.NotesMenu(&activationSource);click(2);assert(stores.opened==Container::Recipes && recipeArchive.inventory[&recipe].first==4);stores.onClose();assert(notes.inventory[&recipe].first==4);
+    put(&plainBook,3);books.inventory[&plainBook]=entry(10);stores.BookMenu(&activationSource);click(1);assert(player->inventory[&plainBook].first==3);
+    player->inventory[&plainBook].first=0;click(1);assert(player->inventory[&plainBook].first==1);click(1);assert(player->inventory[&plainBook].first==1);
+    settings->GSC_OffloadNotes=true;put(&note,12);stores.OffloadItems();assert(player->inventory[&note].first==0 && notes.inventory[&note].first==23);
+    utility->custom.clear();
+
 }
 '''
 with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
@@ -408,11 +429,22 @@ program = r'''
 #include <array>
 #include <cstdint>
 #include <set>
+#include <string>
+#include <vector>
+#include <cctype>
+#include <ranges>
+#include <algorithm>
 #include <string_view>
 #include <type_traits>
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+struct TESObjectBOOK {
+    unsigned id=0;bool spell=false,skill=false,recipe=false,note=false;std::string model;
+    bool TeachesSpell()const{return spell;}bool TeachesSkill()const{return skill;}bool IsNoteScroll()const{return note;}
+    bool HasKeywordByEditorID(const char*)const{return recipe;}unsigned GetFormID()const{return id;}
+};
+struct TESDataHandler {std::vector<TESObjectBOOK*> books;template<class T>const auto& GetFormArray(){return books;}};
 struct TESObjectMISC {};
 struct TESAmmo {};
 struct ScrollItem {};
@@ -445,6 +477,7 @@ struct TESObjectARMO {
 struct TESBoundObject {
     ItemCategory category;
     unsigned formID=0;unsigned GetFormID()const{return formID;}bool IsGold()const{return formID==0xF;}
+    bool nativeBook=false;TESObjectBOOK book{};
     bool nativeMisc=false;TESObjectMISC misc{};
     bool nativeArmor = false;
     TESObjectARMO armor{};
@@ -453,7 +486,8 @@ struct TESBoundObject {
     bool nativeScroll = false;
     ScrollItem scroll{};
     template<class T> T* As() {
-        if constexpr (std::is_same_v<T, TESObjectMISC>) return nativeMisc ? &misc : nullptr;
+        if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectMISC>) return nativeMisc ? &misc : nullptr;
         else if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
         else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
         else return nativeArmor ? &armor : nullptr;
@@ -461,7 +495,10 @@ struct TESBoundObject {
 };
 }
 '''
-program += "struct Utility {std::set<unsigned> SmithingMap,SmeltingMap,TanningMap,ConstructionMap;static Utility* GetSingleton(){static Utility u;return &u;}};\n"
+program += "struct Utility {std::set<unsigned> SmithingMap,SmeltingMap,TanningMap,ConstructionMap,SkillBookMap;void CacheSkillBooks(RE::TESDataHandler*);static Utility* GetSingleton(){static Utility u;return &u;}};\n"
+utility_source=(ROOT / "src/Utility.cpp").read_text()
+a=utility_source.index("void Utility::CacheSkillBooks(")
+program += utility_source[a:utility_source.index("\n}\n",a)+3]
 biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
 for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
     start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
@@ -478,8 +515,20 @@ program += item_source[start:item_source.index("    // Ingredients",start)]
 scroll_start = item_source.index("    if (a_item->As<RE::ScrollItem>())")
 program += item_source[scroll_start:item_source.index("    // Crafting", scroll_start)]
 program += item_source[item_source.index("    // Armor and Clothing"):item_source.index("    // Weapons", item_source.index("    // Armor and Clothing"))]
+start=item_source.index("    // Books, Scrolls, and Spell Tomes")
+program += item_source[start:item_source.index("\n    return categories;",start)]
 program += "return categories; }\nint main() {\n"
 program += r'''
+    RE::TESBoundObject nativeBook{ItemCategory::None};nativeBook.nativeBook=true;nativeBook.book.id=0x12345;
+    assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));nativeBook.book.skill=true;
+    RE::TESDataHandler data;data.books={&nativeBook.book,nullptr};Utility::GetSingleton()->CacheSkillBooks(&data);nativeBook.book.skill=false;
+    assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::SkillBook));
+    Utility::GetSingleton()->CacheSkillBooks(nullptr);assert(!HasCategory(ClassifyItem(&nativeBook),ItemCategory::SkillBook));
+    nativeBook.book.spell=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::SpellTome));nativeBook.book.spell=false;
+    nativeBook.book.recipe=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Recipe) && HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));nativeBook.book.recipe=false;
+    for(auto model:{"Clutter/Books/Note.nif","mods/NOtePaper.NIF"}){nativeBook.book.model=model;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));}
+    nativeBook.book.model="clutter/books/book.nif";assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));
+    nativeBook.book.note=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));
     RE::TESBoundObject nativeGold{ItemCategory::None},nativeIngot{ItemCategory::None};nativeGold.formID=0xF;nativeIngot.formID=0x5AD9E;nativeIngot.nativeMisc=true;
     assert(HasCategory(ClassifyItem(&nativeGold),ItemCategory::Gold));assert(HasCategory(ClassifyItem(&nativeIngot),ItemCategory::PreciousIngot) && HasCategory(ClassifyItem(&nativeIngot),ItemCategory::Smithing));
     RE::TESBoundObject nativeSpellScroll{ItemCategory::None}, ordinary{ItemCategory::None};

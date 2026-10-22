@@ -65,7 +65,7 @@ Bank access, Quick Transfer, Sort, and gem loans recover misplaced soul gems fro
 
 [ItemClass.h](../src/ItemClass.h) defines separate `Container`, `ItemCategory`, `ContainerGroup`, and `BenchType` enums. `CategoryMask` is a 64-bit integer; a category's underlying value chooses its bit and None maps to zero. Keep bit positions within mask width when extending it.
 
-Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, and alchemy leaf categories. It does not infer every related leaf bit. For example, overriding SpellTome does not add Book, and Potion does not imply Restorative.
+Physical soul gems always route through the dedicated soul gem transfer path. Other items retain user override, bundled override, then built-in precedence. An override replaces built-in classification; `ExpandCategories` adds parent bits for weapon, armor, concoction, smithing, food, and alchemy leaf categories. SpellTome and SkillBook imply Book, and Recipe implies Note. Potion does not imply Restorative.
 
 | Engine type | Built-in classification |
 | --- | --- |
@@ -75,7 +75,7 @@ Physical soul gems always route through the dedicated soul gem transfer path. Ot
 | Other `AlchemyItem` | Concoction plus Potion/Poison; adds Restorative if any effect matches health/magicka/stamina restoration |
 | Armor | Armor plus Jewelry for non-Head-slot jewelry-keyword records or accessories excluding helmets, chestpieces, boots, gauntlets, and shields; otherwise Clothing/HeavyArmor/LightArmor |
 | Weapon | Weapon plus OneHand, TwoHand, Archery, or Staff according to weapon type |
-| Book | Note scrolls become Scroll; other books become Book and spell-teaching books also SpellTome |
+| Book | Spell-teaching books are SpellTome; loaded skill books remain SkillBook after reading; recipes are Recipe plus Note; native notes and note mesh paths are Note; other books are Book |
 | Native spell scroll | Scroll |
 | Soul gem | Soulgem before miscellaneous items and overrides; filled/empty state belongs to inventory stacks |
 | Gold | `TESForm::IsGold()` identifies Septims; its separate Gold category does not expand to Treasure |
@@ -171,3 +171,5 @@ Sort first returns ignored records when Return Ignored Items is enabled. Its cat
 | Valuables | `0xDC9` | Archive | `ValuablesMenu` |
 
 Direct Archery access gathers ammunition alongside bows. On close, it returns ammunition to its vault before returning weapons. A refused ammunition return leaves the archive intact so those copies cannot fall into the Weapon vault.
+
+Books and Notes menus link directly to Spell Tomes, Skill Books and Recipes. Archives return their contents to the parent before navigation resumes. Consolidation also migrates old Book and Note records from Scroll storage. Skill-book identities are cached from loaded forms before reading can consume their teaching data. Native note flags and a case-insensitive `note` mesh-path match identify notes.
