@@ -1370,6 +1370,13 @@ void Stores::ShowArmorMenu(RE::TESObjectREFR* a_source) {
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
+    options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
+        for (auto child : {Container::HeavyArmor, Container::LightArmor, Container::Clothing, Container::Jewelry})
+            AllToStore(child, Container::Armor);
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Armor, source.get(), [this](RE::TESObjectREFR* closed) { ArmorMenu(closed); });
+    }});
+
     options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::HeavyArmor, Container::Armor);
         PlayerToStore(ItemCategory::LightArmor, Container::Armor);
@@ -1537,6 +1544,13 @@ void Stores::ShowWeaponMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
+
+    options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
+        for (auto child : {Container::Archery, Container::OneHand, Container::TwoHand, Container::Staff})
+            AllToStore(child, Container::Weapon);
+        if (auto source = sourceHandle.get())
+            OpenStorageMenu(Container::Weapon, source.get(), [this](RE::TESObjectREFR* closed) { WeaponMenu(closed); });
+    }});
 
     options.push_back({Translate("Vault.StoreAll"), [this, sourceHandle] {
         PlayerToStore(ItemCategory::Archery, Container::Weapon);

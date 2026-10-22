@@ -120,6 +120,12 @@ struct Utility {
 };
 '''
 source = (ROOT / "src/Stores.cpp").read_text()
+for kind in ("Armor", "Weapon"):
+    start=source.index(f"void Stores::Show{kind}Menu(")
+    begin=source.index('    options.push_back({Translate("Vault.Open")',start)
+    end=source.index('\n    }});',begin)+len('\n    }});')
+    program+=f'void Stores::TestOpen{kind}(RE::TESObjectREFR* a_source) {{const auto sourceHandle=a_source->GetHandle();std::vector<MenuOption> options;\n'
+    program+=source[begin:end]+'\noptions.front().action();}\n'
 for name in ["ResetNavigation", "ShowDynamicMessageBox", "CloseStoreObject"]:
     start = source.index(f"void Stores::{name}(")
     program += source[start:source.index("\n}\n", start) + 3]
@@ -158,6 +164,15 @@ int main() {
     assert(!utility.RunContainerAction(nullptr, &direct));
     click(1); assert(!direct.open);
 
+
+    stores->returned.clear();stores->TestOpenArmor(&direct);
+    assert(stores->opened==Container::Armor && stores->returned.size()==4);
+    for(const auto& pair:stores->returned)assert(pair.second==Container::Armor);
+    stores->onClose();assert(stores->revisited==1);
+    stores->returned.clear();stores->TestOpenWeapon(&direct);
+    assert(stores->opened==Container::Weapon && stores->returned.size()==4);
+    for(const auto& pair:stores->returned)assert(pair.second==Container::Weapon);
+    stores->onClose();assert(stores->revisited==2);
 
 }
 '''
