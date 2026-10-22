@@ -9,6 +9,7 @@ From the repository root:
 ```bash
 python3 tools/release/build_release.py
 python3 tools/release/check.py
+python3 tools/release/check_redirects.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -55,5 +56,7 @@ Caprica 0.3.0 emits the Skyrim object-size field in little endian and omits the 
 ## Validation boundary
 
 The build validates Windows x64 PE format and the actual SKSE export table, ESP registry IDs and container links, header counts/allocation, spell-effect script properties, and PEX native signatures. It executes the compiled dispatcher in a small bytecode check for `SpellType` 0, 1, and an unmatched value. The standalone check also exercises source round-trips, compressed-record edits, compiler-size correction, deterministic ZIP bytes, and missing/extra-file rejection.
+
+`check_redirects.py` compiles the actual manager, identifier code, INI persistence, and SKSE callbacks with stubs. It covers unloaded sources, dynamic save isolation, both persistence modes, changed load order, global precedence, linked activator blocking, and malformed records.
 
 The package root corresponds to Skyrim's `Data` directory. It has no enclosing `Data` or project-name directory. Runtime prerequisites such as SKSE, Address Library, and SKSE Menu Framework remain external game dependencies described in [build.md](build.md). No Skyrim launch or gameplay scenario is verified by these artifact checks.

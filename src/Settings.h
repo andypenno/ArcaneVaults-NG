@@ -54,6 +54,7 @@ public:
 	void SaveINI();
 	void LoadRedirects();
 	void SaveRedirects() const;
+	[[nodiscard]] static std::optional<std::string> MakeFormIdentifier(const RE::TESForm* a_form);
 
 	// Overrides
 	void ProcessOverrides();

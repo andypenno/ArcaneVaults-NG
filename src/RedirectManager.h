@@ -4,6 +4,8 @@ class RedirectManager {
 public:
     struct ContainerRedirect {
         RE::FormID destinationID{ 0 };
+        std::string sourceIdentifier;
+        std::string destinationIdentifier;
     };
     
     static RedirectManager* GetSingleton() {
@@ -12,6 +14,7 @@ public:
     }
 
     bool Add(RE::TESObjectREFR* source, RE::TESObjectREFR* destination);
+    bool Restore(RE::FormID sourceID, RE::TESObjectREFR* destination, std::string sourceIdentifier = {});
     bool Remove(RE::TESObjectREFR* source);
     void Clear();
 

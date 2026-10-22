@@ -1,4 +1,5 @@
 #include "RedirectManager.h"
+#include "Settings.h"
 
 namespace
 {
@@ -13,14 +14,14 @@ namespace
         });
     }
 
-    void SetLinkedContainerBlocked(RE::TESObjectREFR* a_source, bool a_blocked)
+    void SetLinkedContainerBlocked(const RE::TESObjectREFR* a_source, bool a_blocked)
     {
         if (!a_source || !a_source->GetBaseObject() ||
             !a_source->GetBaseObject()->As<RE::TESObjectACTI>()) {
             return;
         }
 
-        auto* linked = a_source->GetLinkedRef(nullptr);
+        auto* linked = const_cast<RE::TESObjectREFR*>(a_source)->GetLinkedRef(nullptr);
         if (linked && linked->GetBaseObject() &&
             linked->GetBaseObject()->As<RE::TESObjectCONT>()) {
             linked->SetActivationBlocked(a_blocked);
@@ -30,21 +31,22 @@ namespace
 
 bool RedirectManager::Add(RE::TESObjectREFR* source, RE::TESObjectREFR* destination) {
     if (!source || !destination) return false;
-    const auto sourceID = source->GetFormID();
+    return Restore(source->GetFormID(), destination, Settings::MakeFormIdentifier(source).value_or(""));
+}
 
-    // Preserve the name only when initially creating the redirect.
-    auto [entry, inserted] = redirects.try_emplace(sourceID, RedirectManager::ContainerRedirect{ destination->GetFormID() });
+bool RedirectManager::Restore(RE::FormID sourceID, RE::TESObjectREFR* destination, std::string sourceIdentifier) {
+    if (!sourceID || !destination || sourceID == destination->GetFormID()) return false;
+    auto* form = RE::TESForm::LookupByID(sourceID);
+    auto* source = form ? form->As<RE::TESObjectREFR>() : nullptr;
+    if (form && !source) return false;
+    if (sourceIdentifier.empty())
+        sourceIdentifier = Settings::MakeFormIdentifier(source).value_or("");
+    redirects.insert_or_assign(sourceID, ContainerRedirect{
+        destination->GetFormID(), std::move(sourceIdentifier),
+        Settings::MakeFormIdentifier(destination).value_or("") });
 
-    // Update an existing redirect without overwriting its original name.
-    if (!inserted)
-        entry->second.destinationID = destination->GetFormID();
-
-    // A script on an ACTI may activate its linked container later.
     SetLinkedContainerBlocked(source, true);
-
-    // Set the display name of the source to show to our redirect
     RefreshCrosshairText();
-
     return true;
 }
 
@@ -84,6 +86,7 @@ RE::TESObjectREFR* RedirectManager::FindDestination(const RE::TESObjectREFR* sou
     const auto entry = redirects.find(source->GetFormID());
     if (entry == redirects.end()) return nullptr;
 
-    // Return the found redirected form
-    return RE::TESForm::LookupByID<RE::TESObjectREFR>(entry->second.destinationID);
+    auto* destination = RE::TESForm::LookupByID<RE::TESObjectREFR>(entry->second.destinationID);
+    if (destination) SetLinkedContainerBlocked(source, true);
+    return destination;
 }
