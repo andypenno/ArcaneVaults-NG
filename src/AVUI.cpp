@@ -2,12 +2,15 @@
 #include "Translation.h"
 #include "ItemClass.h"
 #include "Utility.h"
+#include "TransferFeedback.h"
 
 using AVTranslation::Translate;
 
 namespace AVUI {
 	void Register() {
 		if (!SKSEMenuFramework::IsInstalled()) return;
+
+		TransferFeedback::Register();
 
 		// Render Menu
 		SKSEMenuFramework::SetSection(Translate("Settings.ModName"));

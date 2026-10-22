@@ -1,6 +1,4 @@
 {
-	"Vault.AssignQuickTransfer": "Bind Quick Transfer",
-	"Vault.QuickTransfer": "Quick Transfer",
 	"Settings.ModName": "Arcane Vaults",
 	"Vault.Remains": "Remains",
 	"Options": "Options",
@@ -40,6 +38,8 @@
 	"Vault.Open": "Open Vault",
 	"Vault.AssignArcane": "Bind Arcane Vault",
 	"Vault.AssignSort": "Bind Sort Vault",
+	"Vault.AssignQuickTransfer": "Bind Quick Transfer",
+	"Vault.QuickTransfer": "Quick Transfer",
 	"Vault.AssignVault": "Bind Vault",
 	"Vault.AssignArchive": "Bind Archive",
 	"Vault.AssignRemove": "Remove Binding",
@@ -48,6 +48,7 @@
 	"Vault.ArcaneVaults": "Open Vaults",
 	"Vault.ArcaneArchives": "Open Archives",
 	"Vault.Vault": "Vault",
+	"Vault.Sorting": "Sorting items...",
 	"Vault.StoreAll": "Store All",
 	"Vault.StoreOne": "Store One Copy",
 	"Vault.StoreGrandSouls": "Transfer Grand Souls",

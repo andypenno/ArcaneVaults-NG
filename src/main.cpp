@@ -9,6 +9,7 @@
 #include "Translation.h"
 #include "Papyrus.h"
 #include "DepositLearning.h"
+#include "TransferFeedback.h"
 #include "Stores.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
@@ -41,6 +42,7 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 		break;
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
+		TransferFeedback::Reset();
 		DepositLearning::Reset();
         StolenItems::Reset();
         AVEvents::ResetCraftingLoan();
