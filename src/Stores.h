@@ -82,6 +82,9 @@ public:
     void NotesMenu(RE::TESObjectREFR* a_source);
     void ConsolidateBooks();
     void ConsolidatePotions();
+    void BeginJunkLoan();
+    void EndJunkLoan();
+    void ResetJunkLoan() { junkLoan_.clear(); }
     void OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,
         RE::TESObjectREFR* a_source, bool a_returnToParent = false);
     void ScrollMenu(RE::TESObjectREFR* a_source);
@@ -118,6 +121,7 @@ public:
     void SmithConstructMenu(RE::TESObjectREFR* a_source);
 
 private:
+    std::unordered_map<RE::FormID, std::pair<int, int>> junkLoan_;
     std::uint64_t ignoreSession_{};
     RE::ObjectRefHandle navigationSource_;
     MenuAction returnToVault_;

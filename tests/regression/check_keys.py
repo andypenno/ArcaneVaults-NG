@@ -29,6 +29,8 @@ program = r'''
 #include <climits>
 #include <optional>
 #include <unordered_set>
+#include <unordered_map>
+#include <limits>
 #include <vector>
 #include <map>
 #include <set>
@@ -118,6 +120,8 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     void GearMenu(RE::TESObjectREFR*);void ShowGearMenu(RE::TESObjectREFR*);
     void JunkMenu(RE::TESObjectREFR*);
     void BookMenu(RE::TESObjectREFR*);void ShowBookMenu(RE::TESObjectREFR*);void NotesMenu(RE::TESObjectREFR*);void ShowNotesMenu(RE::TESObjectREFR*);
+    std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;
+    void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();}
     void ConsolidateBooks();void ConsolidatePotions();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
     void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
@@ -157,7 +161,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions", "BeginJunkLoan", "EndJunkLoan"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -445,6 +449,14 @@ int main() {
     assert(concoctions.inventory[&healthDrink].first==4 && concoctions.inventory[&magickaDrink].first==5 && concoctions.inventory[&staminaDrink].first==6);
     stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,&activationSource);assert(stores.opened==Container::HealthPotions && healthArchive.inventory[&healthDrink].first==4);stores.onClose();assert(concoctions.inventory[&healthDrink].first==4);
     utility->custom.clear();
+
+
+    player->inventory.clear();utility->junk.inventory.clear();utility->custom.clear();RE::TESBoundObject loanItem{ItemCategory::Junk},protectedLoan{ItemCategory::Junk};
+    put(&loanItem,3);utility->junk.inventory[&loanItem]=entry(20);utility->junk.inventory[&protectedLoan]={4,std::make_shared<RE::InventoryEntryData>(false,true,false)};
+    stores.BeginJunkLoan();assert(player->inventory[&loanItem].first==23 && utility->junk.inventory[&loanItem].first==0 && utility->junk.inventory[&protectedLoan].first==4);
+    player->inventory[&loanItem].first-=5;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==3 && utility->junk.inventory[&loanItem].first==15 && stores.junkLoan_.empty());
+    stores.BeginJunkLoan();player->rejectMove=true;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18 && utility->junk.inventory[&loanItem].first==0);player->rejectMove=false;
+    stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18);
 
 }
 '''

@@ -189,3 +189,5 @@ Enchanted Items gathers eligible physical copies from Weapon and Armor after con
 Health, Magicka and Stamina potion archives classify positive, non-hostile value modifiers for each attribute and its regeneration rates. Positive dual-value secondary effects may join a second archive. Food, poisons, detrimental effects and nonpositive magnitudes do not qualify. Attribute overrides imply Potion and Concoction. Opening an attribute archive consolidates sibling potions first and returns contents to Concoction on close. Restore-effect lookup tolerates missing caches and null effects.
 
 Armor and Weapon Open actions consolidate all four child archives before opening the parent. Their Unclassified actions retain the separate filtered view. Closing the combined parent returns to its menu.
+
+Crafting loans include stored Junk through a per-base ledger. Lending records the carried count and the amount actually borrowed. Return caps at the unconsumed borrowed amount above the prior carried count. Quest, favourite, worn and native-equipped records remain protected. Refused returns stay carried.

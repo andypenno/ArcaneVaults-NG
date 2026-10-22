@@ -138,6 +138,7 @@ loan = loan[loan.index("class CraftingLoanState {"):loan.index("class FurnitureA
 program += r'''
 
 struct Stores {
+    void BeginJunkLoan(){}void EndJunkLoan(){}void ResetJunkLoan(){}
     static Stores* GetSingleton() { static Stores s;return &s; }
     void AllToPlayer(Container) {}
     void StoreToPlayer(ItemCategory,Container) {}
