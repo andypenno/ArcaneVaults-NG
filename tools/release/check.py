@@ -19,7 +19,10 @@ provenance = json.loads((ROOT / "release/upstream/release.json").read_text())
 data = generate_esp(baseline)
 assert hashlib.sha256(data).hexdigest() == provenance["files"]["ArcaneVaults-LinkedStorage.esp"]
 assert import_esp(data) == baseline
-assert validate_esp(ROOT, data) == 70
+assert len(list(walk(baseline["records"]))) == 70
+
+working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
+assert validate_esp(ROOT, generate_esp(working)) == len(list(walk(working["records"])))
 
 changed = copy.deepcopy(baseline)
 container = next(node for node in walk(changed["records"]) if node["type"] == "CONT")
@@ -49,6 +52,14 @@ fails(lambda: import_esp(b""))
 duplicate = copy.deepcopy(baseline)
 duplicate["records"].append(copy.deepcopy(next(walk(duplicate["records"]))))
 fails(lambda: generate_esp(duplicate))
+temporary_storage = copy.deepcopy(working)
+reference = next(node for node in walk(temporary_storage["records"]) if node["form_id"] == "0x01000DC5")
+reference["flags"] &= ~0x400
+fails(lambda: validate_esp(ROOT, generate_esp(temporary_storage)))
+respawning_storage = copy.deepcopy(working)
+base = next(node for node in walk(respawning_storage["records"]) if node["form_id"] == "0x01000DC4")
+next(field for field in base["fields"] if field["type"] == "DATA")["hex"] = "0200000000"
+fails(lambda: validate_esp(ROOT, generate_esp(respawning_storage)))
 archive = ROOT / "build/releases/ArcaneVaults-NG.zip"
 checks = validate_zip(ROOT, archive)
 with zipfile.ZipFile(archive) as zipped:

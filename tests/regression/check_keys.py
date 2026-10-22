@@ -21,6 +21,7 @@ program = r'''
 #include <cassert>
 #include <functional>
 #include <climits>
+#include <optional>
 #include <map>
 #include <memory>
 #include <string>
@@ -61,7 +62,7 @@ struct Utility {
 CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return CategoryMask{1} << static_cast<unsigned>(item->category); }
 bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
 const char* Translate(const char*) { return ""; }
-struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0); void OffloadItems(); };
+struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0); void OffloadItems(); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
 '''
 program += "struct Settings {\n" + settings_fields + r'''
     static Settings* GetSingleton() { static Settings settings; return &settings; }
@@ -70,59 +71,94 @@ program += "struct Settings {\n" + settings_fields + r'''
 '''
 move_start=source.index("    void MoveItems(")
 program+=source[move_start:source.index("\n    }",move_start)+6]
-program += method + offload + ini_options
+start=source.index("void Stores::StoreToPlayer(")
+store_to_player=source[start:source.index("\n}\n",start)+3]
+program += method + store_to_player + offload + ini_options
 program += r'''
 int main() {
     static_assert(static_cast<unsigned>(Container::Staff) == 32);
     static_assert(static_cast<unsigned>(ItemCategory::None) == 35);
-    static_assert(static_cast<unsigned>(ItemCategory::Book) < 64);
+    static_assert(static_cast<unsigned>(ItemCategory::Keys) < 64);
     auto* player = RE::PlayerCharacter::GetSingleton();
     auto& chest = Utility::GetSingleton()->chest;
-    RE::TESBoundObject a{ItemCategory::Book}, b{ItemCategory::Book}, nonkey{ItemCategory::Scroll};
-    RE::TESBoundObject quest{ItemCategory::Book}, favorite{ItemCategory::Book}, worn{ItemCategory::Book};
+    RE::TESBoundObject a{ItemCategory::Keys}, b{ItemCategory::Keys}, nonkey{ItemCategory::Scroll};
+    RE::TESBoundObject quest{ItemCategory::Keys}, favorite{ItemCategory::Keys}, worn{ItemCategory::Keys};
     auto put = [&](RE::TESBoundObject* item, int count, bool q = false, bool f = false, bool w = false) {
         player->inventory[item] = {count, std::make_shared<RE::InventoryEntryData>(q, f, w)};
     };
     put(&a, 5); put(&b, 1); put(&nonkey, 7);
     put(&quest, 3, true); put(&favorite, 4, false, true); put(&worn, 2, false, false, true);
     Stores stores;
-    stores.PlayerToStore(ItemCategory::Book, Container::Book, 0, true);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
     assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 4);
     assert(player->inventory[&b].first == 1 && !chest.inventory.contains(&b));
     assert(player->inventory[&nonkey].first == 7);
     assert(player->inventory[&quest].first == 3 && player->inventory[&favorite].first == 4 && player->inventory[&worn].first == 2);
     chest.inventory[&b].first = 8;
-    stores.PlayerToStore(ItemCategory::Book, Container::Book, 0, true);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
     assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 4);
     assert(player->inventory[&b].first == 1 && chest.inventory[&b].first == 8);
-    stores.PlayerToStore(ItemCategory::Book, Container::Book);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys);
     assert(player->inventory[&a].first == 0 && chest.inventory[&a].first == 5);
     assert(player->inventory[&b].first == 0 && chest.inventory[&b].first == 9);
     put(&a, 20000);
-    stores.PlayerToStore(ItemCategory::Book, Container::Book, 0, true);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
     assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 20004);
     put(&nonkey, 5);
-    stores.PlayerToStore(ItemCategory::Scroll, Container::Book, 3);
+    stores.PlayerToStore(ItemCategory::Scroll, Container::Keys, 3);
     assert(player->inventory[&nonkey].first == 2 && chest.inventory[&nonkey].first == 3);
-    stores.PlayerToStore(ItemCategory::Scroll, Container::Book, 3);
+    stores.PlayerToStore(ItemCategory::Scroll, Container::Keys, 3);
     assert(player->inventory[&nonkey].first == 0 && chest.inventory[&nonkey].first == 5);
     put(&a, 4);
-    stores.PlayerToStore(ItemCategory::Book, Container::None, 0, true);
-    stores.PlayerToStore(ItemCategory::Book, Container::Book, -1);
+    stores.PlayerToStore(ItemCategory::Keys, Container::None, 0, true);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, -1);
     assert(player->inventory[&a].first == 4);
     player->inventory[nullptr] = {3, std::make_shared<RE::InventoryEntryData>()};
     player->inventory[&a].second.reset();
-    stores.PlayerToStore(ItemCategory::Book, Container::Book);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys);
     assert(player->inventory[&a].first == 4);
 
     player->inventory.clear();chest.inventory.clear();put(&a,50000);player->removeLimit=3;
-    stores.PlayerToStore(ItemCategory::Book,Container::Book,0,1);
+    stores.PlayerToStore(ItemCategory::Keys,Container::Keys,0,1);
     assert(player->inventory[&a].first==1 && chest.inventory[&a].first==49999);
     put(&a,20);player->rejectMove=true;const auto before=player->removeCalls;
-    stores.PlayerToStore(ItemCategory::Book,Container::Book);
+    stores.PlayerToStore(ItemCategory::Keys,Container::Keys);
     assert(player->inventory[&a].first==20 && player->removeCalls==before+1);
-    player->rejectMove=false;player->removeLimit=0;stores.PlayerToStore(ItemCategory::Book,Container::Book);
+    player->rejectMove=false;player->removeLimit=0;stores.PlayerToStore(ItemCategory::Keys,Container::Keys);
     assert(player->inventory[&a].first==20 && player->removeCalls==before+2);
+
+    player->removeLimit=INT_MAX;
+    auto* settings = Settings::GetSingleton();
+    std::map<std::pair<std::string, std::string>, int> options;
+    settings->ForEachINIOption(*settings, [&](auto& value, const char* section, const char* key) {
+        options[{section, key}] = value;
+    });
+    assert(options.at({"Offload", "Keys"}) == 1 && options.at({"Offload", "KeysKeepOne"}) == 1);
+    put(&a, 4);
+    stores.OffloadItems();
+    assert(player->inventory[&a].first == 1);
+    settings->GSC_KeysKeepOne = false;
+    stores.OffloadItems();
+    assert(player->inventory[&a].first == 0);
+    settings->GSC_OffloadKeys = false;
+    put(&a, 4);
+    stores.OffloadItems();
+    assert(player->inventory[&a].first == 4);
+    for(int held:{0,1,3})for(int stock:{0,2,10})for(bool refused:{false,true}){
+        player->inventory.clear();chest.inventory.clear();put(&a,held);
+        chest.inventory[&a]={stock,std::make_shared<RE::InventoryEntryData>()};chest.rejectMove=refused;chest.removeLimit=2;
+        stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,1);
+        assert(player->inventory[&a].first==held+(refused?0:std::min(stock,std::max(0,1-held))));
+        assert(player->inventory[&a].first+chest.inventory[&a].first==held+stock);
+    }
+    chest.rejectMove=false;chest.removeLimit=9999;player->inventory.clear();chest.inventory.clear();
+    put(&a,10000);chest.inventory[&a]={50000,std::make_shared<RE::InventoryEntryData>()};
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,40000);
+    assert(player->inventory[&a].first==40000 && chest.inventory[&a].first==20000);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,1000,45000);
+    assert(player->inventory[&a].first==41000 && chest.inventory[&a].first==19000);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,0);stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,-1);
+    assert(player->inventory[&a].first==41000);
 
 }
 '''

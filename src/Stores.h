@@ -1,6 +1,7 @@
 #pragma once
 #include "ItemClass.h"
 #include "Utility.h"
+#include <optional>
 
 using MenuAction = std::function<void()>;
 
@@ -42,7 +43,7 @@ public:
 
     // Storage Functions
     void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0, int a_keepCount = 0);
-    void StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count = 0);
+    void StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count = 0, std::optional<int> a_target = std::nullopt);
     void StoreToStore(ItemCategory a_category, Container a_source, Container a_destination);
     void AllToStore(Container a_source, Container a_destination);
     void AllToPlayer(Container a_source);
@@ -85,6 +86,7 @@ public:
     void GemstoneMenu(RE::TESObjectREFR* a_source);
     void TreasureMenu(RE::TESObjectREFR* a_source);
     void PersonalMenu(RE::TESObjectREFR* a_source);
+    void KeysMenu(RE::TESObjectREFR* a_source);
     void PotionMenu(RE::TESObjectREFR* a_source);
     void PotionPositiveMenu(RE::TESObjectREFR* a_source);
     void PotionNegativeMenu(RE::TESObjectREFR* a_source);
@@ -121,6 +123,7 @@ private:
     void ShowGemstoneMenu(RE::TESObjectREFR* a_source);
     void ShowTreasureMenu(RE::TESObjectREFR* a_source);
     void ShowPersonalMenu(RE::TESObjectREFR* a_source);
+    void ShowKeysMenu(RE::TESObjectREFR* a_source);
     void ShowPotionMenu(RE::TESObjectREFR* a_source);
     void ShowPotionPositiveMenu(RE::TESObjectREFR* a_source);
     void ShowPotionNegativeMenu(RE::TESObjectREFR* a_source);

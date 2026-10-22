@@ -145,6 +145,9 @@ CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept {
     if (const auto override = Settings::GetSingleton()->FindOverride(a_item))
         return ExpandCategories(*override);
 
+    if (a_item->IsKey())
+        return ToMask(ItemCategory::Keys);
+
     // Crafting
     if (auto* ingredient = a_item->As<RE::TESObjectMISC>()) {
         if (utility->SmithingMap.contains(a_item->formID)) {

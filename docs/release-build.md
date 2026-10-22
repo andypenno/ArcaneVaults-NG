@@ -10,6 +10,7 @@ From the repository root:
 python3 tools/release/build_release.py
 python3 tools/release/check.py
 python3 tools/release/check_redirects.py
+python3 tools/release/check_keys.py
 ```
 
 Use `--container NAME` on the build command if the dedicated Wine container has a different name. Compiler output goes to `build/releases/build.log`. `artifact.json` beside the ZIP records the ZIP checksum, packaged file checksums, and validation results. Neither that report nor the build log goes into the mod package.
@@ -55,7 +56,9 @@ Caprica 0.3.0 emits the Skyrim object-size field in little endian and omits the 
 
 ## Validation boundary
 
-The build validates Windows x64 PE format and the actual SKSE export table, ESP registry IDs and container links, header counts/allocation, spell-effect script properties, and PEX native signatures. It executes the compiled dispatcher in a small bytecode check for `SpellType` 0, 1, and an unmatched value. The standalone check also exercises source round-trips, compressed-record edits, compiler-size correction, deterministic ZIP bytes, and missing/extra-file rejection.
+The build validates Windows x64 PE format and the actual SKSE export table, ESP registry IDs, persistent non-respawning storage, container links, header counts/allocation, spell-effect script properties, and PEX native signatures. It executes the compiled dispatcher in a small bytecode check for `SpellType` 0, 1, and an unmatched value. The standalone check retains the upstream SHA/round-trip checks and validates the working ESP against the current registry. It also exercises compressed-record edits, compiler-size correction, deterministic ZIP bytes, and missing/extra-file rejection.
+
+`check_keys.py` needs a native C++20 compiler. It extracts the real `PlayerToStore`, `OffloadItems`, and INI option mapping and runs them with inventory stubs. It checks duplicate retention, protected entries, category selection, repeat deposits, large stacks, existing count requests, and Quick Transfer defaults and modes. It does not run Skyrim's inventory engine or write game settings files.
 
 `check_redirects.py` compiles the actual manager, identifier code, INI persistence, and SKSE callbacks with stubs. It covers unloaded sources, dynamic save isolation, both persistence modes, changed load order, global precedence, linked activator blocking, and malformed records.
 
