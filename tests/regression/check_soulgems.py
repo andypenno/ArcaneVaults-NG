@@ -154,6 +154,7 @@ program += r'''
 
 namespace SKSE {struct Tasks {void AddTask(std::function<void()> task){task();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;}}
 struct Stores {
+    void ConsolidateRemains(){}
     void RecoverSawnLogs(){}
     void BeginJunkLoan(){}void EndJunkLoan(){}void ResetJunkLoan(){}
     static Stores* GetSingleton() { static Stores s;return &s; }

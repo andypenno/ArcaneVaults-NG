@@ -196,6 +196,8 @@ namespace AVUI {
 				changeOption = true;
 			if (Checkbox(Translate("Vault.Smelting"), &setting->GSC_OffloadSmelting))
 				changeOption = true;
+			if (Checkbox(Translate("Vault.Remains"), &setting->GSC_OffloadRemains))
+				changeOption = true;
 
 		}
 

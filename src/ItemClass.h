@@ -145,6 +145,7 @@ enum class ContainerGroup {
     case Container::Poison:       return "Vault.Poison";
     case Container::Restorative:  return "Vault.Restoritive";
     case Container::Scroll:       return "Vault.Scroll";
+    case Container::Remains:      return "Vault.Remains";
     case Container::Smithing:     return "Vault.Smithing";
     case Container::Construction: return "Vault.Construction";
     case Container::Crafting:     return "Vault.Crafting";
@@ -183,7 +184,8 @@ enum class ContainerGroup {
     return {};
 };
 
-inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 41> categoryNames{{
+inline constexpr std::array<std::pair<std::string_view, ItemCategory>, 42> categoryNames{{
+    { "Remains", ItemCategory::Remains },
     { "Ignore", ItemCategory::Ignore },
     { "HealthPotion", ItemCategory::HealthPotion },
     { "MagickaPotion", ItemCategory::MagickaPotion },

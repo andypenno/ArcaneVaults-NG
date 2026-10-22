@@ -82,6 +82,7 @@ public:
     void BookMenu(RE::TESObjectREFR* a_source);
     void NotesMenu(RE::TESObjectREFR* a_source);
     void ConsolidateBooks();
+    void ConsolidateRemains();
     void ConsolidatePotions();
     void BeginJunkLoan();
     void EndJunkLoan();

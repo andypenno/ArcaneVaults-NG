@@ -11,6 +11,7 @@ struct Settings {bool GSC_CraftingLoan=true,GSC_AllCraftingMaterials=false;stati
 struct Stores {
     int begins=0,ends=0,returns=0;std::vector<Container> borrowed,restored;
     static Stores* GetSingleton(){static Stores stores;return &stores;}
+    void ConsolidateRemains(){}
     void RecoverSawnLogs(){}
     void BeginJunkLoan(){++begins;}void EndJunkLoan(){++ends;}void ResetJunkLoan(){}
     void AllToPlayer(Container c){borrowed.push_back(c);}void StoreToPlayer(ItemCategory,Container){}void PlayerToStore(ItemCategory,Container c){++returns;restored.push_back(c);}

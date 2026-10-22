@@ -123,6 +123,7 @@ struct Stores { void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bo
     void BookMenu(RE::TESObjectREFR*);void ShowBookMenu(RE::TESObjectREFR*);void NotesMenu(RE::TESObjectREFR*);void ShowNotesMenu(RE::TESObjectREFR*);
     std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;
     void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();}
+    void ConsolidateRemains();void SmithMenu(RE::TESObjectREFR*){opened=Container::Smithing;}
     void ConsolidateBooks();void ConsolidatePotions();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
     void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
     void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
@@ -162,7 +163,7 @@ start=source.index("void Stores::ReturnIgnoredItems(")
 program += source[start:source.index("\n}\n",start)+3]
 start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
 program += source[start:source.index("\n    }",start)+6]
-for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions", "BeginJunkLoan", "EndJunkLoan"]:
+for name in ["KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions", "ConsolidateRemains", "BeginJunkLoan", "EndJunkLoan"]:
     start=source.index("void Stores::"+name+"(")
     program += source[start:source.index("\n}\n",start)+3]
 start=source.index("void Stores::ShowWeaponArcheryMenu(")
@@ -458,6 +459,17 @@ int main() {
     put(&protectedLoan,6);player->inventoryRows=0;player->inventory[&loanItem].first-=5;stores.EndJunkLoan();assert(player->inventoryRows==1 && player->inventory[&protectedLoan].first==6);assert(player->inventory[&loanItem].first==3 && utility->junk.inventory[&loanItem].first==15 && stores.junkLoan_.empty());
     stores.BeginJunkLoan();player->rejectMove=true;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18 && utility->junk.inventory[&loanItem].first==0);player->rejectMove=false;
     stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18);
+    player->inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();utility->custom.clear();
+    smithing.inventory.clear();RE::TESObjectREFR remains;utility->custom={{Container::Smithing,&smithing},{Container::Remains,&remains}};
+    RE::TESBoundObject skull{ItemCategory::Remains,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing)},horn{ItemCategory::Remains,(CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing))|(CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Construction))};
+    utility->junk.inventory[&skull]=entry(8);remains.inventory[&skull]=entry(5);put(&horn,10);
+    stores.ConsolidateRemains();assert(smithing.inventory[&skull].first==13 && utility->junk.inventory[&skull].first==0);
+    stores.OffloadItems();assert(player->inventory[&horn].first==0 && smithing.inventory[&horn].first==10);
+    stores.OpenBookArchive(Container::Remains,Container::Smithing,ItemCategory::Remains,&activationSource,true);
+    assert(stores.opened==Container::Remains && remains.inventory[&skull].first==13 && remains.inventory[&horn].first==10);
+    stores.onClose();assert(stores.opened==Container::Smithing && smithing.inventory[&skull].first==13 && smithing.inventory[&horn].first==10);
+    stores.StoreToPlayer(ItemCategory::Construction,Container::Smithing);assert(player->inventory[&horn].first==10 && smithing.inventory[&skull].first==13);
+    utility->custom.clear();
     for(bool picker:{false,true}){
         settings->GSC_ReturnIgnoredItems=picker;player->inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
         RE::TESBoundObject logs{ItemCategory::Ignore};utility->inbox.inventory[&logs]=entry(100);
@@ -595,6 +607,7 @@ start=item_source.index("    // Books, Scrolls, and Spell Tomes")
 program += item_source[start:item_source.index("\n    return categories;",start)]
 program += "return categories; }\nint main() {\n"
 program += r'''
+    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Remains)),ItemCategory::Smithing));
     assert(ExpandCategories(ToMask(ItemCategory::Ignore)|ToMask(ItemCategory::Construction))==ToMask(ItemCategory::Ignore));
     assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Map)),ItemCategory::Note));
     RE::TESBoundObject potion{ItemCategory::None};potion.nativeAlchemy=true;RE::EffectSetting health;health.formID=5;RE::Effect effect{&health};RE::Effect missing{nullptr};

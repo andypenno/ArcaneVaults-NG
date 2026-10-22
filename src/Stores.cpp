@@ -348,6 +348,7 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 // Sorting
 //===================================================
 void Stores::SortItems() {
+    ConsolidateRemains();
     ConsolidateBooks();
     ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
@@ -426,6 +427,7 @@ void Stores::OffloadItems() {
     if (settings->GSC_OffloadGemstone) PlayerToStore(ItemCategory::Gemstone, Container::Smithing, 0, 0, true);
     if (settings->GSC_OffloadSmelting) PlayerToStore(ItemCategory::Smelting, Container::Smithing, 0, 0, true);
     if (settings->GSC_OffloadTanning) PlayerToStore(ItemCategory::Tanning, Container::Smithing, 0, 0, true);
+    if (settings->GSC_OffloadRemains) PlayerToStore(ItemCategory::Remains, Container::Smithing, 0, 0, true);
 
     // Concoction
     if (settings->GSC_OffloadPotion) PlayerToStore(ItemCategory::Potion, Container::Concoction, 0, 0, true);
@@ -1046,6 +1048,7 @@ void Stores::SmithMenu(RE::TESObjectREFR* a_source) {
 
 void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
     if (!a_source) return;
+    ConsolidateRemains();
     const auto sourceHandle = a_source->GetHandle();
     std::vector<MenuOption> options;
 
@@ -1090,7 +1093,8 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
 
         if (auto source = sourceHandle.get())
             OpenStorageMenu(Container::Construction, source.get(), [this](RE::TESObjectREFR* a_source) {
-                AllToStore(Container::Construction, Container::Smithing);
+                AllToStore(Container::Remains, Container::Smithing);
+        AllToStore(Container::Construction, Container::Smithing);
                 SmithMenu(a_source);
             });
     }});
@@ -1103,6 +1107,11 @@ void Stores::ShowSmithMenu(RE::TESObjectREFR* a_source) {
                 AllToStore(Container::Gemstone, Container::Smithing);
                 SmithMenu(a_source);
             });
+    }});
+
+    options.push_back({std::format("{} {}", Translate("Vault.Remains"), Translate("Vault.Vault")), [this, sourceHandle] {
+        if (auto source = sourceHandle.get())
+            OpenBookArchive(Container::Remains, Container::Smithing, ItemCategory::Remains, source.get(), true);
     }});
 
     options.push_back({Translate("Vault.Open"), [this, sourceHandle] {
@@ -1984,7 +1993,8 @@ void Stores::ConsolidateBooks() {
 void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCategory a_category,
     RE::TESObjectREFR* a_source, bool a_returnToParent) {
     if (!a_source) return;
-    ConsolidateBooks();
+    if (a_parent == Container::Smithing) ConsolidateRemains();
+    else ConsolidateBooks();
     if (a_parent == Container::Concoction) ConsolidatePotions();
     AllToStore(a_archive, a_parent);
     StoreToStore(a_category, a_parent, a_archive);
@@ -1993,6 +2003,7 @@ void Stores::OpenBookArchive(Container a_archive, Container a_parent, ItemCatego
             AllToStore(a_archive, a_parent);
             if (a_returnToParent) {
                 if (a_parent == Container::Book) BookMenu(source);
+                else if (a_parent == Container::Smithing) SmithMenu(source);
                 else NotesMenu(source);
             } else CloseStoreObject(source);
         });
@@ -2233,4 +2244,9 @@ void Stores::RecoverSawnLogs() {
             if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) break;
         }
     }
+}
+
+void Stores::ConsolidateRemains() {
+    AllToStore(Container::Remains, Container::Smithing);
+    StoreToStore(ItemCategory::Remains, Container::Junk, Container::Smithing);
 }
