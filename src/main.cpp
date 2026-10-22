@@ -10,6 +10,7 @@
 #include "Papyrus.h"
 #include "DepositLearning.h"
 #include "TransferFeedback.h"
+#include "InventoryPreview.h"
 #include "Stores.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
@@ -23,6 +24,7 @@ using namespace QuickLoot;
 static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 	switch (message->type) {
 	case SKSE::MessagingInterface::kDataLoaded:
+		InventoryPreview::Install();
 		AVTranslation::Install();
 		Utility::GetSingleton()->LoadAllForms();
 		Settings::GetSingleton()->Init();
