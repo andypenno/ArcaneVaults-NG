@@ -2,6 +2,8 @@
 #include "Stores.h"
 #include "Soulgems.h"
 #include "InventoryStacks.h"
+#include "PlayerEquipment.h"
+#include "OffloadBatch.h"
 #include "Trade.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
@@ -213,28 +215,66 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
     const auto* equippedCommand = RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
     const auto isEquipped = equippedCommand ? equippedCommand->conditionFunction : nullptr;
     const auto* currentAmmo = player->GetCurrentAmmo();
-    const auto inventory = player->GetInventory();
-    for (const auto& [item, data] : inventory) {
-        if (!item || !data.second || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
+    const auto inventory = player->GetInventoryCounts();
+    for (const auto& [item, total] : inventory) {
+        if (!item || total <= a_keepCount || item->As<RE::TESSoulGem>()) continue;
+        const auto categories = ClassifyItem(item);
+        if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
+        const auto fresh = player->GetInventory([item](RE::TESBoundObject& candidate) { return &candidate == item; });
+        const auto found = fresh.find(item);
+        if (found == fresh.end()) continue;
+        const auto& data = found->second;
+        if (!data.second || data.first <= a_keepCount) continue;
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
-        // Ignore Quest, Favorited and Worn items
-        if (data.second->IsQuestObject() || data.second->IsFavorited() || data.second->IsWorn()) continue;
-
+        if (data.second->IsQuestObject()) continue;
         if (currentAmmo && item->GetFormID() == currentAmmo->GetFormID()) continue;
 
-        const auto categories = ClassifyItem(item);
-        if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
-
-        // Equipment mods can expose virtual worn items through the standard condition.
         double equipped{};
-        if (isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0) continue;
+        const bool formEquipped = isEquipped && isEquipped(player, item, nullptr, equipped) && equipped != 0.0;
+        bool favoriteCopies = data.second->IsFavorited();
+        const auto read = [player, item, &favoriteCopies] {
+            return InventoryStacks::Read(player, [&favoriteCopies](auto*, auto& entry, auto* extra) {
+                favoriteCopies = favoriteCopies || entry.IsFavorited();
+                return !entry.IsQuestObject() && !InventoryStacks::IsFavorited(entry, extra);
+            }, item);
+        };
+        auto stacks = read();
+        if (stacks.empty()) continue;
 
-        int count = data.first - a_keepCount;
+        std::unordered_set<RE::ExtraDataList*> protectedStacks;
+        const auto* equipment = PlayerEquipment::Current();
+        if (equipment) {
+            const auto rows = equipment->find(item);
+            if (rows != equipment->end()) protectedStacks = rows->second.equipped;
+            else if (item->As<RE::TESObjectARMO>() || item->As<RE::TESObjectWEAP>()) continue;
+            if ((formEquipped || data.second->IsWorn()) && protectedStacks.empty()) continue;
+        } else if (formEquipped || data.second->IsWorn()) continue;
+        for (const auto& stack : stacks)
+            if (stack.extra && (stack.extra->HasType<RE::ExtraWorn>() || stack.extra->HasType<RE::ExtraWornLeft>()))
+                protectedStacks.insert(stack.extra);
+
+        int count = InventoryStacks::Count(player, item) - a_keepCount;
         if (i_count > 0) count = std::min(count, i_count);
-        if (count > 0)
-            MoveItems(player, chest, item, count);
+        while (count > 0) {
+            if (stacks.empty()) break;
+            const auto next = std::ranges::find_if(stacks, [&](const InventoryStacks::Stack& stack) { return !protectedStacks.contains(stack.extra) &&
+                (!stack.extra || (!stack.extra->HasType<RE::ExtraWorn>() && !stack.extra->HasType<RE::ExtraWornLeft>())); });
+            if (next == stacks.end()) break;
+            auto stack = *next;
+            stack.count = (std::min)(stack.count, count);
+            if (!stack.extra && (!protectedStacks.empty() || favoriteCopies)) {
+                const auto physical = InventoryStacks::Materialize(stack);
+                if (!physical) break;
+                stack = *physical;
+            }
+            const int moved = InventoryStacks::Move(stack, chest);
+            if (!moved) break;
+            DepositLearning::RecordAutomaticTransfer(player, chest, item, moved);
+            count -= moved;
+            if (count > 0) stacks = read();
+        }
     }
 }
 
@@ -273,11 +313,27 @@ void Stores::StoreToStore(ItemCategory a_category, Container a_source, Container
         if (!item || data.first <= 0 || item->As<RE::TESSoulGem>()) continue;
 
         const auto categories = ClassifyItem(item);
-        if (a_source == Container::Sort && (HasCategory(categories, ItemCategory::Ignore) ||
-            (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))) continue;
+        if (a_source == Container::Sort &&
+            (HasCategory(categories, ItemCategory::Ignore) || sortFavorites_.contains(item->GetFormID()) ||
+             (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item)))) continue;
+
         if (!HasCategory(categories, a_category)) continue;
         
-        MoveItems(source, destination, item, data.first);
+        if (a_source == Container::Sort) {
+            for (;;) {
+                bool favoriteCopies = false;
+                const auto stacks = InventoryStacks::Read(source, [&favoriteCopies](auto*, auto& entry, auto* extra) {
+                    const bool favorite = InventoryStacks::IsFavorited(entry, extra) ||
+                        InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                    favoriteCopies |= favorite;
+                    return !favorite;
+                }, item);
+                if (stacks.empty()) break;
+                auto stack = std::optional{stacks.front()};
+                if (!stack->extra && favoriteCopies) stack = InventoryStacks::Materialize(*stack);
+                if (!stack || !InventoryStacks::Move(*stack, destination)) break;
+            }
+        } else MoveItems(source, destination, item, data.first);
     }
 }
 
@@ -289,9 +345,21 @@ void Stores::AllToStore(Container a_source, Container a_destination) {
 
     if (a_source == Container::Sort) {
         for (const auto& [item, data] : source->GetInventory()) {
-            if (item && data.first > 0 && !HasCategory(ClassifyItem(item), ItemCategory::Ignore) &&
-                (!Settings::GetSingleton()->GSC_ReturnIgnoredItems || !Settings::GetSingleton()->IsIgnored(item)))
-                MoveItems(source, destination, item, data.first);
+            if (!item || data.first <= 0 || HasCategory(ClassifyItem(item), ItemCategory::Ignore) || sortFavorites_.contains(item->GetFormID()) ||
+                (Settings::GetSingleton()->GSC_ReturnIgnoredItems && Settings::GetSingleton()->IsIgnored(item))) continue;
+            for (;;) {
+                bool favoriteCopies = false;
+                const auto stacks = InventoryStacks::Read(source, [&favoriteCopies](auto*, auto& entry, auto* extra) {
+                    const bool favorite = InventoryStacks::IsFavorited(entry, extra) ||
+                        InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+                    favoriteCopies |= favorite;
+                    return !favorite;
+                }, item);
+                if (stacks.empty()) break;
+                auto stack = std::optional{stacks.front()};
+                if (!stack->extra && favoriteCopies) stack = InventoryStacks::Materialize(*stack);
+                if (!stack || !InventoryStacks::Move(*stack, destination)) break;
+            }
         }
         return;
     }
@@ -322,6 +390,8 @@ void Stores::OpenStorageMenu(Container a_chest, RE::TESObjectREFR* a_source, std
     auto* chest = Utility::GetSingleton()->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!chest || !player) return;
+
+    if (a_chest == Container::Sort) CaptureSortFavorites();
 
     const auto sourceHandle = a_source->GetHandle();
     auto returnToMenu = [sourceHandle, a_onClose = std::move(a_onClose)] {
@@ -373,15 +443,16 @@ void Stores::CloseStoreObject(RE::TESObjectREFR* a_source, AnimationCallback a_o
 // Sorting
 //===================================================
 void Stores::SortItems() {
-    ConsolidateRemains();
     ConsolidateBooks();
     ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
+    const bool returnedFavorites = ReturnSortFavorites();
     ReturnIgnoredItems();
-    Soulgems::Recover();
-    StoreToStore(ItemCategory::Junk, Container::Sort, Container::Junk);
+    Soulgems::Recover(sortFavorites_);
     StoreToStore(ItemCategory::Soulgem, Container::Sort, Container::Soulgem);
     // Sort all items in the sorting container
+    StoreToStore(ItemCategory::Junk, Container::Sort, Container::Junk);
+    StoreToStore(ItemCategory::Personal, Container::Sort, Container::Personal);
     StoreToStore(ItemCategory::Gear, Container::Sort, Container::Gear);
     StoreToStore(ItemCategory::Gold, Container::Sort, Container::Treasure);
     StoreToStore(ItemCategory::Ammunition, Container::Sort, Container::Ammunition);
@@ -397,10 +468,14 @@ void Stores::SortItems() {
     StoreToStore(ItemCategory::Weapon, Container::Sort, Container::Weapon);
     StoreToStore(ItemCategory::Concoction, Container::Sort, Container::Concoction);
     AllToStore(Container::Sort, Container::Junk);
-    RE::SendHUDMessage::ShowHUDMessage(Translate("Vault.StoreAllMessage"));
+    RE::SendHUDMessage::ShowHUDMessage(Translate(returnedFavorites ? "Vault.FavoritesReturned" : "Vault.StoreAllMessage"));
 }
 
-void Stores::OffloadItems() {
+void Stores::OffloadItems(std::function<void()> complete) {
+    PlayerEquipment::Run([this] { OffloadItemsNow(); }, std::move(complete));
+}
+
+void Stores::OffloadItemsNow() {
     ConsolidateBooks();
     ConsolidatePotions();
     AllToStore(Container::Instruments, Container::Gear);
@@ -507,8 +582,9 @@ void Stores::ShowVaultMenu(RE::TESObjectREFR* a_source) {
     std::vector<MenuOption> options;
 
     options.push_back({Translate("Vault.ArcaneOffload"), [this, sourceHandle] {
-        OffloadItems();
-        if (auto source = sourceHandle.get()) VaultMenu(source.get());
+        OffloadItems([this, sourceHandle] {
+            if (auto source = sourceHandle.get()) ShowVaultMenu(source.get());
+        });
     }});
 
     options.push_back({Translate("Vault.ArcaneSort"), [this, sourceHandle] {
@@ -2321,4 +2397,56 @@ void Stores::RecoverSawnLogs() {
 void Stores::ConsolidateRemains() {
     AllToStore(Container::Remains, Container::Smithing);
     StoreToStore(ItemCategory::Remains, Container::Junk, Container::Smithing);
+}
+
+void Stores::CaptureSortFavorites() {
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return;
+    const auto counts = source->GetInventoryCounts();
+    std::erase_if(sortFavorites_, [&counts](auto id) {
+        return std::ranges::none_of(counts, [id](const auto& entry) {
+            return entry.first && entry.first->GetFormID() == id && entry.second > 0;
+        });
+    });
+    auto* keyword = InventoryStacks::FavoriteKeyword();
+    InventoryStacks::ClearOrigins(player, keyword);
+    for (const auto& [item, data] : player->GetInventory()) {
+        if (!item || data.first <= 0 || !data.second || !data.second->IsFavorited()) continue;
+        for (const auto& stack : InventoryStacks::Read(player, [](auto*, auto& entry, auto* extra) {
+            return InventoryStacks::IsFavorited(entry, extra);
+        }, item)) {
+            if (!keyword || !stack.extra || !stack.extra->HasType<RE::ExtraHotkey>() ||
+                !InventoryStacks::MarkOrigin(stack, keyword)) sortFavorites_.insert(item->GetFormID());
+        }
+    }
+}
+
+bool Stores::ReturnSortFavorites() {
+    auto* source = Utility::GetSingleton()->GetContainer(Container::Sort);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!source || !player) return false;
+    bool returned = false;
+    for (const auto& [item, data] : source->GetInventory()) {
+        if (!item || data.first <= 0) continue;
+        if (data.second && data.second->IsFavorited()) {
+            auto* keyword = InventoryStacks::FavoriteKeyword();
+            for (const auto& stack : InventoryStacks::Read(source, [](auto*, auto& entry, auto* extra) {
+                return InventoryStacks::IsFavorited(entry, extra);
+            }, item)) {
+                if (!keyword || !stack.extra || !stack.extra->HasType<RE::ExtraHotkey>() ||
+                    !InventoryStacks::MarkOrigin(stack, keyword)) sortFavorites_.insert(item->GetFormID());
+            }
+        }
+        for (;;) {
+            const auto stacks = InventoryStacks::Read(source, [this](auto* candidate, auto& entry, auto* extra) {
+                return sortFavorites_.contains(candidate->GetFormID()) || InventoryStacks::IsFavorited(entry, extra) ||
+                    InventoryStacks::HasOrigin(extra, InventoryStacks::FavoriteKeyword());
+            }, item);
+            if (stacks.empty() || !InventoryStacks::Move(stacks.front(), player)) break;
+            returned = true;
+        }
+    }
+    InventoryStacks::RestoreFavorites(player);
+    return returned;
 }

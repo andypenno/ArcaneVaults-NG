@@ -14,6 +14,7 @@ inline bool HasCategory(CategoryMask mask,ItemCategory c)noexcept{return (mask&(
 namespace DepositLearning {inline void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int){}}
 struct MenuOption {std::string text;std::function<void()> action;};
 struct Stores {
+    std::unordered_set<RE::FormID> sortFavorites_;
     std::vector<MenuOption> options;void AllToStore(Container,Container);
     static Stores* GetSingleton(){static Stores stores;return &stores;}
     void ShowDynamicMessageBox(const char*,std::vector<MenuOption> values,int cancel){assert(cancel==0);options=std::move(values);}

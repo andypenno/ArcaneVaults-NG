@@ -24,6 +24,7 @@ program = r'''
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
+struct BGSKeyword {};
 using FormID = unsigned;
 enum class SOUL_LEVEL { kNone, kPetty, kLesser, kCommon, kGreater, kGrand };
 struct TESForm {
@@ -46,6 +47,7 @@ struct TESSoulGem : TESBoundObject {
     TESSoulGem(FormID id, SOUL_LEVEL value):TESBoundObject(id),soul(value) {}
     SOUL_LEVEL GetContainedSoul() const { return soul; }
 };
+struct ExtraHotkey {};
 struct ExtraSoul {
     SOUL_LEVEL soul;
     SOUL_LEVEL GetContainedSoul() const { return soul; }
@@ -54,7 +56,8 @@ struct ExtraDataList {
     int count;
     std::optional<ExtraSoul> soul;
     std::string owner;
-    bool alive = true;
+    bool alive = true;bool hotkey=false,sortFavorite=false;
+    template<class T> bool HasType()const{return hotkey;}
     int GetCount() const { assert(alive); return count; }
     template<class T> T* GetByType() { assert(alive); return soul ? &*soul : nullptr; }
 };
@@ -63,21 +66,23 @@ struct InventoryEntryData {
     std::vector<ExtraDataList*>* extraLists = nullptr;
     bool quest = false, favorite = false, worn = false;
     bool IsQuestObject() const { return quest; }
-    bool IsFavorited() const { return favorite; }
+    bool IsFavorited() const { return favorite || std::ranges::any_of(lists,[](auto* x){return x->hotkey;}); }
     bool IsWorn() const { return worn; }
 };
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
 struct TESObjectREFR;
-struct Ref {TESObjectREFR* object;TESObjectREFR* get()const{return object;}explicit operator bool()const{return object;}};
-struct ObjectRefHandle {TESObjectREFR* object=nullptr;Ref get()const{return {object};}};
-struct TESFurnitureEvent {enum class FurnitureEventType{kEnter,kExit};Ref actor,targetFurniture;FurnitureEventType type;};
+struct ObjectRefHandle {TESObjectREFR* object=nullptr;struct Pointer {TESObjectREFR* object;explicit operator bool()const{return object!=nullptr;}TESObjectREFR* get()const{return object;}};Pointer get()const{return {object};}};
+struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};ObjectRefHandle::Pointer actor,targetFurniture;FurnitureEventType type;};
 struct TESObjectREFR {
     ObjectRefHandle GetHandle(){return {this};}
     using Inventory = std::map<TESBoundObject*,std::pair<int,std::shared_ptr<InventoryEntryData>>>;
     Inventory inventory;
     inline static std::vector<std::unique_ptr<ExtraDataList>> extras;
-    template<class Filter> Inventory GetInventory(Filter filter) const {Inventory result;for(const auto& [item,data]:inventory)if(item && filter(*item))result[item]=data;return result;}
-    Inventory GetInventory() const { return inventory; }
+    Inventory GetInventory(std::function<bool(TESBoundObject&)> filter=[](auto&){return true;}) const {
+        Inventory selected;
+        for(const auto& [item,data]:inventory) if(item && filter(*item)) selected[item]=data;
+        return selected;
+    }
     void Put(TESBoundObject* item,int count,std::optional<SOUL_LEVEL> soul={},std::string owner={},bool explicitStack=false) {
         auto& data=inventory[item];data.first+=count;
         if (!data.second) data.second=std::make_shared<InventoryEntryData>();
@@ -97,7 +102,7 @@ struct TESObjectREFR {
             if (chosen) {
                 assert(chosen->alive);
                 moving=std::min(moving,chosen->count);
-                if (target) target->Put(item,moving,chosen->soul?std::optional{chosen->soul->soul}:std::nullopt,chosen->owner,true);
+                if (target) {target->Put(item,moving,chosen->soul?std::optional{chosen->soul->soul}:std::nullopt,chosen->owner,true);target->inventory[item].second->lists.back()->hotkey=chosen->hotkey;}
                 chosen->count-=moving;
                 if (chosen->count==0) {
                     std::erase(data.second->lists,chosen);chosen->alive=false;
@@ -134,7 +139,8 @@ struct Utility {
 '''
 program += r'''
 struct Settings {
-    bool GSC_AllCraftingMaterials=false;
+    std::unordered_set<const RE::TESBoundObject*> strongIgnored;
+    bool GSC_AllCraftingMaterials = false;
     bool GSC_CraftingLoan = true;
     bool GSC_ReturnIgnoredItems = true;
     std::unordered_set<const RE::TESBoundObject*> ignored;
@@ -143,26 +149,57 @@ struct Settings {
 };
 '''
 program += r'''
-std::unordered_set<RE::TESBoundObject*> categoryIgnored;
-CategoryMask ClassifyItem(RE::TESBoundObject* item)noexcept{return CategoryMask{1}<<static_cast<unsigned>(categoryIgnored.contains(item)?ItemCategory::Ignore:ItemCategory::Soulgem);}
-bool HasCategory(CategoryMask mask,ItemCategory category)noexcept{return (mask&(CategoryMask{1}<<static_cast<unsigned>(category)))!=0;}
+#include "src/InventoryStacks.h"
+namespace InventoryStacks {
+bool Prepare(RE::TESObjectREFR*,RE::TESBoundObject*,Prepared&,const std::function<bool(RE::ExtraDataList*,int,std::size_t)>&){assert(false);return false;}
+bool Valid(const ReadCursor&){assert(false);return false;}
+int MovePrepared(const Stack&,RE::TESObjectREFR*,Prepared&,std::size_t){assert(false);return 0;}
+bool HasItems(RE::TESObjectREFR* source){
+    if(!source)return false;
+    for(const auto& [item,data]:source->GetInventory())if(item && data.first>0)return true;
+    return false;
+}
+
+RE::BGSKeyword* FavoriteKeyword(){static RE::BGSKeyword keyword;return &keyword;}
+bool HasOrigin(RE::ExtraDataList* extra,RE::BGSKeyword* keyword){return keyword && extra && extra->sortFavorite;}
+std::optional<Stack> Materialize(const Stack& stack){
+    auto copy=std::make_unique<RE::ExtraDataList>();copy->count=std::min(stack.count,32767);
+    auto& entry=stack.source->inventory[stack.item].second;entry->lists.push_back(copy.get());entry->extraLists=&entry->lists;
+    Stack result=stack;result.extra=copy.get();result.count=copy->count;RE::TESObjectREFR::extras.push_back(std::move(copy));return result;
+}
+int Move(const Stack& stack,RE::TESObjectREFR* target){
+    const int before=stack.source->inventory[stack.item].first;
+    stack.source->RemoveItem(stack.item,stack.count,RE::ITEM_REMOVE_REASON::kStoreInContainer,stack.extra,target);
+    return before-stack.source->inventory[stack.item].first;
+}
+}
+'''
+program += r'''
+CategoryMask ToMask(ItemCategory category) noexcept { return CategoryMask{1}<<static_cast<unsigned>(category); }
+bool HasCategory(CategoryMask mask,ItemCategory category) noexcept { return (mask&ToMask(category))!=0; }
+CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept {
+    return ToMask(Settings::GetSingleton()->strongIgnored.contains(item)?ItemCategory::Ignore:ItemCategory::Soulgem);
+}
 '''
 program += implementation
 loan = (ROOT / "src/Events.cpp").read_text()
 loan = loan[loan.index("class CraftingLoanState {"):loan.index("class FurnitureActivation {")]
 program += r'''
 
-namespace SKSE {struct Tasks {void AddTask(std::function<void()> task){task();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;}}
 struct Stores {
-    void ConsolidateRemains(){}
-    void RecoverSawnLogs(){}
-    void BeginJunkLoan(){}void EndJunkLoan(){}void ResetJunkLoan(){}
+    void RecoverSawnLogs() {}
+    void ConsolidateRemains() {}
     static Stores* GetSingleton() { static Stores s;return &s; }
+    void BeginJunkLoan() {}
+    void EndJunkLoan() {}
+    void ResetJunkLoan() {}
     void AllToPlayer(Container) {}
     void StoreToPlayer(ItemCategory,Container) {}
     void PlayerToStore(ItemCategory,Container) {}
 };
 '''
+program += "\n"
+program += "namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }\n"
 program += loan
 program += r'''
 int main() {
@@ -222,6 +259,16 @@ int main() {
     modStar.linkedSoulGem=&star;player->Put(&modStar,1);
     Soulgems::Deposit(0);assert(player->inventory[&modStar].first==1);
     reset();
+    reset();u->recipes.clear();
+    player->Put(&gem,2);bank->Put(&gem,5);bank->Put(&gem,4,RE::SOUL_LEVEL::kGrand,"all material owner",true);
+    Soulgems::BeginLoan(true,true);
+    assert((counts(player,&gem)==std::array{7,4}) && bank->inventory[&gem].first==0);
+    player->RemoveItem(&gem,1,RE::ITEM_REMOVE_REASON::kStoreInContainer,player->inventory[&gem].second->lists.front(),nullptr);
+    Soulgems::EndLoan();
+    assert((counts(player,&gem)==std::array{2,0}));
+    assert((counts(bank,&gem)==std::array{5,3}));
+    assert(bank->inventory[&gem].second->lists.front()->owner=="all material owner");
+    reset();
     RE::TESSoulGem varla(0xFE000801,RE::SOUL_LEVEL::kNone);
     player->Put(&varla,2);player->Put(&varla,1,RE::SOUL_LEVEL::kCommon,"Stone owner",true);
     Soulgems::Deposit(25);
@@ -239,9 +286,6 @@ int main() {
     Soulgems::BeginLoan(true);assert((counts(player,&gem)==std::array{27,5}));
     Soulgems::EndLoan();assert((counts(player,&gem)==std::array{25,0}));
     assert((counts(bank,&gem)==std::array{2,5}));
-    reset();u->recipes.clear();bank->Put(&gem,4);bank->Put(&prefilled,3);Soulgems::BeginLoan(true,true);
-    assert((counts(player,&gem)==std::array{4,0}));assert((counts(player,&prefilled)==std::array{0,3}));
-    Soulgems::EndLoan();assert((counts(bank,&gem)==std::array{4,0}));assert((counts(bank,&prefilled)==std::array{0,3}));
     reset();
     prefilled.linkedSoulGem=&gem;bank->Put(&prefilled,3);player->Put(&gem,25);
     Soulgems::BeginLoan(false);
@@ -277,6 +321,18 @@ int main() {
     u->bench=BenchType::Smithing;u->recipes.insert(prefilled.GetFormID());
     session->EnterCrafting(&furniture);session->ExitCrafting();
     assert((counts(bank,&prefilled)==std::array{0,3}));
+    for(auto bench:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::Enchanting,BenchType::StaffEnchanting}) {
+        reset();u->recipes.clear();u->bench=bench;
+        Settings::GetSingleton()->GSC_AllCraftingMaterials=true;
+        player->Put(&gem,2);bank->Put(&gem,5);bank->Put(&gem,4,RE::SOUL_LEVEL::kGrand,"station loan owner",true);
+        session->EnterCrafting(&furniture);
+        assert((counts(player,&gem)==std::array{7,4}));
+        Settings::GetSingleton()->GSC_AllCraftingMaterials=false;
+        session->ExitCrafting();
+        assert((counts(player,&gem)==std::array{2,0}) && (counts(bank,&gem)==std::array{5,4}));
+        assert(bank->inventory[&gem].second->lists.front()->owner=="station loan owner");
+    }
+    u->bench=BenchType::Smithing;
     reset();
     player->Put(&gem,25000);Soulgems::Deposit(25);
     assert(player->inventory[&gem].first==25 && bank->inventory[&gem].first==24975);
@@ -311,9 +367,6 @@ int main() {
         entry.quest=protection==0;entry.favorite=protection==1;entry.worn=protection==2;
         Soulgems::TakeEmpty(25);assert(bank->inventory[&gem].first==3 && player->inventory.empty());
     }
-    reset();categoryIgnored.insert(&gem);player->Put(&gem,8);Soulgems::Deposit(0);assert(player->inventory[&gem].first==8);
-    auto* ignoredSort=u->GetContainer(Container::Sort);ignoredSort->Put(&gem,5);Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;Soulgems::Recover();assert(ignoredSort->inventory[&gem].first==5);
-    categoryIgnored.clear();Settings::GetSingleton()->GSC_ReturnIgnoredItems=true;
     reset();bank->Put(&modStar,3);Soulgems::TakeEmpty(25);
     assert(bank->inventory[&modStar].first==3 && player->inventory.empty());
     reset();player->Put(&gem,25000);bank->Put(&gem,35000);Soulgems::TakeEmpty(30000);
@@ -324,8 +377,36 @@ int main() {
     Soulgems::Deposit(0);assert(player->inventory[&gem].first==0 && bank->inventory[&gem].first==30);
     bank->inventory.clear();auto* sort=u->GetContainer(Container::Sort);sort->inventory.clear();sort->Put(&gem,3);
     Soulgems::Recover();assert(sort->inventory[&gem].first==3 && bank->inventory.empty());
-    Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;Soulgems::Recover();
+    Settings::GetSingleton()->GSC_ReturnIgnoredItems=false;
+    Soulgems::Recover({gem.GetFormID()});
+    assert(sort->inventory[&gem].first==3 && bank->inventory.empty());
+    Soulgems::Recover();
     assert(sort->inventory[&gem].first==0 && bank->inventory[&gem].first==3);
+
+    reset();player->Put(&gem,0,RE::SOUL_LEVEL::kGrand,"favourite",true);
+    player->inventory[&gem].first=1;player->inventory[&gem].second->lists.back()->count=1;player->inventory[&gem].second->lists.back()->hotkey=true;
+    player->Put(&gem,3);Soulgems::Deposit(0);
+    assert(player->inventory[&gem].first==1 && bank->inventory[&gem].first==3);
+    assert(player->inventory[&gem].second->lists.front()->hotkey && player->inventory[&gem].second->lists.front()->owner=="favourite");
+
+    reset();auto* inbox=u->GetContainer(Container::Sort);inbox->Put(&gem,0,RE::SOUL_LEVEL::kGrand,"sort favourite",true);
+    inbox->inventory[&gem].first=1;inbox->inventory[&gem].second->lists.back()->count=1;inbox->inventory[&gem].second->lists.back()->sortFavorite=true;
+    inbox->Put(&gem,3);Soulgems::Recover();
+    assert(inbox->inventory[&gem].first==1 && bank->inventory[&gem].first==3);
+    assert(inbox->inventory[&gem].second->lists.front()->sortFavorite && inbox->inventory[&gem].second->lists.front()->owner=="sort favourite");
+
+    reset();auto* settings=Settings::GetSingleton();settings->strongIgnored.insert(&gem);
+    player->Put(&gem,12);Soulgems::Deposit(0);
+    assert(player->inventory[&gem].first==12 && bank->inventory.empty());
+    inbox->Put(&gem,3);settings->GSC_ReturnIgnoredItems=false;Soulgems::Recover();
+    assert(inbox->inventory[&gem].first==3 && bank->inventory.empty());
+    inbox->inventory.clear();bank->Put(&gem,5);Soulgems::BeginLoan(false,true);
+    assert(player->inventory[&gem].first==17);Soulgems::EndLoan();
+    assert(player->inventory[&gem].first==17 && bank->inventory[&gem].first==0);
+    Soulgems::EndLoan();assert(player->inventory[&gem].first==17);
+    player->inventory.clear();bank->Put(&gem,4);Soulgems::TakeEmpty();
+    assert(player->inventory[&gem].first==4 && bank->inventory[&gem].first==0);
+    settings->strongIgnored.clear();
 
 }
 '''

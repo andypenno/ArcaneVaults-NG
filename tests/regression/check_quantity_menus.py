@@ -26,7 +26,7 @@ for match in re.finditer(r'void Stores::(Show\w+Menu)\(', source):
 assert quantity_menus == {'Show' + name + 'Menu' for name in
     ('Keys', 'Ammunition', 'Alchemy', 'Soulgem', 'Book', 'Scroll', 'Valuables', 'Gear', 'Notes')}
 start = program.index('    void ShowDynamicMessageBox(')
-end = program.index('\n', start)
+end = program.index('    void OpenStorageMenu(', start)
 program = program[:start] + '''
     RE::ObjectRefHandle navigationSource_;
     int cancelIndex=-1;
@@ -41,7 +41,7 @@ for name in ('ResetNavigation', 'ShowDynamicMessageBox'):
         body += '    title=a_message;options=std::move(a_options);cancelIndex=a_cancelOption;\n}\n'
     program += body
 start = program.index('const char* Translate(const char* key) {')
-end = program.index('\n', start)
+end = program.index('const char* Translate(const std::string& key)', start)
 labels = json.loads((ROOT / 'ini/ArcaneVaultTranslation.json').read_text())
 rows = ','.join('{' + json.dumps(k) + ', ' + json.dumps(v) + '}' for k, v in labels.items())
 program = program[:start] + '''

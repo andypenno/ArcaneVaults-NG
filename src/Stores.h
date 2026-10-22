@@ -28,6 +28,10 @@ public:
     }
 
 private:
+    void OffloadItemsNow();
+    std::unordered_set<RE::FormID> sortFavorites_;
+    void CaptureSortFavorites();
+    bool ReturnSortFavorites();
     std::vector<MenuAction> actions;
 };
 
@@ -57,7 +61,7 @@ public:
 
     // Utility Functions
     void SortItems();
-    void OffloadItems();
+    void OffloadItems(std::function<void()> complete = {});
     void KeepAmmunition(bool a_respectIgnores = false);
     void TakeAmmunition();
     void IgnoreMenu(RE::TESObjectREFR* a_source);
@@ -65,6 +69,7 @@ public:
     void ResetIgnorePicker() { ++ignoreSession_; }
     void ReturnIgnoredItems();
     void RecoverSawnLogs();
+    void ResetSortFavorites() { sortFavorites_.clear(); }
     void ResetNavigation();
     void VaultAssignment(RE::TESObjectREFRPtr a_source);
     

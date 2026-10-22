@@ -11,6 +11,7 @@
 #include "DepositLearning.h"
 #include "TransferFeedback.h"
 #include "InventoryPreview.h"
+#include "PlayerEquipment.h"
 #include "Stores.h"
 #include "StolenItems.h"
 #include "EnchantedItems.h"
@@ -45,6 +46,8 @@ static void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 	case SKSE::MessagingInterface::kPreLoadGame:
 	case SKSE::MessagingInterface::kNewGame:
 		TransferFeedback::Reset();
+		PlayerEquipment::Reset();
+		Stores::GetSingleton()->ResetSortFavorites();
 		DepositLearning::Reset();
         StolenItems::Reset();
         AVEvents::ResetCraftingLoan();

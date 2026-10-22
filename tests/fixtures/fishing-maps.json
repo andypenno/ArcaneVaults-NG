@@ -1,0 +1,14 @@
+{
+  "plugin": "ccBGSSSE001-Fish.esm",
+  "plugin_source": "https://en.uesp.net/wiki/Skyrim:Fishing",
+  "maps": [
+    {"name": "Eastmarch", "local_id": "0x070CCC", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Eastmarch"},
+    {"name": "Falkreath", "local_id": "0x070CCD", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Falkreath"},
+    {"name": "Haafingar", "local_id": "0x070CCE", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Haafingar"},
+    {"name": "Hjaalmarch", "local_id": "0x070CCF", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Hjaalmarch"},
+    {"name": "The Pale", "local_id": "0x070CD0", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Pale"},
+    {"name": "The Reach", "local_id": "0x070CD1", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Reach"},
+    {"name": "The Rift", "local_id": "0x070CD2", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Rift"},
+    {"name": "Whiterun", "local_id": "0x070CD3", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Whiterun"}
+  ]
+}

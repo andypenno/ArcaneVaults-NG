@@ -226,6 +226,19 @@
       "timeout_seconds": 180,
       "sanitize": true,
       "release": true
+    },
+    {
+      "id": "favorites",
+      "suites": [
+        "regression"
+      ],
+      "command": [
+        "{python}",
+        "tests/regression/check_favorites.py"
+      ],
+      "timeout_seconds": 180,
+      "sanitize": true,
+      "release": true
     }
   ]
 }

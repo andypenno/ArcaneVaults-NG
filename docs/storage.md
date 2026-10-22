@@ -6,10 +6,10 @@ The shared operations are in [Stores.cpp](../src/Stores.cpp); classification liv
 
 | Operation | Selection and protection |
 | --- | --- |
-| `PlayerToStore` | Positive inventory counts matching a category; skips quest, favorited, and worn entries; optional retained count keeps that many per carried base item |
+| `PlayerToStore` | Positive counts matching a category; skips quest records and favourited physical copies; Quick Transfer protects equipped physical copies and ambiguous groups; optional retained count keeps that many per carried base item |
 | `StoreToPlayer` | Positive counts matching a category, without the player's protection checks |
-| `StoreToStore` | Positive counts matching a category, without quest/favorite/worn checks |
-| `AllToStore` | `InventoryChanges::RemoveAllItems`; rejects identical source/destination enums |
+| `StoreToStore` | Positive counts matching a category; Sort protects favourites and configured ignores |
+| `AllToStore` | `InventoryChanges::RemoveAllItems` outside Sort; Sort protects favourites and configured ignores; rejects identical source/destination enums |
 | `AllToPlayer` | `InventoryChanges::RemoveAllItems` from the selected store |
 
 The category helpers iterate inventory snapshots and use `MoveItems` to call `RemoveItem` with `kStoreInContainer` and a null extra-list argument. It checks the remaining source count after each removal and retries partial moves until the requested quantity is transferred. A refused move stops immediately; no fixed 9999 cap is imposed. This includes non-gem crafting-loan returns. `PlayerToStore` uses the actual available count for zero requests and clamps positive requests to that count. The retained count is subtracted before clamping; negative requests or reserves are rejected, and deposits never withdraw stored items. `StoreToStore` uses the actual count, including stacks above 9999. `StoreToPlayer` also uses actual counts for zero requests, clamps positive requests to available counts, and rejects negative requests. Its optional carried target additionally limits withdrawals to the shortfall per base record; a target of zero withdraws nothing. Claims about individual enchanted instances or extra data require runtime checks.
@@ -203,3 +203,5 @@ Remains gathers its Smithing subtype and returns everything to Smithing on close
 Existing quantity menus use Open, Withdraw Up To N, any existing Withdraw All, Keep N, Store All, child actions, contextual Back, then Exit. This applies to Keys, Ammunition, Alchemy, Soulgems, Books, Scrolls, Valuables, Gear and Notes. Inventory-only destinations retain direct access. Gear's quantity actions and Store All affect Lockpicks only. Soulgem withdrawal and Keep labels specify Empty; Store All retains the existing filled-and-empty deposit policy.
 
 A Quick Transfer assignment runs `OffloadItems` and returns to gameplay without opening the assigned container or reopening Arcane Vault. Quick Transfer uses appended enum value `Container::QuickTransfer`, non-respawning base `0xDEE` and persistent reference `0xDEF`. It is a Special destination, excluded from vault/archive browsing, crafting loans and archive gathering. Assignments use the existing reference-based global/per-save persistence. Sneaking opens the ignore picker. Normal activation retains every shared Quick Transfer protection and quantity setting.
+
+Favourite selection uses per-copy ExtraHotkey metadata. Ambiguous aggregate favourites retain conservative base protection. The Sort marker survives transfers and save/load, and failed favourite returns stay protected in Sort. Ordinary same-base implicit copies are materialized before removal so native null-list selection cannot take the favourite.

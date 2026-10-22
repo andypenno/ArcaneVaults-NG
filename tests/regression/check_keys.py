@@ -1,537 +1,143 @@
-"""Exercise actual shared transfers with inventory stubs."""
+"""Exercise actual transfer and Quick Transfer code with inventory stubs."""
 
 from pathlib import Path
+import configparser
+import copy
+import json
 import subprocess
 import tempfile
-import re
+
+from esp import generate_esp, walk
+from validate import validate_esp
 
 ROOT = Path(__file__).resolve().parents[2]
-header=(ROOT / "src/ItemClass.h").read_text()
-container_enum=header[header.index("enum class Container :"):header.index("enum class ItemCategory :")]
-container_names=set(re.findall(r"^\s+(\w+)[,\n]",container_enum,re.M))
-assert set(re.findall(r"\bContainer::(\w+)",(ROOT / "src/Utility.cpp").read_text())) <= container_names
+fishing_maps = json.loads((ROOT / 'tests/fixtures/fishing-maps.json').read_text())
+log_fixture = json.loads((ROOT / 'tests/fixtures/crafting/hearthfire-logs.json').read_text())
+bundled_overrides = configparser.ConfigParser(interpolation=None)
+bundled_overrides.read(ROOT / 'ini/ArcaneVaultOverrides.ini')
+log_override = next((value for key, value in bundled_overrides['Overrides'].items()
+                     if key.split('|')[0].casefold() == log_fixture['plugin'].casefold()
+                     and int(key.split('|')[1], 16) == int(log_fixture['local_id'], 16)), None)
 source = (ROOT / "src/Stores.cpp").read_text()
 start = source.index("void Stores::PlayerToStore(")
 method = source[start:source.index("\n}\n", start) + 3]
-start = source.index("void Stores::OffloadItems(")
+assert "factory->second.create" not in source
+assert not any(f"QT {number}" in source for number in range(1,5))
+assert all(token not in method for token in ("InventoryMenu", "ProcessMessage", "ControlMap", "PlayerControls"))
+
+start = source.index("void Stores::OffloadItemsNow(")
 offload = source[start:source.index("\n}\n", start) + 3]
+
+start = source.index("void Stores::StoreToStore(")
+store_to_store = source[start:source.index("\n}\n", start) + 3]
+start = source.index("void Stores::SortItems(")
+sort_items = source[start:source.index("\n}\n", start) + 3]
+extra_methods = ""
+for name in ["StoreToPlayer", "AllToStore", "ReturnValuables", "ShowValuablesMenu", "ValuablesMenu", "ShowTreasureMenu", "FoodSaltMenu", "ShowFoodSaltMenu", "ShowAlchemyMenu", "AlchemyMenu", "AllToPlayer", "ShowArmorJewelryMenu", "ShowWeaponArcheryMenu", "EmptySoulgemsMenu", "SoulgemMenu", "ShowSoulgemMenu", "FilledSoulgemsMenu", "KeysMenu", "ShowKeysMenu", "BookMenu", "ShowBookMenu", "ScrollMenu", "ShowScrollMenu", "CaptureSortFavorites", "ReturnIgnoredItems", "FinishIgnorePicker", "BeginJunkLoan", "EndJunkLoan", "ConsolidateBooks", "ConsolidateRemains", "ConsolidatePotions", "NotesMenu", "ShowNotesMenu", "OpenBookArchive", "KeepAmmunition", "TakeAmmunition", "AmmunitionMenu", "ShowAmmunitionMenu", "GearMenu", "ShowGearMenu"]:
+    start = source.index("void Stores::" + name + "(")
+    extra_methods += source[start:source.index("\n}\n", start) + 3]
+start = source.index("bool Stores::ReturnSortFavorites(")
+extra_methods += source[start:source.index("\n}\n", start) + 3]
+start = source.index("void Stores::RecoverSawnLogs(")
+extra_methods += source[start:source.index("\n}\n", start) + 3]
+start = source.index("void Stores::OpenStorageMenu(")
+opening = source[start:source.index("\n}\n", start) + 3]
+assert opening.index("if (a_chest == Container::Sort) CaptureSortFavorites();") < opening.index("ActivateRef(")
+for name in ("ShowVaultMenu", "ShowSortingMenu"):
+    start = source.index("void Stores::" + name + "(")
+    menu = source[start:source.index("\n}\n", start) + 3]
+    assert "OpenStorageMenu(Container::Sort" in menu and "SortItems();" in menu
 settings = (ROOT / "src/Settings.cpp").read_text()
 start = settings.index("template <class Func>\nvoid Settings::ForEachINIOption(")
 ini_options = settings[start:settings.index("\n}\n", start) + 3]
+start = settings.index("template <class T>\nvoid Settings::get_value(")
+get_value = settings[start:settings.index("\n}\n", start) + 3]
+classification = (ROOT / "src/ItemClass.cpp").read_text()
+start = classification.index("CategoryMask ClassifyItem(")
+classification = classification[start:classification.index("    // Food, Potions, and Poisons", start)]
+armor_source = (ROOT / "src/ItemClass.cpp").read_text()
+classification += armor_source[armor_source.index("    // Food, Potions, and Poisons"):armor_source.index("    // Weapons", armor_source.index("    // Armor and Clothing"))]
+book_source = (ROOT / "src/ItemClass.cpp").read_text()
+classification += book_source[book_source.index("    // Books, Scrolls, and Spell Tomes"):book_source.rindex("    return categories;")]
+classification += "\n    return categories | ToMask(a_item->category);\n}\n"
 settings_fields = "\n".join(line for line in (ROOT / "src/Settings.h").read_text().splitlines()
                             if line.strip().startswith(("bool GSC_", "int GSC_")))
 program = r'''
 #include <algorithm>
-#include <sstream>
 #include <iostream>
+#include <atomic>
+#include <utility>
 #include <array>
 #include <cassert>
 #include <charconv>
-#include <functional>
 #include <climits>
-#include <optional>
+#include <limits>
+#include <type_traits>
+#include <functional>
+#include <sstream>
 #include <unordered_set>
 #include <unordered_map>
-#include <limits>
 #include <vector>
 #include <map>
-#include <set>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 namespace RE { struct TESBoundObject; }
 #include "src/ItemClass.h"
 namespace RE {
 using FormID = unsigned;
-struct TESSoulGem {};
 enum class ITEM_REMOVE_REASON { kStoreInContainer };
-struct TESBoundObject { ItemCategory category; CategoryMask extraMask=0; inline static unsigned nextID=1; unsigned id=nextID++; unsigned GetFormID() const {return id;} template<class T>T* As(){return nullptr;} };
-struct InventoryEntryData {
-    bool quest = false, favorite = false, worn = false;
-    bool IsQuestObject() const { return quest; }
-    bool IsFavorited() const { return favorite; }
-    bool IsWorn() const { return worn; }
-};
-struct TESObjectREFR;
-struct Handle {
-    TESObjectREFR* object;
-    struct Pointer { TESObjectREFR* object; explicit operator bool()const{return object;} TESObjectREFR* get()const{return object;} };
-    Pointer get()const{return {object};}
-};
-struct InventoryChanges {void RemoveAllItems(TESObjectREFR*,TESObjectREFR*,bool,bool,bool);};
-struct TESObjectREFR {
-    InventoryChanges changes;InventoryChanges* GetInventoryChanges(){return &changes;}
-    Handle GetHandle(){return {this};}
-    int removeLimit=INT_MAX,removeCalls=0;bool rejectMove=false;
-    std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
-    mutable int countReads=0, inventoryRows=0;
-    auto GetInventory(std::function<bool(TESBoundObject&)> filter = [](auto&){return true;}) const {decltype(inventory) result;for(const auto& [item,data]:inventory)if(item && filter(*item)){result[item]=data;++inventoryRows;}return result;}
-    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&){return true;}) const {++countReads;std::map<TESBoundObject*,int> counts;for(const auto& [item,data]:inventory)if(item && filter(*item))counts[item]=data.first;return counts;}
-    void RemoveItem(TESBoundObject* item, int count, ITEM_REMOVE_REASON, void*, TESObjectREFR* destination) {
-        assert(count > 0 && count <= inventory.at(item).first);
-        ++removeCalls;if(rejectMove)return;count=std::min(count,removeLimit);
-        inventory.at(item).first -= count;
-        destination->inventory[item].first += count;
-        if (!destination->inventory[item].second) destination->inventory[item].second=std::make_shared<InventoryEntryData>();
-    }
-};
-void InventoryChanges::RemoveAllItems(TESObjectREFR* source,TESObjectREFR* target,bool,bool,bool){for(auto [item,data]:source->GetInventory())if(item && data.first>0)source->RemoveItem(item,data.first,ITEM_REMOVE_REASON::kStoreInContainer,nullptr,target);}
-struct PlayerCharacter : TESObjectREFR {
-    TESBoundObject* currentAmmo=nullptr;
-    TESBoundObject* GetCurrentAmmo() const {return currentAmmo;}
-    static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
-};
-struct SCRIPT_FUNCTION {
-    using Condition_t = bool(TESObjectREFR*, void*, void*, double&);
-    Condition_t* conditionFunction = nullptr;
-    inline static bool available = true, succeeds = true;
-    inline static int calls = 0;
-    inline static std::unordered_set<TESBoundObject*> equipped;
-    static bool GetEquipped(TESObjectREFR* actor, void* item, void* other, double& result) {
-        assert(actor == PlayerCharacter::GetSingleton() && !other);
-        ++calls; result = equipped.contains(static_cast<TESBoundObject*>(item)) ? 1.0 : 0.0;
-        return succeeds;
-    }
-    static SCRIPT_FUNCTION* LocateScriptCommand(std::string_view name) {
-        assert(name == "GetEquipped");
-        static SCRIPT_FUNCTION command{GetEquipped}; return available ? &command : nullptr;
-    }
-};
-struct SendHUDMessage { static void ShowHUDMessage(const char*) {} };
-}
-struct Utility {
-    RE::TESObjectREFR chest,inbox,ammunition,archery,junk;
-    std::map<Container,RE::TESObjectREFR*> custom;
-    static Utility* GetSingleton() { static Utility utility; return &utility; }
-    RE::TESObjectREFR* GetContainer(Container container) { if(custom.contains(container))return custom[container]; return container == Container::None ? nullptr : container==Container::Sort ? &inbox : container==Container::Ammunition ? &ammunition : container==Container::Archery ? &archery : container==Container::Junk ? &junk : &chest; }
-};
-CategoryMask ClassifyItem(RE::TESBoundObject* item) noexcept { return (CategoryMask{1} << static_cast<unsigned>(item->category)) | item->extraMask; }
-CategoryMask ToMask(ItemCategory category)noexcept{return category==ItemCategory::None?0:CategoryMask{1}<<static_cast<unsigned>(category);}
-bool HasAnyCategory(CategoryMask mask,CategoryMask wanted)noexcept{return (mask & wanted)!=0;}
-bool HasCategory(CategoryMask mask, ItemCategory category) noexcept { return (mask & (CategoryMask{1} << static_cast<unsigned>(category))) != 0; }
-const char* Translate(const char* key) { return key; }
-namespace Soulgems {inline int lastTarget=-1;void Recover(){} void Deposit(int,bool=false){} void TakeEmpty(int amount){lastTarget=amount;}}
-struct MenuOption {std::string text;std::function<void()> action;};
-namespace RE {using ObjectRefHandle=Handle;}
-struct Stores { void KeysMenu(RE::TESObjectREFR*);void ShowKeysMenu(RE::TESObjectREFR*);void AmmunitionMenu(RE::TESObjectREFR*);void ShowAmmunitionMenu(RE::TESObjectREFR*);void SoulgemMenu(RE::TESObjectREFR*);void ShowSoulgemMenu(RE::TESObjectREFR*);void FilledSoulgemsMenu(RE::TESObjectREFR*){}void EmptySoulgemsMenu(RE::TESObjectREFR*){}void AllToPlayer(Container);void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0); void ReturnIgnoredItems(); void KeepAmmunition(bool = false); void TakeAmmunition();
-    std::function<void()> onClose;
-    void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
-    std::string title;bool closed=false;
-    std::vector<MenuOption> options;Container opened=Container::None;
-    void ShowDynamicMessageBox(std::string_view,std::vector<MenuOption> values,int){options=std::move(values);}
-    void OpenStoreObject(RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> action){action(source);}
-    std::function<void()> returnToVault_;
-    void GearMenu(RE::TESObjectREFR*);void ShowGearMenu(RE::TESObjectREFR*);
-    void JunkMenu(RE::TESObjectREFR*);
-    void BookMenu(RE::TESObjectREFR*);void ShowBookMenu(RE::TESObjectREFR*);void NotesMenu(RE::TESObjectREFR*);void ShowNotesMenu(RE::TESObjectREFR*);
-    std::unordered_map<RE::FormID,std::pair<int,int>> junkLoan_;
-    void BeginJunkLoan();void EndJunkLoan();void ResetJunkLoan(){junkLoan_.clear();}
-    void ConsolidateRemains();void SmithMenu(RE::TESObjectREFR*){opened=Container::Smithing;}
-    void ConsolidateBooks();void ConsolidatePotions();void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool=false);
-    void AlchemyMenu(RE::TESObjectREFR*);void ShowAlchemyMenu(RE::TESObjectREFR*);
-    void ScrollMenu(RE::TESObjectREFR*);void ShowScrollMenu(RE::TESObjectREFR*);
-    void ReturnValuables();void ValuablesMenu(RE::TESObjectREFR*);void ShowValuablesMenu(RE::TESObjectREFR*);
-    void CloseStoreObject(RE::TESObjectREFR*) {closed=true;}
-    void OpenStorageMenu(Container container,RE::TESObjectREFR* source,std::function<void(RE::TESObjectREFR*)> close){opened=container;onClose=[source,close]{close(source);};}
-    void AllToStore(Container,Container); void OffloadItems(); void SortItems(); void StoreToStore(ItemCategory,Container,Container); void StoreToPlayer(ItemCategory,Container,int=0,std::optional<int> = std::nullopt); };
-'''
-program += r'''struct CSimpleIniA {
-    std::string text; bool exists=true;
-    bool KeyExists(const char*,const char*){return exists;}
-    bool GetBoolValue(const char*,const char*,bool fallback){return fallback;}
-    const char* GetValue(const char*,const char*,const char*){return text.c_str();}
-};
-namespace std {template<class... T> string format(const char* pattern,T... values){string result=pattern;auto append=[&](auto value){std::ostringstream stream;stream<<value;auto position=result.find("{}");if(position!=string::npos)result.replace(position,2,stream.str());};(append(values),...);return result;}template<class T> int make_format_args(T value){return value;}inline string vformat(const char*,int){return "";}}
-'''
-program += "namespace DepositLearning {inline void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int){}}\n"
-program += "struct Settings {\n" + settings_fields + r'''
-    static Settings* GetSingleton() { static Settings settings; return &settings; }
-    std::set<RE::TESBoundObject*> ignored;
-    bool IsIgnored(RE::TESBoundObject* item) const { return ignored.contains(item); }
-    template<class T> void get_value(CSimpleIniA&,T&,const char*,const char*);
-    template<class T> void set_value(CSimpleIniA& ini,T value,const char*,const char*){ini.text=std::to_string(value);}
-    template <class Func> void ForEachINIOption(Settings&, Func&&);
-};
-'''
-start=settings.index("template <class T>\nvoid Settings::get_value(")
-program += settings[start:settings.index("\n}\n",start)+3]
-item_class=(ROOT / "src/ItemClass.cpp").read_text()
-program += item_class[item_class.index("CategoryMask operator|("):item_class.index("CategoryMask ParseCategories(")]
-move_start=source.index("    int MoveItems(")
-program+=source[move_start:source.index("\n    }",move_start)+6]
-start=source.index("void Stores::StoreToPlayer(")
-store_to_player=source[start:source.index("\n}\n",start)+3]
-start=source.index("void Stores::StoreToStore(")
-store_to_store=source[start:source.index("\n}\n",start)+3]
-start=source.index("void Stores::SortItems(")
-sort_items=source[start:source.index("\n}\n",start)+3]
-start=source.index("void Stores::ReturnIgnoredItems(")
-program += source[start:source.index("\n}\n",start)+3]
-start=source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
-program += source[start:source.index("\n    }",start)+6]
-for name in ["KeysMenu", "ShowKeysMenu", "AmmunitionMenu", "ShowAmmunitionMenu", "SoulgemMenu", "ShowSoulgemMenu", "AllToPlayer", "KeepAmmunition", "TakeAmmunition", "ReturnValuables", "ValuablesMenu", "ShowValuablesMenu", "JunkMenu", "AlchemyMenu", "ShowAlchemyMenu", "ScrollMenu", "ShowScrollMenu", "BookMenu", "ShowBookMenu", "NotesMenu", "ShowNotesMenu", "ConsolidateBooks", "OpenBookArchive", "GearMenu", "ShowGearMenu", "ConsolidatePotions", "ConsolidateRemains", "BeginJunkLoan", "EndJunkLoan"]:
-    start=source.index("void Stores::"+name+"(")
-    program += source[start:source.index("\n}\n",start)+3]
-start=source.index("void Stores::ShowWeaponArcheryMenu(")
-program += source[start:source.index("\n}\n",start)+3]
-start=source.index("void Stores::AllToStore(")
-program += source[start:source.index("\n}\n",start)+3]
-
-program += method + store_to_player + offload + store_to_store + sort_items + ini_options
-program += r'''
-int main() {
-    assert(ContainerTranslationKey(Container::Ammunition)=="Vault.Ammunition");
-    static_assert(static_cast<unsigned>(Container::Staff) == 32);
-    static_assert(static_cast<unsigned>(ItemCategory::None) == 35);
-    static_assert(static_cast<unsigned>(ItemCategory::Keys) < 64);
-    auto* player = RE::PlayerCharacter::GetSingleton();
-    auto& chest = Utility::GetSingleton()->chest;
-    RE::TESBoundObject a{ItemCategory::Keys}, b{ItemCategory::Keys}, nonkey{ItemCategory::Scroll};
-    RE::TESBoundObject quest{ItemCategory::Keys}, favorite{ItemCategory::Keys}, worn{ItemCategory::Keys};
-    auto put = [&](RE::TESBoundObject* item, int count, bool q = false, bool f = false, bool w = false) {
-        player->inventory[item] = {count, std::make_shared<RE::InventoryEntryData>(q, f, w)};
-    };
-    put(&a, 5); put(&b, 1); put(&nonkey, 7);
-    put(&quest, 3, true); put(&favorite, 4, false, true); put(&worn, 2, false, false, true);
-    Stores stores;
-    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
-    assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 4);
-    assert(player->inventory[&b].first == 1 && !chest.inventory.contains(&b));
-    assert(player->inventory[&nonkey].first == 7);
-    assert(player->inventory[&quest].first == 3 && player->inventory[&favorite].first == 4 && player->inventory[&worn].first == 2);
-    chest.inventory[&b].first = 8;
-    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
-    assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 4);
-    assert(player->inventory[&b].first == 1 && chest.inventory[&b].first == 8);
-    stores.PlayerToStore(ItemCategory::Keys, Container::Keys);
-    assert(player->inventory[&a].first == 0 && chest.inventory[&a].first == 5);
-    assert(player->inventory[&b].first == 0 && chest.inventory[&b].first == 9);
-    put(&a, 20000);
-    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
-    assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 20004);
-    put(&nonkey, 5);
-    stores.PlayerToStore(ItemCategory::Scroll, Container::Keys, 3);
-    assert(player->inventory[&nonkey].first == 2 && chest.inventory[&nonkey].first == 3);
-    stores.PlayerToStore(ItemCategory::Scroll, Container::Keys, 3);
-    assert(player->inventory[&nonkey].first == 0 && chest.inventory[&nonkey].first == 5);
-    put(&a, 4);
-    stores.PlayerToStore(ItemCategory::Keys, Container::None, 0, true);
-    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, -1);
-    assert(player->inventory[&a].first == 4);
-    player->inventory[nullptr] = {3, std::make_shared<RE::InventoryEntryData>()};
-    player->inventory[&a].second.reset();
-    stores.PlayerToStore(ItemCategory::Keys, Container::Keys);
-    assert(player->inventory[&a].first == 4);
-
-    player->inventory.clear();chest.inventory.clear();put(&a,50000);player->removeLimit=3;
-    stores.PlayerToStore(ItemCategory::Keys,Container::Keys,0,1);
-    assert(player->inventory[&a].first==1 && chest.inventory[&a].first==49999);
-    put(&a,20);player->rejectMove=true;const auto before=player->removeCalls;
-    stores.PlayerToStore(ItemCategory::Keys,Container::Keys);
-    assert(player->inventory[&a].first==20 && player->removeCalls==before+1);
-    player->rejectMove=false;player->removeLimit=0;stores.PlayerToStore(ItemCategory::Keys,Container::Keys);
-    assert(player->inventory[&a].first==20 && player->removeCalls==before+2);
-
-    player->removeLimit=INT_MAX;
-    auto* settings = Settings::GetSingleton();
-    std::map<std::pair<std::string, std::string>, int> options;
-    settings->ForEachINIOption(*settings, [&](auto& value, const char* section, const char* key) {
-        options[{section, key}] = value;
-    });
-    assert(options.at({"Offload", "Keys"}) == 1 && options.at({"Offload", "KeysKeepOne"}) == 1);
-    put(&a, 4);
-    stores.OffloadItems();
-    assert(player->inventory[&a].first == 1);
-    settings->GSC_KeysKeepOne = false;
-    stores.OffloadItems();
-    assert(player->inventory[&a].first == 0);
-    settings->GSC_OffloadKeys = false;
-    put(&a, 4);
-    stores.OffloadItems();
-    assert(player->inventory[&a].first == 4);
-    for(int held:{0,1,3})for(int stock:{0,2,10})for(bool refused:{false,true}){
-        player->inventory.clear();chest.inventory.clear();put(&a,held);
-        chest.inventory[&a]={stock,std::make_shared<RE::InventoryEntryData>()};chest.rejectMove=refused;chest.removeLimit=2;
-        stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,1);
-        assert(player->inventory[&a].first==held+(refused?0:std::min(stock,std::max(0,1-held))));
-        assert(player->inventory[&a].first+chest.inventory[&a].first==held+stock);
-    }
-    chest.rejectMove=false;chest.removeLimit=9999;player->inventory.clear();chest.inventory.clear();
-    put(&a,10000);chest.inventory[&a]={50000,std::make_shared<RE::InventoryEntryData>()};
-    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,40000);
-    assert(player->inventory[&a].first==40000 && chest.inventory[&a].first==20000);
-    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,1000,45000);
-    assert(player->inventory[&a].first==41000 && chest.inventory[&a].first==19000);
-    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,0);stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,-1);
-    assert(player->inventory[&a].first==41000);
-
-    auto& armorVault=chest;
-    player->inventory.clear(); armorVault.inventory.clear();
-    std::array<RE::TESBoundObject,10> virtualRings{};
-    RE::TESBoundObject spare{ItemCategory::Jewelry}, equippedSpare{ItemCategory::Jewelry},
-        vanillaWorn{ItemCategory::Jewelry}, protectedQuest{ItemCategory::Jewelry}, protectedFavorite{ItemCategory::Jewelry};
-    for (auto& ring : virtualRings) {
-        ring.category=ItemCategory::Jewelry; put(&ring,2); RE::SCRIPT_FUNCTION::equipped.insert(&ring);
-    }
-    put(&spare,3); put(&equippedSpare,4); RE::SCRIPT_FUNCTION::equipped.insert(&equippedSpare);
-    put(&vanillaWorn,2,false,false,true); put(&protectedQuest,2,true); put(&protectedFavorite,2,false,true);
-    settings->GSC_OffloadJewelry=true; stores.OffloadItems();
-    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==2 && armorVault.inventory[&ring].first==0);
-    assert(player->inventory[&equippedSpare].first==4 && armorVault.inventory[&equippedSpare].first==0);
-    assert(player->inventory[&spare].first==0 && armorVault.inventory[&spare].first==3);
-    for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
-    auto* command=RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
-    command->conditionFunction=[](RE::TESObjectREFR*,void*,void*,double& result) { result=0; return true; };
-    stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
-    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==0 && armorVault.inventory[&ring].first==2);
-    assert(player->inventory[&equippedSpare].first==0 && armorVault.inventory[&equippedSpare].first==4);
-    command->conditionFunction=RE::SCRIPT_FUNCTION::GetEquipped;
-    for (int failure=0; failure<3; ++failure) {
-        put(&equippedSpare,2);
-        RE::SCRIPT_FUNCTION::available=failure!=0;
-        command->conditionFunction=failure==1 ? nullptr : RE::SCRIPT_FUNCTION::GetEquipped;
-        RE::SCRIPT_FUNCTION::succeeds=false;
-        stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
-        assert(player->inventory[&equippedSpare].first==0);
-        for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
-    }
-    RE::SCRIPT_FUNCTION::succeeds=true;
-    put(&nonkey,5); RE::SCRIPT_FUNCTION::equipped.insert(&nonkey);
-    stores.PlayerToStore(ItemCategory::Scroll,Container::Book);
-    assert(player->inventory[&nonkey].first==5);
-    RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
-    stores.PlayerToStore(ItemCategory::Scroll,Container::Book);
-    assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
-    player->inventory.clear();chest.inventory.clear();put(&a,4);settings->GSC_OffloadKeys=true;settings->ignored.insert(&a);
-    stores.OffloadItems();assert(player->inventory[&a].first==4 && chest.inventory[&a].first==0);
-    stores.PlayerToStore(ItemCategory::Keys,Container::Keys);assert(player->inventory[&a].first==0 && chest.inventory[&a].first==4);
-    auto& sortInbox=Utility::GetSingleton()->inbox;sortInbox.inventory[&a]={3,std::make_shared<RE::InventoryEntryData>()};
-    settings->GSC_ReturnIgnoredItems=true;stores.SortItems();assert(player->inventory[&a].first==3 && sortInbox.inventory[&a].first==0);
-    sortInbox.inventory[&a]={2,std::make_shared<RE::InventoryEntryData>()};settings->GSC_ReturnIgnoredItems=false;stores.SortItems();
-    assert(sortInbox.inventory[&a].first==0 && chest.inventory[&a].first==6);settings->ignored.clear();
-    player->inventory.clear();chest.inventory.clear();auto& inbox=Utility::GetSingleton()->inbox;
-    std::array<RE::TESBoundObject,3> ingredients{{{ItemCategory::Ingredient,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)},
-        {ItemCategory::Reagent,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)},
-        {ItemCategory::Catalyst,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Alchemy)}}};
-    for(auto& item:ingredients)put(&item,5);
-    stores.PlayerToStore(ItemCategory::Alchemy,Container::Alchemy);
-    for(auto& item:ingredients){assert(player->inventory[&item].first==0 && chest.inventory[&item].first==5);inbox.inventory[&item]={7,std::make_shared<RE::InventoryEntryData>()};}
-    stores.SortItems();
-    for(auto& item:ingredients)assert(inbox.inventory[&item].first==0 && chest.inventory[&item].first==12);
-
-
-    CSimpleIniA ini;int reserve=100;
-    for(const auto* text:{"0","1","100","2147483647"}){ini.text=text;settings->get_value(ini,reserve,"General","AmmunitionKeepAmount");assert(reserve==std::stoi(text));}
-    for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.text=text;settings->get_value(ini,reserve,"General","AmmunitionKeepAmount");assert(reserve==100);}
-    ini.exists=false;reserve=100;settings->get_value(ini,reserve,"General","AmmunitionKeepAmount");assert(ini.text=="100");
-    player->inventory.clear();chest.inventory.clear();auto& ammoChest=Utility::GetSingleton()->ammunition;
-    RE::TESBoundObject selectedArrows{ItemCategory::Ammunition},selectedBolts{ItemCategory::Ammunition},spareArrows{ItemCategory::Ammunition},questAmmo{ItemCategory::Ammunition},ignoredAmmo{ItemCategory::Ammunition},wornAmmo{ItemCategory::Ammunition},virtualAmmo{ItemCategory::Ammunition};
-    settings->GSC_AmmunitionKeepAmount=100;settings->GSC_KeepSelectedAmmunition=false;
-    player->currentAmmo=&selectedBolts;put(&selectedArrows,250,false,true);put(&selectedBolts,180);put(&spareArrows,160);put(&questAmmo,200,true);put(&ignoredAmmo,225);
-    settings->ignored.insert(&ignoredAmmo);stores.KeepAmmunition(true);
-    assert(player->inventory[&selectedArrows].first==250 && player->inventory[&selectedBolts].first==180 && player->inventory[&spareArrows].first==100);
-    assert(player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
-    settings->GSC_KeepSelectedAmmunition=true;put(&wornAmmo,200,false,false,true);put(&virtualAmmo,220);RE::SCRIPT_FUNCTION::equipped.insert(&virtualAmmo);
-    stores.KeepAmmunition(true);
-    for(auto* item:{&selectedArrows,&selectedBolts,&wornAmmo,&virtualAmmo})assert(player->inventory[item].first==100);
-    assert(player->inventory[&spareArrows].first==0 && player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
-    stores.KeepAmmunition();assert(player->inventory[&ignoredAmmo].first==0 && player->inventory[&questAmmo].first==200);
-    put(&selectedArrows,30,false,true);put(&selectedBolts,140);put(&wornAmmo,20,false,false,true);put(&virtualAmmo,20);
-    ammoChest.inventory[&wornAmmo]={5,std::make_shared<RE::InventoryEntryData>()};ammoChest.inventory[&virtualAmmo]={150,std::make_shared<RE::InventoryEntryData>()};ammoChest.inventory[&spareArrows]={200,std::make_shared<RE::InventoryEntryData>()};
-    stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==100 && player->inventory[&selectedBolts].first==140);
-    assert(player->inventory[&wornAmmo].first==25 && player->inventory[&virtualAmmo].first==100 && player->inventory[&spareArrows].first==0);
-    settings->GSC_KeepSelectedAmmunition=false;stores.TakeAmmunition();assert(player->inventory[&spareArrows].first==100);
-    settings->GSC_KeepSelectedAmmunition=true;player->inventory.clear();player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::equipped.clear();
-    stores.TakeAmmunition();assert(player->inventory.empty());put(&spareArrows,60);put(&selectedArrows,60,false,true);stores.KeepAmmunition();
-    assert(player->inventory[&spareArrows].first==0 && player->inventory[&selectedArrows].first==60);
-    player->currentAmmo=&selectedArrows;settings->GSC_AmmunitionKeepAmount=40000;player->inventory.clear();ammoChest.inventory.clear();ammoChest.inventory[&selectedArrows]={50000,std::make_shared<RE::InventoryEntryData>()};
-    ammoChest.removeLimit=9999;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==40000 && ammoChest.inventory[&selectedArrows].first==10000);
-    settings->GSC_AmmunitionKeepAmount=100;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==100 && ammoChest.inventory[&selectedArrows].first==49900);
-    put(&selectedArrows,150,false,true);player->rejectMove=true;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==150);player->rejectMove=false;
-    put(&selectedArrows,20,false,true);ammoChest.rejectMove=true;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==20);ammoChest.rejectMove=false;
-    settings->GSC_OffloadAmmunition=true;put(&selectedArrows,150,false,true);put(&spareArrows,20);stores.OffloadItems();
-    assert(player->inventory[&selectedArrows].first==100 && player->inventory[&spareArrows].first==0);
-    player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::equipped.clear();settings->ignored.clear();
-    player->inventory.clear();ammoChest.inventory.clear();chest.inventory.clear();auto& archery=Utility::GetSingleton()->archery;RE::TESObjectREFR activationSource;
-    RE::TESBoundObject bow{ItemCategory::Archery},manualAmmo{ItemCategory::Ammunition};
-    chest.inventory[&bow]={2,std::make_shared<RE::InventoryEntryData>()};ammoChest.inventory[&selectedArrows]={250,std::make_shared<RE::InventoryEntryData>()};
-    stores.ShowWeaponArcheryMenu(&activationSource);
-    assert(archery.inventory[&bow].first==2 && archery.inventory[&selectedArrows].first==250 && chest.inventory[&bow].first==0);
-    archery.inventory[&manualAmmo]={90,std::make_shared<RE::InventoryEntryData>()};archery.rejectMove=true;stores.onClose();
-    assert(archery.inventory[&selectedArrows].first==250 && archery.inventory[&bow].first==2 && chest.inventory[&selectedArrows].first==0);
-    archery.rejectMove=false;stores.onClose();
-    assert(ammoChest.inventory[&selectedArrows].first==250 && ammoChest.inventory[&manualAmmo].first==90 && chest.inventory[&bow].first==2);
-    assert(archery.inventory[&selectedArrows].first==0 && archery.inventory[&bow].first==0);
-
-
-
-    player->inventory.clear();chest.inventory.clear();RE::TESBoundObject ordinarySoulgemOverride{ItemCategory::Soulgem};
-    put(&ordinarySoulgemOverride,12);settings->GSC_OffloadSoulgems=true;stores.OffloadItems();
-    assert(player->inventory[&ordinarySoulgemOverride].first==0 && chest.inventory[&ordinarySoulgemOverride].first==12);
-    auto& soulInbox=Utility::GetSingleton()->inbox;soulInbox.inventory[&ordinarySoulgemOverride]={5,std::make_shared<RE::InventoryEntryData>()};stores.SortItems();
-    assert(soulInbox.inventory[&ordinarySoulgemOverride].first==0 && chest.inventory[&ordinarySoulgemOverride].first==17);
-    player->inventory.clear();RE::TESObjectREFR treasury,smithing,armor,valuables;auto* utility=Utility::GetSingleton();
-    utility->custom={{Container::Treasure,&treasury},{Container::Smithing,&smithing},{Container::Armor,&armor},{Container::Valuables,&valuables}};
-    RE::TESBoundObject gold{ItemCategory::Gold},gem{ItemCategory::Gemstone},ingot{ItemCategory::PreciousIngot},jewel{ItemCategory::Jewelry},unrelated{ItemCategory::Scroll};
-    auto entry=[](int count){return std::pair{count,std::make_shared<RE::InventoryEntryData>()};};
-    treasury.inventory[&gold]=entry(6000);treasury.inventory[&unrelated]=entry(4);smithing.inventory[&gem]=entry(10);smithing.inventory[&ingot]=entry(20);armor.inventory[&jewel]=entry(3);
-    stores.ValuablesMenu(&activationSource);assert(stores.options.size()==6);
-    auto click=[&](int index){auto action=stores.options.at(index).action;action();};click(0);
-    assert(stores.opened==Container::Valuables && valuables.inventory[&gold].first==6000 && valuables.inventory[&gem].first==10 && valuables.inventory[&ingot].first==20 && valuables.inventory[&jewel].first==3);
-    assert(treasury.inventory[&unrelated].first==4);stores.onClose();
-    assert(treasury.inventory[&gold].first==6000 && smithing.inventory[&gem].first==10 && smithing.inventory[&ingot].first==20 && armor.inventory[&jewel].first==3);
-    settings->GSC_GoldKeepAmount=5000;put(&gold,6200);click(2);assert(player->inventory[&gold].first==5000 && treasury.inventory[&gold].first==7200);
-    click(3);assert(player->inventory[&gold].first==0 && treasury.inventory[&gold].first==12200);
-    click(4);assert(player->inventory[&gold].first==12200 && treasury.inventory[&gold].first==0);
-    settings->ignored.insert(&gold);stores.OffloadItems();assert(player->inventory[&gold].first==12200);settings->ignored.clear();stores.OffloadItems();assert(player->inventory[&gold].first==5000 && treasury.inventory[&gold].first==7200);
-    for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.exists=true;ini.text=text;settings->get_value(ini,reserve,"General","GoldKeepAmount");assert(reserve==5000);}
-    utility->custom.clear();
-    player->inventory.clear();auto& junk=utility->junk;auto& junkInbox=utility->inbox;junk.inventory.clear();junkInbox.inventory.clear();
-    RE::TESBoundObject explicitJunk{ItemCategory::Junk,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing)},unmatchedJunk{ItemCategory::None};
-    put(&explicitJunk,5);put(&unmatchedJunk,7);settings->GSC_OffloadJunk=true;stores.OffloadItems();
-    assert(player->inventory[&explicitJunk].first==0 && junk.inventory[&explicitJunk].first==5 && player->inventory[&unmatchedJunk].first==7);
-    explicitJunk.extraMask=0;settings->GSC_OffloadJunk=false;put(&explicitJunk,4);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);
-    settings->GSC_OffloadJunk=true;settings->ignored.insert(&explicitJunk);stores.OffloadItems();assert(player->inventory[&explicitJunk].first==4);settings->ignored.clear();
-    junkInbox.inventory[&explicitJunk]=entry(9);junkInbox.inventory[&unmatchedJunk]=entry(8);stores.SortItems();
-    assert(junk.inventory[&explicitJunk].first==14 && junk.inventory[&unmatchedJunk].first==8 && junkInbox.inventory[&unmatchedJunk].first==0);
-    settings->GSC_ReturnIgnoredItems=true;settings->ignored.insert(&unmatchedJunk);junkInbox.inventory[&unmatchedJunk]=entry(3);junkInbox.rejectMove=true;stores.SortItems();
-    assert(junkInbox.inventory[&unmatchedJunk].first==3 && junk.inventory[&unmatchedJunk].first==8);
-    junkInbox.rejectMove=false;stores.SortItems();assert(junkInbox.inventory[&unmatchedJunk].first==0 && player->inventory[&unmatchedJunk].first==10);
-    settings->ignored.clear();stores.JunkMenu(&activationSource);assert(stores.opened==Container::Junk);stores.onClose();
-
-
-
-    for(bool alchemy:{false,true})for(int target:{0,1,25})for(int held:{0,1,100})for(int stock:{0,3,100}){
-        player->inventory.clear();chest.inventory.clear();utility->custom.clear();
-        RE::TESBoundObject item{alchemy?ItemCategory::Alchemy:ItemCategory::Scroll};put(&item,held);chest.inventory[&item]=entry(stock);
-        settings->GSC_AlchemyKeepAmount=target;settings->GSC_ScrollKeepAmount=target;
-        if(alchemy)stores.AlchemyMenu(&activationSource);else stores.ScrollMenu(&activationSource);
-        click(1);assert(player->inventory[&item].first==std::min(held,target));
-        assert(player->inventory[&item].first+chest.inventory[&item].first==held+stock);
-        click(2);assert(player->inventory[&item].first==std::min(held+stock,target));
-        assert(player->inventory[&item].first+chest.inventory[&item].first==held+stock);
-    }
-    for(auto [key,fallback]:{std::pair{"AlchemyKeepAmount",1},std::pair{"ScrollKeepAmount",3}}){
-        for(const auto* text:{"","-1","1.5","100x","abc","2147483648"}){ini.exists=true;ini.text=text;settings->get_value(ini,reserve,"General",key);assert(reserve==fallback);}
-        ini.text="0";settings->get_value(ini,reserve,"General",key);assert(reserve==0);
-    }
-
-
-    player->inventory.clear();chest.inventory.clear();utility->custom.clear();RE::TESObjectREFR books,notes,spellArchive,skillArchive,recipeArchive,legacyScroll;
-    utility->custom={{Container::Book,&books},{Container::Notes,&notes},{Container::SpellTomes,&spellArchive},{Container::SkillBooks,&skillArchive},{Container::Recipes,&recipeArchive},{Container::Scroll,&legacyScroll}};
-    RE::TESBoundObject plainBook{ItemCategory::Book},spellBook{ItemCategory::SpellTome,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Book)},skillBook{ItemCategory::SkillBook,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Book)},recipe{ItemCategory::Recipe,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Note)},note{ItemCategory::Note};
-    spellArchive.inventory[&spellBook]=entry(2);skillArchive.inventory[&skillBook]=entry(3);recipeArchive.inventory[&recipe]=entry(4);legacyScroll.inventory[&note]=entry(5);books.inventory[&note]=entry(6);
-    stores.ConsolidateBooks();assert(books.inventory[&spellBook].first==2 && books.inventory[&skillBook].first==3 && notes.inventory[&recipe].first==4 && notes.inventory[&note].first==11);
-    stores.BookMenu(&activationSource);click(2);assert(stores.opened==Container::SpellTomes && spellArchive.inventory[&spellBook].first==2);stores.onClose();assert(books.inventory[&spellBook].first==2);
-    stores.BookMenu(&activationSource);click(3);assert(stores.opened==Container::SkillBooks && skillArchive.inventory[&skillBook].first==3);stores.onClose();assert(books.inventory[&skillBook].first==3);
-    stores.NotesMenu(&activationSource);click(2);assert(stores.opened==Container::Recipes && recipeArchive.inventory[&recipe].first==4);stores.onClose();assert(notes.inventory[&recipe].first==4);
-    put(&plainBook,3);books.inventory[&plainBook]=entry(10);stores.BookMenu(&activationSource);click(1);assert(player->inventory[&plainBook].first==3);
-    player->inventory[&plainBook].first=0;click(1);assert(player->inventory[&plainBook].first==1);click(1);assert(player->inventory[&plainBook].first==1);
-    settings->GSC_OffloadNotes=true;put(&note,12);stores.OffloadItems();assert(player->inventory[&note].first==0 && notes.inventory[&note].first==23);
-    utility->custom.clear();
-
-
-    player->inventory.clear();chest.inventory.clear();RE::TESObjectREFR mapArchive;utility->custom[Container::Notes]=&notes;utility->custom[Container::Maps]=&mapArchive;
-    RE::TESBoundObject fishingMap{ItemCategory::Map,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Note)};
-    notes.inventory[&fishingMap]=entry(8);stores.NotesMenu(&activationSource);click(3);
-    assert(stores.opened==Container::Maps && mapArchive.inventory[&fishingMap].first==8 && notes.inventory[&fishingMap].first==0);
-    stores.onClose();assert(notes.inventory[&fishingMap].first==8 && mapArchive.inventory[&fishingMap].first==0);
-    utility->custom.clear();
-
-
-    player->inventory.clear();chest.inventory.clear();RE::TESObjectREFR gear,instruments;utility->custom={{Container::Gear,&gear},{Container::Instruments,&instruments}};
-    RE::TESBoundObject picks{ItemCategory::Lockpick,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Gear)},instrument{ItemCategory::Instrument,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Gear)},equipment{ItemCategory::Gear};
-    put(&picks,100);put(&equipment,7);put(&instrument,3);settings->GSC_OffloadGear=true;settings->GSC_LockpickKeepAmount=25;stores.OffloadItems();
-    assert(player->inventory[&picks].first==25 && gear.inventory[&picks].first==75 && player->inventory[&equipment].first==0 && gear.inventory[&equipment].first==7 && gear.inventory[&instrument].first==3);
-    stores.OpenBookArchive(Container::Instruments,Container::Gear,ItemCategory::Instrument,&activationSource);
-    assert(stores.opened==Container::Instruments && instruments.inventory[&instrument].first==3 && gear.inventory[&equipment].first==7);stores.onClose();assert(gear.inventory[&instrument].first==3);
-    stores.GearMenu(&activationSource);assert(stores.options.size()==5);put(&picks,60);click(2);assert(player->inventory[&picks].first==25);player->inventory[&picks].first=0;click(3);assert(player->inventory[&picks].first==25);
-    ini.text="-1";ini.exists=true;settings->get_value(ini,reserve,"General","LockpickKeepAmount");assert(reserve==25);
-    utility->custom.clear();
-
-
-    player->inventory.clear();chest.inventory.clear();RE::TESObjectREFR concoctions,healthArchive,magickaArchive,staminaArchive;
-    utility->custom={{Container::Concoction,&concoctions},{Container::HealthPotions,&healthArchive},{Container::MagickaPotions,&magickaArchive},{Container::StaminaPotions,&staminaArchive}};
-    RE::TESBoundObject healthDrink{ItemCategory::HealthPotion},magickaDrink{ItemCategory::MagickaPotion},staminaDrink{ItemCategory::StaminaPotion};
-    healthArchive.inventory[&healthDrink]=entry(4);magickaArchive.inventory[&magickaDrink]=entry(5);staminaArchive.inventory[&staminaDrink]=entry(6);stores.ConsolidatePotions();
-    assert(concoctions.inventory[&healthDrink].first==4 && concoctions.inventory[&magickaDrink].first==5 && concoctions.inventory[&staminaDrink].first==6);
-    stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,&activationSource);assert(stores.opened==Container::HealthPotions && healthArchive.inventory[&healthDrink].first==4);stores.onClose();assert(concoctions.inventory[&healthDrink].first==4);
-    utility->custom.clear();
-
-
-    player->inventory.clear();utility->junk.inventory.clear();utility->custom.clear();RE::TESBoundObject loanItem{ItemCategory::Junk},protectedLoan{ItemCategory::Junk};
-    put(&loanItem,3);utility->junk.inventory[&loanItem]=entry(20);utility->junk.inventory[&protectedLoan]={4,std::make_shared<RE::InventoryEntryData>(false,true,false)};
-    utility->junk.countReads=0;stores.BeginJunkLoan();assert(utility->junk.countReads==2);assert(player->inventory[&loanItem].first==23 && utility->junk.inventory[&loanItem].first==0 && utility->junk.inventory[&protectedLoan].first==4);
-    put(&protectedLoan,6);player->inventoryRows=0;player->inventory[&loanItem].first-=5;stores.EndJunkLoan();assert(player->inventoryRows==1 && player->inventory[&protectedLoan].first==6);assert(player->inventory[&loanItem].first==3 && utility->junk.inventory[&loanItem].first==15 && stores.junkLoan_.empty());
-    stores.BeginJunkLoan();player->rejectMove=true;stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18 && utility->junk.inventory[&loanItem].first==0);player->rejectMove=false;
-    stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();assert(player->inventory[&loanItem].first==18);
-    player->inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();utility->custom.clear();
-    smithing.inventory.clear();RE::TESObjectREFR remains;utility->custom={{Container::Smithing,&smithing},{Container::Remains,&remains}};
-    RE::TESBoundObject skull{ItemCategory::Remains,CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing)},horn{ItemCategory::Remains,(CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Smithing))|(CategoryMask{1}<<static_cast<unsigned>(ItemCategory::Construction))};
-    utility->junk.inventory[&skull]=entry(8);remains.inventory[&skull]=entry(5);put(&horn,10);
-    stores.ConsolidateRemains();assert(smithing.inventory[&skull].first==13 && utility->junk.inventory[&skull].first==0);
-    stores.OffloadItems();assert(player->inventory[&horn].first==0 && smithing.inventory[&horn].first==10);
-    stores.OpenBookArchive(Container::Remains,Container::Smithing,ItemCategory::Remains,&activationSource,true);
-    assert(stores.opened==Container::Remains && remains.inventory[&skull].first==13 && remains.inventory[&horn].first==10);
-    stores.onClose();assert(stores.opened==Container::Smithing && smithing.inventory[&skull].first==13 && smithing.inventory[&horn].first==10);
-    stores.StoreToPlayer(ItemCategory::Construction,Container::Smithing);assert(player->inventory[&horn].first==10 && smithing.inventory[&skull].first==13);
-    utility->custom.clear();
-    for(bool picker:{false,true}){
-        settings->GSC_ReturnIgnoredItems=picker;player->inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
-        RE::TESBoundObject logs{ItemCategory::Ignore};utility->inbox.inventory[&logs]=entry(100);
-        stores.ReturnIgnoredItems();stores.AllToStore(Container::Sort,Container::Junk);
-        assert(player->inventory[&logs].first==100 && utility->junk.inventory[&logs].first==0);
-        stores.PlayerToStore(ItemCategory::Smithing,Container::Smithing);assert(player->inventory[&logs].first==100);
-        utility->inbox.rejectMove=true;utility->inbox.inventory[&logs]=entry(10);stores.ReturnIgnoredItems();stores.AllToStore(Container::Sort,Container::Junk);
-        assert(utility->inbox.inventory[&logs].first==10 && utility->junk.inventory[&logs].first==0);utility->inbox.rejectMove=false;
-    }
-
-
-}
-'''
-with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
-    path = Path(temporary)
-    (path / "check.cpp").write_text(program)
-    subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
-                    str(path / "check.cpp"), "-o", str(path / "check")], check=True)
-    subprocess.run([str(path / "check")], check=True)
-print("PASS: transfer reserves, large stacks, partial/refused moves, protections and quantity conservation")
-
-program = r'''
-#include <cassert>
-#include <array>
-#include <cstdint>
-#include <set>
-#include <string>
-#include <vector>
-#include <cctype>
-#include <ranges>
-#include <algorithm>
-#include <string_view>
-#include <type_traits>
-namespace RE { struct TESBoundObject; }
-#include "src/ItemClass.h"
-namespace RE {
-struct TESObjectBOOK {
-    unsigned id=0;bool spell=false,skill=false,recipe=false,note=false;std::string model;
-    bool TeachesSpell()const{return spell;}bool TeachesSkill()const{return skill;}bool IsNoteScroll()const{return note;}
-    bool HasKeywordByEditorID(const char*)const{return recipe;}unsigned GetFormID()const{return id;}
-};
-struct TESDataHandler {std::vector<TESObjectBOOK*> books;template<class T>const auto& GetFormArray(){return books;}};
-enum class ActorValue {kHealth,kHealRate,kHealRateMult,kMagicka,kMagickaRate,kMagickaRateMult,kStamina,kStaminaRate,kStaminaRateMult,kOther};
-namespace EffectArchetypes {enum class ArchetypeID {kValueModifier,kPeakValueModifier,kDualValueModifier,kOther};}
-struct EffectSetting {
-    unsigned formID=0;bool hostile=false,detrimental=false;
-    struct Data {ActorValue primaryAV=ActorValue::kHealth,secondaryAV=ActorValue::kMagicka;float secondAVWeight=0;EffectArchetypes::ArchetypeID archetype=EffectArchetypes::ArchetypeID::kValueModifier;}data;
-    bool IsHostile()const{return hostile;}bool IsDetrimental()const{return detrimental;}auto GetArchetype()const{return data.archetype;}unsigned GetFormID()const{return formID;}
-};
-struct Effect {EffectSetting* baseEffect;float magnitude=10;float GetMagnitude()const{return magnitude;}};
-struct AlchemyItem {bool food=false,poison=false;std::vector<Effect*> effects;bool IsFood()const{return food;}bool IsPoison()const{return poison;}};
-struct TESObjectLIGH {bool carryable=true;bool CanBeCarried()const{return carryable;}};
-struct TESObjectMISC {};
 struct TESAmmo {};
 struct ScrollItem {};
+struct TESObjectBOOK {
+    bool note=false, spell=false, skill=false, recipe=false;
+    std::string model;
+    unsigned formID=0;
+    unsigned GetFormID() const { return formID; }
+    bool IsNoteScroll() const { return note; }
+    bool TeachesSpell() const { return spell; }
+    bool TeachesSkill() const { return skill; }
+    bool HasKeywordByEditorID(std::string_view key) const { return recipe && key=="VendorItemRecipe"; }
+};
+struct TESDataHandler {
+    static TESDataHandler* GetSingleton(){static TESDataHandler data;return &data;}
+    inline static TESBoundObject* sawnLogs=nullptr;
+    template<class T>T* LookupForm(unsigned id,std::string_view plugin){
+        assert(id==0x300E && plugin=="HearthFires.esm");return reinterpret_cast<T*>(sawnLogs);
+    }
+    std::vector<TESObjectBOOK*> books;
+    template<class T> const auto& GetFormArray() const { return books; }
+};
+enum class ActorValue { kNone,kHealth,kMagicka,kStamina,kHealRate,kMagickaRate,kStaminaRate,kHealRateMult,kMagickaRateMult,kStaminaRateMult,kOther };
+namespace EffectArchetypes { enum class ArchetypeID { kValueModifier,kPeakValueModifier,kDualValueModifier,kScript }; }
+struct EffectSetting {
+    unsigned formID=0;
+    unsigned GetFormID() const {return formID;}
+    bool hostile=false,detrimental=false;
+    EffectArchetypes::ArchetypeID archetype=EffectArchetypes::ArchetypeID::kValueModifier;
+    struct Data { ActorValue primaryAV=ActorValue::kNone,secondaryAV=ActorValue::kNone;float secondAVWeight=0; } data;
+    bool IsHostile() const {return hostile;}
+    bool IsDetrimental() const {return detrimental;}
+    auto GetArchetype() const {return archetype;}
+};
+struct Effect { EffectSetting* baseEffect=nullptr;float magnitude=0;float GetMagnitude() const{return magnitude;} };
+struct AlchemyItem {
+    bool food=false,poison=false;
+    std::vector<Effect*> effects;
+    bool IsFood() const{return food;}
+    bool IsPoison() const{return poison;}
+};
+struct TESObjectMISC {};
+struct TESObjectWEAP {};
+struct BGSKeyword {};
+struct ExtraHotkey {};
+struct ExtraWorn {};
+struct ExtraWornLeft {};
+struct ExtraDataList { template<class T> bool HasType() const { return false; } };
+struct TESObjectLIGH { bool carryable = true; bool CanBeCarried() const { return carryable; } };
+struct TESSoulGem {};
+struct IngredientItem { bool food = false; bool IsFood() const { return food; } };
 struct BIPED_MODEL {
     enum class BipedObjectSlot : unsigned { kHead=1, kHair=2, kBody=4, kHands=8, kAmulet=32, kRing=64, kFeet=128, kShield=512, kCirclet=4096 };
     enum class ArmorType { kLightArmor, kHeavyArmor, kClothing };
@@ -560,36 +166,175 @@ struct TESObjectARMO {
 };
 struct TESBoundObject {
     ItemCategory category;
-    unsigned formID=0;unsigned GetFormID()const{return formID;}bool IsGold()const{return formID==0xF;}
-    bool nativeAlchemy=false;AlchemyItem alchemy{};
-    bool HasKeywordByEditorID(const char*)const{return false;}
-    bool nativeLight=false;TESObjectLIGH light{};
-    bool nativeBook=false;TESObjectBOOK book{};
-    bool nativeMisc=false;TESObjectMISC misc{};
-    bool nativeArmor = false;
+    bool bolt = false;
+    unsigned formID = 0;
+    IngredientItem ingredient{};
     TESObjectARMO armor{};
-    bool nativeAmmo = false;
-    TESAmmo ammo{};
+    bool nativeArmor = false;
+    bool nativeAlchemy = false;
+    AlchemyItem alchemy{};
+    bool nativeLight = false;
+    TESObjectLIGH light{};
     bool nativeScroll = false;
-    ScrollItem scroll{};
+    bool nativeBook = false;
+    TESObjectBOOK book{};
+    unsigned GetFormID() const { return formID; }
+    bool IsGold() const { return formID == 0xF; }
+    bool IsKey() const { return category == ItemCategory::Keys; }
+    bool HasKeywordByEditorID(const char*) const { return false; }
     template<class T> T* As() {
-        if constexpr (std::is_same_v<T, AlchemyItem>) return nativeAlchemy ? &alchemy : nullptr;
+        static T object;
+        if constexpr (std::is_same_v<T, TESAmmo>) return category == ItemCategory::Ammunition ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, AlchemyItem>) return nativeAlchemy ? &alchemy : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectLIGH>) return nativeLight ? &light : nullptr;
+        else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &object : nullptr;
         else if constexpr (std::is_same_v<T, TESObjectBOOK>) return nativeBook ? &book : nullptr;
-        else if constexpr (std::is_same_v<T, TESObjectMISC>) return nativeMisc ? &misc : nullptr;
-        else if constexpr (std::is_same_v<T, TESAmmo>) return nativeAmmo ? &ammo : nullptr;
-        else if constexpr (std::is_same_v<T, ScrollItem>) return nativeScroll ? &scroll : nullptr;
-        else return nativeArmor ? &armor : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectMISC>) return category == ItemCategory::PreciousIngot ? &object : nullptr;
+        else if constexpr (std::is_same_v<T, IngredientItem>) return category == ItemCategory::Ingredient || category == ItemCategory::Catalyst || category == ItemCategory::Reagent ? &ingredient : nullptr;
+        else if constexpr (std::is_same_v<T, TESObjectARMO>) return nativeArmor ? &armor : nullptr;
+        else return nullptr;
     }
 };
+struct InventoryEntryData {
+    bool quest = false, favorite = false, worn = false;
+    bool IsQuestObject() const { return quest; }
+    bool IsFavorited() const { return favorite; }
+    bool IsWorn() const { return worn; }
+};
+struct TESObjectREFR;
+struct Handle {
+    TESObjectREFR* object=nullptr;
+    struct Pointer {
+        TESObjectREFR* object;
+        operator bool() const { return object != nullptr; }
+        TESObjectREFR* get() const { return object; }
+    };
+    Pointer get() const;
+};
+using ObjectRefHandle=Handle;
+struct TESFurnitureEvent {enum class FurnitureEventType {kEnter,kExit};Handle::Pointer actor,targetFurniture;FurnitureEventType type;};
+struct TESObjectREFR {
+    int removeLimit = INT_MAX, removeCalls = 0;
+    bool rejectMove = false;
+    bool alive = true;
+    Handle GetHandle() { return {this}; }
+    struct Changes {
+        TESObjectREFR* owner;
+        void RemoveAllItems(TESObjectREFR*, TESObjectREFR* destination, bool, bool, bool) {
+            const auto snapshot = owner->inventory;
+            for (const auto& [item, entry] : snapshot)
+                if (item && entry.first > 0)
+                    {
+                        owner->inventory[item].first -= entry.first;
+                        destination->inventory[item].first += entry.first;
+                        if (!destination->inventory[item].second) destination->inventory[item].second = std::make_shared<InventoryEntryData>();
+                    }
+        }
+    } changes{this};
+    Changes* GetInventoryChanges() { return &changes; }
+    std::map<TESBoundObject*, std::pair<int, std::shared_ptr<InventoryEntryData>>> inventory;
+    auto GetInventory(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }) const {
+        auto result = inventory;
+        std::erase_if(result, [&](const auto& row) { return !filter(*row.first); });
+        return result;
+    }
+    auto GetInventoryCounts(std::function<bool(TESBoundObject&)> filter = [](auto&) { return true; }, bool = false) const {
+        std::map<TESBoundObject*, int> counts;
+        for (auto& [item, data] : inventory) if (filter(*item)) counts[item] = data.first;
+        return counts;
+    }
+    void RemoveItem(TESBoundObject* item, int count, ITEM_REMOVE_REASON, void*, TESObjectREFR* destination) {
+        assert(count > 0 && count <= inventory.at(item).first);
+        ++removeCalls;
+        if (rejectMove) return;
+        count = std::min(count, removeLimit);
+        inventory.at(item).first -= count;
+        destination->inventory[item].first += count;
+        if (!destination->inventory[item].second) destination->inventory[item].second = std::make_shared<InventoryEntryData>();
+    }
+};
+Handle::Pointer Handle::get() const { return {object && object->alive ? object : nullptr}; }
+struct PlayerCharacter : TESObjectREFR {
+    TESBoundObject* currentAmmo = nullptr;
+    TESBoundObject* GetCurrentAmmo() const { return currentAmmo; }
+    static PlayerCharacter* GetSingleton() { static PlayerCharacter player; return &player; }
+};
+struct SCRIPT_FUNCTION {
+    using Condition_t = bool(TESObjectREFR*, void*, void*, double&);
+    Condition_t* conditionFunction = nullptr;
+    inline static bool available = true, succeeds = true;
+    inline static int calls = 0;
+    inline static std::unordered_set<TESBoundObject*> equipped;
+    static bool GetEquipped(TESObjectREFR* actor, void* item, void* other, double& result) {
+        assert(actor == PlayerCharacter::GetSingleton() && !other);
+        ++calls; result = equipped.contains(static_cast<TESBoundObject*>(item)) ? 1.0 : 0.0;
+        return succeeds;
+    }
+    static SCRIPT_FUNCTION* LocateScriptCommand(std::string_view name) {
+        assert(name == "GetEquipped");
+        static SCRIPT_FUNCTION command{GetEquipped}; return available ? &command : nullptr;
+    }
+};
+struct SendHUDMessage { inline static std::string last; static void ShowHUDMessage(const char* text) { last = text; } };
 }
+struct Utility {
+    RE::TESObjectREFR chest, archery, inbox, ammunition, treasure, smithing, armor, valuables, junk, notes, spellTomes, skillBooks, recipes, maps, personal, gear, instruments, concoction, potion, poison, restorative, healthPotions, magickaPotions, staminaPotions;
+    RE::TESObjectREFR* foodContainer = nullptr;
+    RE::TESObjectREFR* alchemyContainer = nullptr;
+    RE::TESObjectREFR* scrollContainer = nullptr;
+    std::unordered_set<unsigned> SmithingMap, SmeltingMap, TanningMap, ConstructionMap, RawFoodMap, SkillBookMap;
+    void CacheSkillBooks(RE::TESDataHandler*);
+    RE::EffectSetting restoreHealth{},restoreMagicka{},restoreStamina{};
+    RE::EffectSetting* RestoreHealth=&restoreHealth;
+    RE::EffectSetting* RestoreMagicka=&restoreMagicka;
+    RE::EffectSetting* RestoreStamina=&restoreStamina;
+    Utility(){restoreHealth.formID=0x3EB15;restoreMagicka.formID=0x3EB17;restoreStamina.formID=0x3EB16;}
+    bool FoundRestore(RE::AlchemyItem*);
+    bool isSmithing(unsigned id) const { return SmithingMap.contains(id) || SmeltingMap.contains(id) || TanningMap.contains(id) || ConstructionMap.contains(id); }
+    BenchType bench = BenchType::Smithing;
+    BenchType GetBenchType(RE::TESObjectREFR*) { return bench; }
+    bool missingSmithing = false;
+    static Utility* GetSingleton() { static Utility utility; return &utility; }
+    RE::TESObjectREFR* GetContainer(Container container) {
+        switch (container) {
+        case Container::None: return nullptr;
+        case Container::Food: return foodContainer ? foodContainer : &chest;
+        case Container::Alchemy: return alchemyContainer ? alchemyContainer : &chest;
+        case Container::Concoction: return &concoction;
+        case Container::Potion: return &potion;
+        case Container::Poison: return &poison;
+        case Container::Restorative: return &restorative;
+        case Container::HealthPotions: return &healthPotions;
+        case Container::MagickaPotions: return &magickaPotions;
+        case Container::StaminaPotions: return &staminaPotions;
+        case Container::Gear: return &gear;
+        case Container::Instruments: return &instruments;
+        case Container::Personal: return &personal;
+        case Container::Junk: return &junk;
+        case Container::Notes: return &notes;
+        case Container::SpellTomes: return &spellTomes;
+        case Container::SkillBooks: return &skillBooks;
+        case Container::Recipes: return &recipes;
+        case Container::Maps: return &maps;
+        case Container::Scroll: return scrollContainer ? scrollContainer : &chest;
+        case Container::Sort: return &inbox;
+        case Container::Ignore: return &inbox;
+        case Container::Archery: return &archery;
+        case Container::Ammunition: return &ammunition;
+        case Container::Treasure: return &treasure;
+        case Container::Smithing: return missingSmithing ? nullptr : &smithing;
+        case Container::Armor: return &armor;
+        case Container::Valuables: return &valuables;
+        default: return &chest;
+        }
+    }
+};
 '''
-program += "struct Utility {std::set<unsigned> SmithingMap,SmeltingMap,TanningMap,ConstructionMap,SkillBookMap,RawFoodMap;RE::EffectSetting* RestoreHealth=nullptr;RE::EffectSetting* RestoreMagicka=nullptr;RE::EffectSetting* RestoreStamina=nullptr;bool FoundRestore(RE::AlchemyItem*);void CacheSkillBooks(RE::TESDataHandler*);static Utility* GetSingleton(){static Utility u;return &u;}};\n"
-utility_source=(ROOT / "src/Utility.cpp").read_text()
-a=utility_source.index("bool Utility::FoundRestore(")
-program += utility_source[a:utility_source.index("\n}\n",a)+3]
-a=utility_source.index("void Utility::CacheSkillBooks(")
-program += utility_source[a:utility_source.index("\n}\n",a)+3]
+utility_source = (ROOT / "src/Utility.cpp").read_text()
+cache_start = utility_source.index("void Utility::CacheSkillBooks(")
+program += utility_source[cache_start:utility_source.index("\n}", cache_start) + 2]
+assert "CacheSkillBooks(dataHandler);" in utility_source
+assert "LoadAllForms();" in (ROOT / "src/main.cpp").read_text()
 biped_source = (ROOT / "lib/commonlibsse-ng/src/RE/B/BGSBipedObjectForm.cpp").read_text()
 for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAccessory", "IsHelmet", "IsCirclet", "IsChestpiece", "IsBoots", "IsGauntlets", "IsShield"]:
     start = biped_source.index(f"bool BGSBipedObjectForm::{name}(")
@@ -597,57 +342,589 @@ for name in ["HasPartOf", "IsClothing", "IsLightArmor", "IsHeavyArmor", "IsAcces
     program += body.replace("BGSBipedObjectForm::", "RE::TESObjectARMO::") + "\n"
 item_source = (ROOT / "src/ItemClass.cpp").read_text()
 program += item_source[item_source.index("CategoryMask ToMask("):item_source.index("CategoryMask ParseCategories(")]
-program += item_source[item_source.index("bool HasCategory("):item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")]
-expand_start=item_source.index("[[nodiscard]] CategoryMask ExpandCategories(")
-program += item_source[expand_start:item_source.index("CategoryMask ClassifyItem(",expand_start)]
-program += "CategoryMask ClassifyItem(RE::TESBoundObject* a_item) noexcept { CategoryMask categories=0;auto* utility=Utility::GetSingleton();\n"
-gold_start=item_source.index("    if (a_item->GetFormID() == 0xA)")
-program += item_source[gold_start:item_source.index("    if (a_item->IsKey())",gold_start)]
-start=item_source.index("    // Crafting",gold_start)
-program += item_source[start:item_source.index("    // Ingredients",start)]
-scroll_start = item_source.index("    if (a_item->As<RE::ScrollItem>())")
-program += item_source[scroll_start:item_source.index("    // Crafting", scroll_start)]
-a=item_source.index("    // Food, Potions, and Poisons")
-program += item_source[a:item_source.index("    // Armor and Clothing",a)]
-program += item_source[item_source.index("    // Armor and Clothing"):item_source.index("    // Weapons", item_source.index("    // Armor and Clothing"))]
-start=item_source.index("    // Books, Scrolls, and Spell Tomes")
-program += item_source[start:item_source.index("\n    return categories;",start)]
-program += "return categories; }\nint main() {\n"
+program += item_source[item_source.index("bool HasCategory("):item_source.index("CategoryMask ClassifyItem(")]
 program += r'''
-    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Remains)),ItemCategory::Smithing));
-    assert(ExpandCategories(ToMask(ItemCategory::Ignore)|ToMask(ItemCategory::Construction))==ToMask(ItemCategory::Ignore));
-    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Map)),ItemCategory::Note));
-    RE::TESBoundObject potion{ItemCategory::None};potion.nativeAlchemy=true;RE::EffectSetting health;health.formID=5;RE::Effect effect{&health};RE::Effect missing{nullptr};
-    potion.alchemy.effects={nullptr,&missing,&effect};assert(HasCategory(ClassifyItem(&potion),ItemCategory::HealthPotion));
-    auto* potionUtility=Utility::GetSingleton();assert(!potionUtility->FoundRestore(nullptr));potionUtility->RestoreHealth=&health;assert(potionUtility->FoundRestore(&potion.alchemy));
-    health.data.archetype=RE::EffectArchetypes::ArchetypeID::kDualValueModifier;health.data.secondAVWeight=1;
-    assert(HasCategory(ClassifyPotionEffects(&potion.alchemy),ItemCategory::MagickaPotion));health.data.secondAVWeight=0;assert(!HasCategory(ClassifyPotionEffects(&potion.alchemy),ItemCategory::MagickaPotion));
-    for(auto [value,category]:{std::pair{RE::ActorValue::kHealth,ItemCategory::HealthPotion},std::pair{RE::ActorValue::kHealRate,ItemCategory::HealthPotion},std::pair{RE::ActorValue::kHealRateMult,ItemCategory::HealthPotion},std::pair{RE::ActorValue::kMagicka,ItemCategory::MagickaPotion},std::pair{RE::ActorValue::kMagickaRate,ItemCategory::MagickaPotion},std::pair{RE::ActorValue::kMagickaRateMult,ItemCategory::MagickaPotion},std::pair{RE::ActorValue::kStamina,ItemCategory::StaminaPotion},std::pair{RE::ActorValue::kStaminaRate,ItemCategory::StaminaPotion},std::pair{RE::ActorValue::kStaminaRateMult,ItemCategory::StaminaPotion}}){health.data.primaryAV=value;assert(HasCategory(ClassifyPotionEffects(&potion.alchemy),category));}
-    health.hostile=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);health.hostile=false;health.detrimental=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);health.detrimental=false;
-    effect.magnitude=0;assert(ClassifyPotionEffects(&potion.alchemy)==0);effect.magnitude=10;potion.alchemy.poison=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);potion.alchemy.poison=false;potion.alchemy.food=true;assert(ClassifyPotionEffects(&potion.alchemy)==0);potion.alchemy.food=false;
-    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::HealthPotion)),ItemCategory::Potion) && HasCategory(ExpandCategories(ToMask(ItemCategory::HealthPotion)),ItemCategory::Concoction));
-    RE::TESBoundObject nativeBook{ItemCategory::None};nativeBook.nativeBook=true;nativeBook.book.id=0x12345;
-    assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));nativeBook.book.skill=true;
-    RE::TESDataHandler data;data.books={&nativeBook.book,nullptr};Utility::GetSingleton()->CacheSkillBooks(&data);nativeBook.book.skill=false;
-    assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::SkillBook));
-    Utility::GetSingleton()->CacheSkillBooks(nullptr);assert(!HasCategory(ClassifyItem(&nativeBook),ItemCategory::SkillBook));
-    nativeBook.book.spell=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::SpellTome));nativeBook.book.spell=false;
-    nativeBook.book.recipe=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Recipe) && HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));nativeBook.book.recipe=false;
-    for(auto model:{"Clutter/Books/Note.nif","mods/NOtePaper.NIF"}){nativeBook.book.model=model;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));}
-    nativeBook.book.model="clutter/books/book.nif";assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Book));
-    nativeBook.book.note=true;assert(HasCategory(ClassifyItem(&nativeBook),ItemCategory::Note));
-    RE::TESBoundObject lockpick{ItemCategory::None},torch{ItemCategory::None};lockpick.formID=0xA;torch.nativeLight=true;
-    assert(HasCategory(ClassifyItem(&lockpick),ItemCategory::Lockpick) && HasCategory(ClassifyItem(&lockpick),ItemCategory::Gear));
-    assert(HasCategory(ClassifyItem(&torch),ItemCategory::Gear));torch.light.carryable=false;assert(!HasCategory(ClassifyItem(&torch),ItemCategory::Gear));
-    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::Instrument)),ItemCategory::Gear));
-    RE::TESBoundObject nativeGold{ItemCategory::None},nativeIngot{ItemCategory::None};nativeGold.formID=0xF;nativeIngot.formID=0x5AD9E;nativeIngot.nativeMisc=true;
-    assert(HasCategory(ClassifyItem(&nativeGold),ItemCategory::Gold));assert(HasCategory(ClassifyItem(&nativeIngot),ItemCategory::PreciousIngot) && HasCategory(ClassifyItem(&nativeIngot),ItemCategory::Smithing));
-    RE::TESBoundObject nativeSpellScroll{ItemCategory::None}, ordinary{ItemCategory::None};
-    RE::TESBoundObject nativeAmmo{ItemCategory::None};nativeAmmo.nativeAmmo=true;
-    assert(HasCategory(ClassifyItem(&nativeAmmo),ItemCategory::Ammunition));
-    nativeSpellScroll.nativeScroll = true;
-    assert(HasCategory(ClassifyItem(&nativeSpellScroll), ItemCategory::Scroll));
-    assert(!HasCategory(ClassifyItem(&ordinary), ItemCategory::Scroll));
+namespace DepositLearning { void RecordAutomaticTransfer(RE::TESObjectREFR*,RE::TESObjectREFR*,RE::TESBoundObject*,int) {} }
+
+namespace SKSE { struct Tasks {void AddTask(std::function<void()> action){action();}};inline Tasks* GetTaskInterface(){static Tasks tasks;return &tasks;} }
+namespace InventoryStacks {struct Prepared;int Count(RE::TESObjectREFR*,RE::TESBoundObject*);}
+namespace Soulgems {
+    bool PrepareDeposit(RE::TESBoundObject*,InventoryStacks::Prepared&);
+    bool PrepareTransfer(RE::TESObjectREFR*,RE::TESBoundObject*,InventoryStacks::Prepared&);
+    std::unordered_set<RE::FormID> sortExcluded;
+    bool allLoan=false;int loanBegins=0,loanEnds=0;
+    void Recover(const std::unordered_set<RE::FormID>& excluded = {}) { sortExcluded = excluded; } void Deposit(int, bool = false) {} void BeginLoan(bool, bool all = false) {allLoan=all;++loanBegins;} void EndLoan() {++loanEnds;} void ResetLoan() {}
+    void Split() {} void Consolidate() {}
+    std::optional<int> lastTarget;
+    int withdrawals = 0;
+    void TakeEmpty(std::optional<int> target = std::nullopt) { lastTarget=target; ++withdrawals; }
+}
+const char* Translate(const char* key) {
+    if (std::string_view{key} == "Vault.KeepAmount") return "Keep";
+    if (std::string_view{key} == "Vault.Septims") return "Septims";
+    if (std::string_view{key} == "Vault.Lockpicks") return "Lockpicks";
+    if (std::string_view{key} == "Vault.KeepLockpicks") return "Keep {0} Lockpicks";
+    if (std::string_view{key} == "Vault.TakeLockpicks") return "Take Up To {0} Lockpicks";
+    if (std::string_view{key} == "Vault.TakeUpToAmount") return "Take Up To";
+    return key;
+}
+const char* Translate(const std::string& key) { return Translate(key.c_str()); }
+
+struct MenuOption { std::string text; std::function<void()> action; };
+struct Stores {
+    std::function<void()> returnToVault_;
+    void GearMenu(RE::TESObjectREFR*);
+    void ShowGearMenu(RE::TESObjectREFR*);
+    void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0);
+    std::unordered_map<unsigned, std::pair<int,int>> junkLoan_;
+    void BeginJunkLoan();
+    void EndJunkLoan();
+    void ResetJunkLoan() { junkLoan_.clear(); }
+    std::unordered_set<RE::FormID> sortFavorites_;
+    void CaptureSortFavorites();
+    bool ReturnSortFavorites();
+    void ResetSortFavorites() { sortFavorites_.clear(); }
+    void ReturnIgnoredItems();
+    void RecoverSawnLogs();
+    void FinishIgnorePicker();
+    void OffloadItemsNow();
+void OffloadItems(){OffloadItemsNow();}
+    void KeepAmmunition(bool = false);
+    void TakeAmmunition();
+    void AmmunitionMenu(RE::TESObjectREFR*);
+    void ShowAmmunitionMenu(RE::TESObjectREFR*);
+    void StoreToStore(ItemCategory, Container, Container);
+    void SortItems();
+    void StoreToPlayer(ItemCategory, Container, int = 0, std::optional<int> = std::nullopt);
+    void AllToStore(Container, Container);
+    void AllToPlayer(Container);
+    void ShowArmorJewelryMenu(RE::TESObjectREFR*);
+    void ShowWeaponArcheryMenu(RE::TESObjectREFR*);
+    void EmptySoulgemsMenu(RE::TESObjectREFR*);
+    void SoulgemMenu(RE::TESObjectREFR*);
+    void ShowSoulgemMenu(RE::TESObjectREFR*);
+    void FilledSoulgemsMenu(RE::TESObjectREFR*);
+    void KeysMenu(RE::TESObjectREFR*);
+    void ShowKeysMenu(RE::TESObjectREFR*);
+    void BookMenu(RE::TESObjectREFR*);
+    void ConsolidateBooks();
+    void ConsolidateRemains();
+    void SmithMenu(RE::TESObjectREFR*) { closed=false; }
+    void ConsolidatePotions();
+    void NotesMenu(RE::TESObjectREFR*);
+    void ShowNotesMenu(RE::TESObjectREFR*);
+    void OpenBookArchive(Container,Container,ItemCategory,RE::TESObjectREFR*,bool = false);
+    void ShowBookMenu(RE::TESObjectREFR*);
+    void ScrollMenu(RE::TESObjectREFR*);
+    void ShowScrollMenu(RE::TESObjectREFR*);
+    inline static Stores* instance = nullptr;
+    Stores() { instance = this; }
+    static Stores* GetSingleton() { return instance; }
+    void ReturnValuables();
+    void ShowValuablesMenu(RE::TESObjectREFR*);
+    void ValuablesMenu(RE::TESObjectREFR*);
+    void FoodSaltMenu(RE::TESObjectREFR*);
+    void ShowFoodSaltMenu(RE::TESObjectREFR*);
+    void ShowTreasureMenu(RE::TESObjectREFR*);
+    void ShowAlchemyMenu(RE::TESObjectREFR*);
+    void AlchemyMenu(RE::TESObjectREFR*);
+    void TreasureMenu(RE::TESObjectREFR* source) { ShowTreasureMenu(source); }
+    void OpenStoreObject(RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) { action(source); }
+    void CloseStoreObject(RE::TESObjectREFR*) { closed = true; }
+    bool closed = false;
+    std::vector<MenuOption> options;
+    std::string title;
+    Container opened = Container::None;
+    std::function<void()> onClose;
+    void ShowDynamicMessageBox(std::string_view text, std::vector<MenuOption> values, int cancel) {
+        assert(cancel >= 0 && cancel < static_cast<int>(values.size()));
+        assert(values.at(cancel).text == "Vault.Exit");
+        title = text; options = std::move(values);
+    }
+    void OpenStorageMenu(Container container, RE::TESObjectREFR* source, std::function<void(RE::TESObjectREFR*)> action) {
+        assert(container == Container::Reagent || container == Container::Archery || container == Container::Soulgem || container == Container::FilledSoulgems || container == Container::HealthPotions || container == Container::MagickaPotions || container == Container::StaminaPotions || container == Container::Gear || container == Container::Instruments || container == Container::Valuables || container == Container::Treasure || container == Container::Alchemy || container == Container::Jewelry || container == Container::EmptySoulgems || container == Container::Keys || container == Container::Book || container == Container::Scroll || container == Container::Notes || container == Container::SpellTomes || container == Container::SkillBooks || container == Container::Recipes || container == Container::Maps || container == Container::Ammunition);
+        opened = container;
+        onClose = [source, action] { action(source); };
+    }
+};
+struct CSimpleIniA {
+    std::string text;
+    bool exists = true;
+    bool KeyExists(const char*, const char*) { return exists; }
+    bool GetBoolValue(const char*, const char*, bool fallback) { return fallback; }
+    const char* GetValue(const char*, const char*, const char*) { return text.c_str(); }
+};
+namespace std {
+    int make_format_args(const int& amount) { return amount; }
+    string vformat(const char* text, int amount) {
+        string result{text};const auto at=result.find("{0}");
+        if (at!=string::npos) result.replace(at,3,to_string(amount));
+        return result;
+    }
+    template<class... Args> string format(const char* text, Args... args) {
+        string result{text};
+        const auto replace = [&](const auto& arg) {
+            ostringstream value; value << arg;
+            const auto at = result.find("{}");
+            if (at != string::npos) result.replace(at, 2, value.str());
+        };
+        (replace(args), ...);
+        return result;
+    }
+}
+'''
+program += "struct Settings {\n" + settings_fields + r'''
+    std::optional<CategoryMask> override;
+    std::optional<CategoryMask> FindOverride(RE::TESBoundObject* item) {
+        if (override) return override;
+        if (overrides.contains(item)) return overrides.at(item);
+        return std::nullopt;
+    }
+    std::unordered_set<const RE::TESBoundObject*> ignored;
+    bool saveFails = false;
+    bool IsIgnored(const RE::TESBoundObject* item) const { return ignored.contains(item); }
+    bool AddIgnoredItem(RE::TESBoundObject* item) { if (item->formID == 0xFF000001) return false; ignored.insert(item); return true; }
+    bool SaveIgnoredItems() const { return !saveFails; }
+    std::map<RE::TESBoundObject*, CategoryMask> overrides;
+    static Settings* GetSingleton() { static Settings settings; return &settings; }
+    template <class Func> void ForEachINIOption(Settings&, Func&&);
+    template <class T> void get_value(CSimpleIniA&, T&, const char*, const char*);
+    template <class T> void set_value(CSimpleIniA& ini, const T& value, const char*, const char*) {
+        ini.text = std::to_string(value);
+    }
+};
+'''
+program += '#include "src/OffloadBatch.h"\n'
+move_start = source.index("    int MoveItems(")
+program += source[move_start:source.index("\n    }", move_start) + 6]
+program += r'''
+namespace InventoryStacks {
+bool HasItems(RE::TESObjectREFR* source){
+    if(!source)return false;
+    for(const auto& [item,data]:source->GetInventory())if(item && data.first>0)return true;
+    return false;
+}
+
+struct Stack { RE::TESObjectREFR* source; RE::TESBoundObject* item; RE::ExtraDataList* extra; int count; };
+struct ReadCursor {int total=0;bool valid=true;};
+struct Prepared {ReadCursor cursor;std::vector<Stack> stacks;bool complete=false,quest=false,favorite=false,worn=false,identifiedFavorite=false;};
+auto Counts(RE::TESObjectREFR* source,std::function<bool(RE::TESBoundObject&)> filter={},bool noInit=false){return source->GetInventoryCounts(filter?filter:[](auto&){return true;},noInit);}
+bool Valid(const ReadCursor& cursor){return cursor.valid;}
+bool Prepare(RE::TESObjectREFR* source,RE::TESBoundObject* item,Prepared& prepared){
+    if(prepared.complete)return true;
+    auto found=source->inventory.find(item);prepared.complete=true;
+    if(found==source->inventory.end() || found->second.first<=0){prepared.cursor.valid=false;return true;}
+    prepared.cursor.total=found->second.first;auto& entry=*found->second.second;
+    prepared.quest=entry.IsQuestObject();prepared.favorite=entry.IsFavorited();prepared.worn=entry.IsWorn();
+    prepared.stacks.push_back({source,item,nullptr,found->second.first});return true;
+}
+std::vector<Stack> Read(RE::TESObjectREFR* source,std::function<bool(RE::TESBoundObject*,RE::InventoryEntryData&,RE::ExtraDataList*)> select = {},RE::TESBoundObject* onlyItem = nullptr) {
+    std::vector<Stack> result;
+    for(const auto& [item,data]:source->GetInventory())
+        if(item && data.second && data.first>0 && (!onlyItem || onlyItem==item) && (!select || select(item,*data.second,static_cast<RE::ExtraDataList*>(nullptr)))) result.push_back({source,item,nullptr,data.first});
+    return result;
+}
+bool IsFavorited(const RE::InventoryEntryData& entry,RE::ExtraDataList*){return entry.IsFavorited();}
+RE::BGSKeyword* FavoriteKeyword(){return nullptr;}
+bool HasOrigin(RE::ExtraDataList*,RE::BGSKeyword*){return false;}
+void ClearOrigins(RE::TESObjectREFR*,RE::BGSKeyword*){}
+std::optional<Stack> MarkOrigin(const Stack&,RE::BGSKeyword*){return {};}
+void RestoreFavorites(RE::TESObjectREFR*){}
+int Count(RE::TESObjectREFR* source,RE::TESBoundObject* item){return source->inventory[item].first;}
+std::optional<Stack> Materialize(const Stack& stack){return stack;}
+int Move(const Stack& stack,RE::TESObjectREFR* target) {
+    const int before=Count(stack.source,stack.item);
+    stack.source->RemoveItem(stack.item,stack.count,RE::ITEM_REMOVE_REASON::kStoreInContainer,stack.extra,target);
+    return before-Count(stack.source,stack.item);
+}
+int MovePrepared(const Stack& stack,RE::TESObjectREFR* target,Prepared&,std::size_t){return Move(stack,target);}
+}
+namespace Soulgems {
+bool PrepareDeposit(RE::TESBoundObject* item,InventoryStacks::Prepared& prepared){return InventoryStacks::Prepare(RE::PlayerCharacter::GetSingleton(),item,prepared);}
+bool PrepareTransfer(RE::TESObjectREFR* source,RE::TESBoundObject* item,InventoryStacks::Prepared& prepared){return InventoryStacks::Prepare(source,item,prepared);}
+}
+
+namespace PlayerEquipment {
+struct ItemEquipment { std::unordered_set<RE::ExtraDataList*> equipped; };
+using Snapshot=std::unordered_map<RE::TESBoundObject*,ItemEquipment>;
+const Snapshot* Current(){return nullptr;}
+bool Apply(Snapshot&,RE::TESBoundObject* item,const std::function<bool()>& work){
+    if(OffloadBatch::current && OffloadBatch::current->prepared)InventoryStacks::Prepare(RE::PlayerCharacter::GetSingleton(),item,*OffloadBatch::current->prepared);
+    return work();
+}
+void Run(std::function<void()> work, std::function<void()> complete, std::function<bool(RE::TESBoundObject*)>) {
+    work(); if (complete) complete();
+}
+}
+
+'''
+program += '#include "src/OffloadBatch.h"\n#include <deque>\nnamespace TransferFeedback {void Run(std::function<bool(const std::function<bool()>&)> step,std::function<void()> complete){while(!step([]{return true;})){}if(complete)complete();}}\n'
+selected_start = source.index("    std::unordered_set<RE::FormID> SelectedAmmunition(")
+selected_method = source[selected_start:source.index("\n    }", selected_start) + 6]
+utility_source = (ROOT / "src/Utility.cpp").read_text()
+restore_start = utility_source.index("bool Utility::FoundRestore(")
+program += utility_source[restore_start:utility_source.index("\n}\n", restore_start) + 3]
+program += classification + selected_method + method + offload + store_to_store + sort_items + extra_methods + ini_options + get_value
+events = (ROOT / "src/Events.cpp").read_text()
+loan_start = events.index("class CraftingLoanState {")
+program += events[loan_start:events.index("\n};", loan_start) + 3]
+program += r'''
+int main() {
+    static_assert(static_cast<unsigned>(Container::Staff) == 32);
+    static_assert(static_cast<unsigned>(ItemCategory::None) == 35);
+    static_assert(static_cast<unsigned>(ItemCategory::Keys) == 36);
+    static_assert(static_cast<unsigned>(Container::Keys) == 33);
+    static_assert(static_cast<unsigned>(ItemCategory::Ammunition) < 64);
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    auto& chest = Utility::GetSingleton()->chest;
+    RE::TESBoundObject a{ItemCategory::Keys}, b{ItemCategory::Keys}, nonkey{ItemCategory::Book};
+    RE::TESBoundObject quest{ItemCategory::Keys}, favorite{ItemCategory::Keys}, worn{ItemCategory::Keys};
+    auto put = [&](RE::TESBoundObject* item, int count, bool q = false, bool f = false, bool w = false) {
+        player->inventory[item] = {count, std::make_shared<RE::InventoryEntryData>(q, f, w)};
+    };
+    put(&a, 5); put(&b, 1); put(&nonkey, 7);
+    put(&quest, 3, true); put(&favorite, 4, false, true); put(&worn, 2, false, false, true);
+    Stores stores;
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
+    assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 4);
+    assert(player->inventory[&b].first == 1 && !chest.inventory.contains(&b));
+    assert(player->inventory[&nonkey].first == 7);
+    assert(player->inventory[&quest].first == 3 && player->inventory[&favorite].first == 4 && player->inventory[&worn].first == 2);
+    chest.inventory[&b].first = 8;
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
+    assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 4);
+    assert(player->inventory[&b].first == 1 && chest.inventory[&b].first == 8);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys);
+    assert(player->inventory[&a].first == 0 && chest.inventory[&a].first == 5);
+    assert(player->inventory[&b].first == 0 && chest.inventory[&b].first == 9);
+    put(&a, 20000);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, 0, true);
+    assert(player->inventory[&a].first == 1 && chest.inventory[&a].first == 20004);
+    put(&nonkey, 5);
+    stores.PlayerToStore(ItemCategory::Book, Container::Book, 3);
+    assert(player->inventory[&nonkey].first == 2 && chest.inventory[&nonkey].first == 3);
+    stores.PlayerToStore(ItemCategory::Book, Container::Book, 3);
+    assert(player->inventory[&nonkey].first == 0 && chest.inventory[&nonkey].first == 5);
+    put(&a, 4);
+    stores.PlayerToStore(ItemCategory::Keys, Container::None, 0, true);
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys, -1);
+    assert(player->inventory[&a].first == 4);
+    player->inventory[nullptr] = {3, std::make_shared<RE::InventoryEntryData>()};
+    player->inventory[&a].second.reset();
+    stores.PlayerToStore(ItemCategory::Keys, Container::Keys);
+    assert(player->inventory[&a].first == 4);
+    auto* settings = Settings::GetSingleton();
+    std::map<std::pair<std::string, std::string>, int> options;
+    settings->ForEachINIOption(*settings, [&](auto& value, const char* section, const char* key) {
+        options[{section, key}] = value;
+    });
+    assert(options.at({"General", "SoulgemKeepAmount"}) == 25);
+assert(!options.contains({"General", "EnchantedItemsLoan"}));
+    assert(options.contains({"General", "AllCraftingMaterials"}));
+    assert(options.at({"General", "AllowAutomaticLearning"}) == 0);
+    assert(!settings->GSC_AllCraftingMaterials);
+    assert(options.at({"General", "LockpickKeepAmount"}) == 25);
+    assert(options.at({"Offload", "Gear"}) == 0);
+    assert(options.at({"General", "AlchemyKeepAmount"}) == 1);
+    assert(options.at({"General", "ScrollKeepAmount"}) == 3);
+    assert(options.at({"General", "ReturnIgnoredItems"}) == 1);
+    assert(options.at({"Offload", "Notes"}) == 0);
+    assert(options.at({"Offload", "Personal"}) == 0);
+    assert(options.at({"Offload", "Soulgems"}) == 1);
+    assert(!options.contains({"Offload", "GrandSoulgem"}));
+    assert(options.at({"General", "GoldKeepAmount"}) == 5000);
+    assert(options.at({"Offload", "Gold"}) == 1);
+    assert(options.at({"General", "AmmunitionKeepAmount"}) == 100);
+    assert(options.at({"General", "KeepSelectedAmmunition"}) == 0);
+    assert(options.at({"Offload", "Ammunition"}) == 1);
+    assert(options.at({"Offload", "Keys"}) == 1 && options.at({"Offload", "KeysKeepOne"}) == 1);
+    put(&a, 4);
+    stores.OffloadItems();
+    assert(player->inventory[&a].first == 1);
+    settings->GSC_KeysKeepOne = false;
+    stores.OffloadItems();
+    assert(player->inventory[&a].first == 0);
+    settings->GSC_OffloadKeys = false;
+    put(&a, 4);
+    stores.OffloadItems();
+    assert(player->inventory[&a].first == 4);
+    auto& ammoChest = Utility::GetSingleton()->ammunition;
+    player->inventory.clear(); ammoChest.inventory.clear();
+    RE::TESBoundObject arrows{ItemCategory::Ammunition}, bolts{ItemCategory::Ammunition, true};
+    assert(ClassifyItem(&arrows) == ToMask(ItemCategory::Ammunition));
+    assert(ClassifyItem(&bolts) == ToMask(ItemCategory::Ammunition));
+    settings->override = ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&arrows) == ToMask(ItemCategory::Book));
+    settings->override.reset();
+    assert(ClassifyItem(nullptr) == 0);
+    RE::TESBoundObject equipped{ItemCategory::Ammunition}, ammoQuest{ItemCategory::Ammunition}, ammoFavorite{ItemCategory::Ammunition};
+    put(&arrows, 250); put(&bolts, 40); put(&equipped, 300, false, false, true);
+    put(&ammoQuest, 300, true); put(&ammoFavorite, 300, false, true); put(&nonkey, 7);
+    stores.OffloadItems();
+    assert(player->inventory[&arrows].first == 100 && ammoChest.inventory[&arrows].first == 150);
+    assert(player->inventory[&bolts].first == 40 && !ammoChest.inventory.contains(&bolts));
+    assert(player->inventory[&equipped].first == 300 && player->inventory[&ammoQuest].first == 300);
+    assert(player->inventory[&ammoFavorite].first == 300 && player->inventory[&nonkey].first == 7);
+    stores.OffloadItems();
+    assert(player->inventory[&arrows].first == 100 && ammoChest.inventory[&arrows].first == 150);
+    settings->GSC_AmmunitionKeepAmount = 25;
+    stores.OffloadItems();
+    assert(player->inventory[&arrows].first == 25 && player->inventory[&bolts].first == 25);
+    settings->GSC_OffloadAmmunition = false;
+    put(&arrows, 250);
+    stores.OffloadItems();
+    assert(player->inventory[&arrows].first == 250);
+    stores.PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, 10);
+    assert(player->inventory[&arrows].first == 10 && player->inventory[&bolts].first == 10);
+    stores.PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, -1);
+    assert(player->inventory[&arrows].first == 10);
+    settings->GSC_OffloadAmmunition = true;
+    settings->GSC_AmmunitionKeepAmount = 0;
+    stores.OffloadItems();
+    assert(player->inventory[&arrows].first == 0 && player->inventory[&bolts].first == 0);
+    put(&arrows, INT_MAX);
+    stores.PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, INT_MAX);
+    assert(player->inventory[&arrows].first == INT_MAX);
+    put(&arrows, 25000); ammoChest.inventory.clear();
+    stores.PlayerToStore(ItemCategory::Ammunition, Container::Ammunition, 0, 100);
+    assert(player->inventory[&arrows].first == 100 && ammoChest.inventory[&arrows].first == 24900);
+    auto& inbox = Utility::GetSingleton()->inbox;
+    inbox.inventory[&arrows] = {25000, std::make_shared<RE::InventoryEntryData>()};
+    stores.SortItems();
+    assert(inbox.inventory[&arrows].first == 0 && ammoChest.inventory[&arrows].first == 49900);
+    CSimpleIniA ini;
+    int amount = 100;
+    for (const auto text : {"0", "1", "25", "100", "2147483647"}) {
+        ini.text = text;
+        settings->get_value(ini, amount, "General", "AmmunitionKeepAmount");
+        assert(amount == std::stoi(text));
+    }
+    for (const auto text : {"", "-1", "1.5", "abc", "100x", "2147483648", "9999999999999999999"}) {
+        ini.text = text; amount = 25;
+        settings->get_value(ini, amount, "General", "AmmunitionKeepAmount");
+        assert(amount == 100);
+    }
+    ini.exists = false; amount = 100;
+    settings->get_value(ini, amount, "General", "AmmunitionKeepAmount");
+    assert(amount == 100 && ini.text == "100");
+    ini.exists = true; ini.text = "-1";
+    settings->get_value(ini, amount, "General", "AssignKeyCode");
+    assert(amount == -1);
+    player->inventory.clear();
+    auto* utility = Utility::GetSingleton();
+    auto& treasury = utility->treasure;
+    treasury.inventory.clear();
+    RE::TESBoundObject gold{ItemCategory::Gold, false, 0xF}, trinket{ItemCategory::Treasure};
+    assert(ClassifyItem(&gold) == ToMask(ItemCategory::Gold));
+    assert(!HasCategory(ClassifyItem(&gold), ItemCategory::Treasure));
+    settings->override = ToMask(ItemCategory::Treasure);
+    assert(ClassifyItem(&gold) == ToMask(ItemCategory::Treasure));
+    settings->override.reset();
+    put(&gold, 12000); settings->GSC_OffloadTreasure = true;
+    stores.OffloadItems();
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 7000);
+    stores.OffloadItems();
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 7000);
+    put(&gold, 3000); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 3000 && treasury.inventory[&gold].first == 7000);
+    settings->GSC_GoldKeepAmount = 2000; stores.OffloadItems();
+    assert(player->inventory[&gold].first == 2000 && treasury.inventory[&gold].first == 8000);
+    settings->GSC_OffloadGold = false; put(&gold, 12000); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 12000);
+    settings->GSC_OffloadGold = true; settings->GSC_GoldKeepAmount = 0; stores.OffloadItems();
+    assert(player->inventory[&gold].first == 0 && treasury.inventory[&gold].first == 20000);
+    put(&gold, 10000, true); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 10000);
+    put(&gold, 10000, false, true); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 10000);
+    put(&gold, 10000, false, false, true); stores.OffloadItems();
+    assert(player->inventory[&gold].first == 10000);
+    inbox.inventory.clear();
+    inbox.inventory[&gold] = {30000, std::make_shared<RE::InventoryEntryData>()};
+    settings->GSC_GoldKeepAmount = 5000;
+    stores.SortItems();
+    assert(inbox.inventory[&gold].first == 0 && treasury.inventory[&gold].first == 50000);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure, 60000);
+    assert(treasury.inventory[&gold].first == 0 && player->inventory[&gold].first == 60000);
+    treasury.inventory[&gold].first = 15;
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure, -1);
+    assert(treasury.inventory[&gold].first == 15);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure, 5);
+    assert(treasury.inventory[&gold].first == 10);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure);
+    assert(treasury.inventory[&gold].first == 0);
+
+    RE::TESBoundObject goldIngot{ItemCategory::PreciousIngot, false, 0x5AD9E};
+    RE::TESBoundObject silverIngot{ItemCategory::PreciousIngot, false, 0x5ACE3};
+    RE::TESBoundObject ironIngot{ItemCategory::PreciousIngot, false, 0x5ACE4};
+    utility->SmithingMap = {goldIngot.formID, silverIngot.formID, ironIngot.formID};
+    utility->SmeltingMap.insert(goldIngot.formID);
+    utility->ConstructionMap.insert(silverIngot.formID);
+    assert(HasAllCategories(ClassifyItem(&goldIngot), ItemCategory::PreciousIngot | ItemCategory::Smithing | ItemCategory::Crafting | ItemCategory::Smelting));
+    assert(HasAllCategories(ClassifyItem(&silverIngot), ItemCategory::PreciousIngot | ItemCategory::Smithing | ItemCategory::Crafting | ItemCategory::Construction));
+    assert(!HasCategory(ClassifyItem(&ironIngot), ItemCategory::PreciousIngot));
+    assert(HasCategory(ExpandCategories(ToMask(ItemCategory::PreciousIngot)), ItemCategory::Smithing));
+    settings->override = ToMask(ItemCategory::Treasure);
+    assert(ClassifyItem(&goldIngot) == ToMask(ItemCategory::Treasure));
+    settings->override.reset();
+    RE::TESBoundObject gem{ItemCategory::Gemstone}, ring{ItemCategory::Jewelry}, armor{ItemCategory::HeavyArmor};
+    settings->overrides[&gem] = ToMask(ItemCategory::Gemstone);
+    auto entry = [](int count) { return std::pair{count, std::make_shared<RE::InventoryEntryData>()}; };
+    auto& smithing = utility->smithing;
+    auto& armorVault = utility->armor;
+    auto& valuables = utility->valuables;
+    player->inventory.clear(); treasury.inventory.clear();
+    smithing.inventory.clear(); armorVault.inventory.clear(); valuables.inventory.clear();
+    RE::TESObjectREFR source;
+    auto click = [&](int index) { auto action = stores.options.at(index).action; action(); };
+    put(&gold, 25000); treasury.inventory[&trinket] = entry(9);
+    stores.ValuablesMenu(&source);
+    assert(stores.title == "Vault.Valuables Vault.Vault" && stores.options.size() == 6);
+    assert(stores.options[0].text == "Vault.Open");
+    assert(stores.options[1].text == "Vault.Exit");
+    assert(stores.options[2].text == "Keep 5000 Septims");
+    assert(stores.options[3].text == "Vault.StoreAll Septims");
+    assert(stores.options[4].text == "Vault.WithdrawAll Septims");
+    click(2);
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 20000);
+    settings->GSC_GoldKeepAmount = 2500;
+    stores.ValuablesMenu(&source);
+    assert(stores.options[2].text == "Keep 2500 Septims");
+    click(2);
+    assert(player->inventory[&gold].first == 2500 && treasury.inventory[&gold].first == 22500);
+    click(3);
+    assert(player->inventory[&gold].first == 0 && treasury.inventory[&gold].first == 25000);
+    click(4);
+    assert(player->inventory[&gold].first == 25000 && treasury.inventory[&gold].first == 0);
+    assert(treasury.inventory[&trinket].first == 9);
+    click(3);
+    smithing.inventory[&gem] = entry(12);
+    smithing.inventory[&goldIngot] = entry(4); smithing.inventory[&silverIngot] = entry(6);
+    smithing.inventory[&ironIngot] = entry(8);
+    armorVault.inventory[&ring] = entry(3); armorVault.inventory[&armor] = entry(2);
+    click(0);
+    assert(valuables.inventory[&gold].first == 25000 && valuables.inventory[&gem].first == 12);
+    assert(valuables.inventory[&goldIngot].first == 4 && valuables.inventory[&silverIngot].first == 6);
+    assert(valuables.inventory[&ring].first == 3);
+    assert(smithing.inventory[&ironIngot].first == 8 && armorVault.inventory[&armor].first == 2);
+    assert(treasury.inventory[&trinket].first == 9);
+    valuables.inventory[&gold].first -= 1000;
+    valuables.inventory[&goldIngot].first += 2; valuables.inventory[&gem].first += 1;
+    valuables.inventory[&ring].first += 1; valuables.inventory[&nonkey] = entry(5);
+    auto closeArchive = stores.onClose; stores.onClose = {}; closeArchive();
+    assert(treasury.inventory[&gold].first == 24000 && treasury.inventory[&nonkey].first == 5);
+    assert(smithing.inventory[&goldIngot].first == 6 && smithing.inventory[&silverIngot].first == 6 && smithing.inventory[&gem].first == 13);
+    assert(armorVault.inventory[&ring].first == 4);
+    for (const auto& [item, value] : valuables.inventory) { (void)item; assert(value.first == 0); }
+    click(0);
+    assert(valuables.inventory[&gold].first == 24000 && valuables.inventory[&ring].first == 4);
+    stores.ReturnValuables();
+    stores.ReturnValuables();
+    assert(treasury.inventory[&gold].first == 24000 && armorVault.inventory[&ring].first == 4);
+    valuables.inventory[&gem] = entry(2);
+    utility->missingSmithing = true;
+    stores.ReturnValuables();
+    assert(valuables.inventory[&gem].first == 2 && !treasury.inventory.contains(&gem));
+    utility->missingSmithing = false;
+    stores.ValuablesMenu(&source);
+    assert(valuables.inventory[&gem].first == 0 && smithing.inventory[&gem].first == 15);
+    click(1); assert(stores.closed);
+    stores.options.clear(); stores.closed = false;
+    stores.ShowTreasureMenu(&source);
+    assert(stores.options.empty() && stores.opened == Container::Treasure);
+    auto closeTreasure = stores.onClose; closeTreasure(); assert(stores.closed);
+    stores.ValuablesMenu(&source);
+    source.alive = false;
+    const int previousGold = treasury.inventory[&gold].first;
+    click(0);
+    assert(treasury.inventory[&gold].first == previousGold);
+    ini.exists = true;
+    for (const auto text : {"0", "5000", "10000", "2147483647"}) {
+        ini.text = text;
+        settings->get_value(ini, amount, "General", "GoldKeepAmount");
+        assert(amount == std::stoi(text));
+    }
+    for (const auto text : {"", "-1", "1.5", "abc", "5000x", "2147483648"}) {
+        ini.text = text; amount = 25;
+        settings->get_value(ini, amount, "General", "GoldKeepAmount");
+        assert(amount == 5000);
+    }
+    ini.exists = false; amount = 5000;
+    settings->get_value(ini, amount, "General", "GoldKeepAmount");
+    assert(amount == 5000 && ini.text == "5000");
+
+    ini.exists = true;
+    for (const auto text : {"0", "25", "100", "2147483647"}) {
+        ini.text = text;
+        settings->get_value(ini, amount, "General", "SoulgemKeepAmount");
+        assert(amount == std::stoi(text));
+    }
+    for (const auto text : {"", "-1", "1.5", "abc", "25x", "2147483648"}) {
+        ini.text = text; amount = 100;
+        settings->get_value(ini, amount, "General", "SoulgemKeepAmount");
+        assert(amount == 25);
+    }
+
+    assert(options.at({"General", "SalePercentage"}) == 30);
+    for (const char* text : {"0", "101", "-1", "30x", "", "9999999999999999999"}) {
+        ini.text = text;
+        int amount = 1;
+        settings->get_value(ini, amount, "General", "SalePercentage");
+        assert(amount == 30);
+    }
+    for (int expected : {1, 30, 100}) {
+        ini.text = std::to_string(expected);
+        int amount = 0;
+        settings->get_value(ini, amount, "General", "SalePercentage");
+        assert(amount == expected);
+    }
+
+    inbox.inventory.clear(); chest.inventory.clear();
+    RE::TESBoundObject ordinary{ItemCategory::Ingredient, false, 2000};
+    RE::TESBoundObject craftingIngredient{ItemCategory::Catalyst, false, 2001};
+    RE::TESBoundObject cookingIngredient{ItemCategory::Reagent, false, 2002};
+    RE::TESBoundObject foodIngredient{ItemCategory::Reagent, false, 2003};
+    RE::TESBoundObject overriddenIngredient{ItemCategory::Ingredient, false, 2004};
+    RE::TESBoundObject unmatched{ItemCategory::None, false, 2005};
+    utility->ConstructionMap.insert(craftingIngredient.formID);
+    utility->RawFoodMap.insert(cookingIngredient.formID);
+    foodIngredient.ingredient.food = true;
+    settings->overrides[&overriddenIngredient] = ToMask(ItemCategory::Reagent);
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient}) {
+        assert(HasCategory(ClassifyItem(item), ItemCategory::Alchemy));
+        inbox.inventory[item] = entry(12);
+    }
+    assert(HasCategory(ClassifyItem(&ordinary), ItemCategory::Ingredient));
+    assert(HasCategory(ClassifyItem(&craftingIngredient), ItemCategory::Catalyst));
+    assert(HasCategory(ClassifyItem(&cookingIngredient), ItemCategory::Reagent));
+    inbox.inventory[&unmatched] = entry(7);
+    stores.SortItems();
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient}) {
+        assert(inbox.inventory[item].first == 0 && chest.inventory[item].first == 12);
+    }
+    assert(inbox.inventory[&unmatched].first == 0 && utility->junk.inventory[&unmatched].first == 7);
+    stores.SortItems();
+    assert(chest.inventory[&ordinary].first == 12);
+    player->inventory.clear(); chest.inventory.clear(); source.alive = true;
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient})
+        player->inventory[item] = entry(12);
+    RE::TESBoundObject questIngredient{ItemCategory::Ingredient}, favoriteIngredient{ItemCategory::Ingredient}, wornIngredient{ItemCategory::Ingredient};
+    player->inventory[&questIngredient] = entry(4); player->inventory[&questIngredient].second->quest = true;
+    player->inventory[&favoriteIngredient] = entry(5); player->inventory[&favoriteIngredient].second->favorite = true;
+    player->inventory[&wornIngredient] = entry(6); player->inventory[&wornIngredient].second->worn = true;
+    player->inventory[&unmatched] = entry(7);
+    stores.AlchemyMenu(&source);
+    assert(stores.options[0].text == "Vault.StoreAll"); click(0);
+    for (auto* item : {&ordinary, &craftingIngredient, &cookingIngredient, &foodIngredient, &overriddenIngredient})
+        assert(player->inventory[item].first == 0 && chest.inventory[item].first == 12);
+    assert(player->inventory[&questIngredient].first == 4);
+    assert(player->inventory[&favoriteIngredient].first == 5);
+    assert(player->inventory[&wornIngredient].first == 6);
+    assert(player->inventory[&unmatched].first == 7);
+    click(0); assert(chest.inventory[&ordinary].first == 12);
+
+    assert(utility->junk.inventory[&unmatched].first == 7);
+    chest.inventory.clear(); armorVault.inventory.clear(); valuables.inventory.clear();
     RE::TESBoundObject helmet{ItemCategory::None}, hat{ItemCategory::None}, robe{ItemCategory::None}, nativeRing{ItemCategory::None}, circlet{ItemCategory::None}, amulet{ItemCategory::None}, ironPlate{ItemCategory::None}, keywordHelmet{ItemCategory::None};
     for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet, &amulet, &ironPlate, &keywordHelmet}) item->nativeArmor = true;
     helmet.armor.bipedModelData.bipedObjectSlots.bits = 1 | 2 | 4096;
@@ -669,18 +946,835 @@ program += r'''
     assert(HasCategory(ClassifyItem(&helmet), ItemCategory::HeavyArmor));
     for (auto* item : {&hat, &robe}) assert(HasCategory(ClassifyItem(item), ItemCategory::Clothing));
     for (auto* item : {&nativeRing, &circlet, &amulet}) assert(HasCategory(ClassifyItem(item), ItemCategory::Jewelry));
+    for (auto* item : {&helmet, &hat, &robe, &nativeRing, &circlet, &amulet, &ironPlate, &keywordHelmet}) armorVault.inventory[item] = entry(3);
+    stores.ShowArmorJewelryMenu(&source);
+    for (auto* item : {&helmet, &hat, &robe, &ironPlate, &keywordHelmet}) assert(armorVault.inventory[item].first == 3 && chest.inventory[item].first == 0);
+    assert(chest.inventory[&nativeRing].first == 3 && chest.inventory[&circlet].first == 3 && chest.inventory[&amulet].first == 3);
+    auto closeJewelry = stores.onClose; closeJewelry();
+    stores.ValuablesMenu(&source); click(0);
+    for (auto* item : {&helmet, &hat, &robe, &ironPlate, &keywordHelmet}) assert(armorVault.inventory[item].first == 3 && valuables.inventory[item].first == 0);
+    assert(valuables.inventory[&nativeRing].first == 3 && valuables.inventory[&circlet].first == 3 && valuables.inventory[&amulet].first == 3);
+    stores.ReturnValuables();
+    settings->overrides[&helmet] = ToMask(ItemCategory::Jewelry);
+    assert(HasCategory(ClassifyItem(&helmet), ItemCategory::Jewelry));
+    settings->overrides.erase(&helmet);
+    RE::TESBoundObject welkynd{ItemCategory::None, false, 0xFE001800};
+    settings->overrides[&welkynd] = ToMask(ItemCategory::Treasure);
+    inbox.inventory.clear(); treasury.inventory.clear();
+    inbox.inventory[&welkynd] = entry(13); stores.SortItems();
+    assert(inbox.inventory[&welkynd].first == 0 && treasury.inventory[&welkynd].first == 13);
 
+
+    player->inventory.clear(); chest.inventory.clear(); treasury.inventory.clear(); inbox.inventory.clear();
+    player->removeLimit = 9999; treasury.removeLimit = 9999; inbox.removeLimit = 9999;
+    put(&gold, 30000); stores.PlayerToStore(ItemCategory::Gold, Container::Treasure, 0, 5000);
+    assert(player->inventory[&gold].first == 5000 && treasury.inventory[&gold].first == 25000);
+    stores.StoreToPlayer(ItemCategory::Gold, Container::Treasure);
+    assert(player->inventory[&gold].first == 30000 && treasury.inventory[&gold].first == 0);
+    inbox.inventory[&gold] = entry(30000); stores.SortItems();
+    assert(inbox.inventory[&gold].first == 0 && treasury.inventory[&gold].first == 30000);
+    player->rejectMove = true; const int beforeCalls = player->removeCalls;
+    stores.PlayerToStore(ItemCategory::Gold, Container::Treasure);
+    assert(player->removeCalls == beforeCalls + 1 && player->inventory[&gold].first == 30000);
+    player->rejectMove = false;
+
+    smithing.inventory.clear(); player->inventory.clear(); chest.inventory.clear();
+    smithing.inventory[&ironIngot] = entry(30000);
+    settings->GSC_CraftingLoan = true;
+    CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+    assert(player->inventory[&ironIngot].first == 30000 && smithing.inventory[&ironIngot].first == 0);
+    CraftingLoanState::GetSingleton()->ExitCrafting();
+    assert(player->inventory[&ironIngot].first == 0 && smithing.inventory[&ironIngot].first == 30000);
+    player->removeLimit = INT_MAX; treasury.removeLimit = INT_MAX; inbox.removeLimit = INT_MAX;
+
+    player->inventory.clear(); armorVault.inventory.clear();
+    std::array<RE::TESBoundObject,10> virtualRings{};
+    RE::TESBoundObject spare{ItemCategory::Jewelry}, equippedSpare{ItemCategory::Jewelry},
+        vanillaWorn{ItemCategory::Jewelry}, protectedQuest{ItemCategory::Jewelry}, protectedFavorite{ItemCategory::Jewelry};
+    for (auto& ring : virtualRings) {
+        ring.category=ItemCategory::Jewelry; put(&ring,2); RE::SCRIPT_FUNCTION::equipped.insert(&ring);
+    }
+    put(&spare,3); put(&equippedSpare,4); RE::SCRIPT_FUNCTION::equipped.insert(&equippedSpare);
+    put(&vanillaWorn,2,false,false,true); put(&protectedQuest,2,true); put(&protectedFavorite,2,false,true);
+    settings->GSC_OffloadJewelry=true; stores.OffloadItems();
+    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==2 && armorVault.inventory[&ring].first==0);
+    assert(player->inventory[&equippedSpare].first==4 && armorVault.inventory[&equippedSpare].first==0);
+    assert(player->inventory[&spare].first==0 && armorVault.inventory[&spare].first==3);
+    for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
+    // Replacing the standard condition between transfers must be observed.
+    auto* command=RE::SCRIPT_FUNCTION::LocateScriptCommand("GetEquipped");
+    command->conditionFunction=[](RE::TESObjectREFR*,void*,void*,double& result) { result=0; return true; };
+    stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
+    for (auto& ring : virtualRings) assert(player->inventory[&ring].first==0 && armorVault.inventory[&ring].first==2);
+    assert(player->inventory[&equippedSpare].first==0 && armorVault.inventory[&equippedSpare].first==4);
+    command->conditionFunction=RE::SCRIPT_FUNCTION::GetEquipped;
+    // Missing or failed conditions retain the existing vanilla protections.
+    for (int failure=0; failure<3; ++failure) {
+        put(&equippedSpare,2);
+        RE::SCRIPT_FUNCTION::available=failure!=0;
+        command->conditionFunction=failure==1 ? nullptr : RE::SCRIPT_FUNCTION::GetEquipped;
+        RE::SCRIPT_FUNCTION::succeeds=false;
+        stores.PlayerToStore(ItemCategory::Jewelry,Container::Armor);
+        assert(player->inventory[&equippedSpare].first==0);
+        for (auto* item : {&vanillaWorn,&protectedQuest,&protectedFavorite}) assert(player->inventory[item].first==2);
+    }
+    RE::SCRIPT_FUNCTION::succeeds=true;
+    // The condition applies to any matching inventory form, not just rings or armor.
+    put(&nonkey,5); RE::SCRIPT_FUNCTION::equipped.insert(&nonkey);
+    stores.PlayerToStore(ItemCategory::Book,Container::Book);
+    assert(player->inventory[&nonkey].first==5);
+    RE::SCRIPT_FUNCTION::equipped.clear(); const int beforeEquipmentCalls=RE::SCRIPT_FUNCTION::calls;
+    stores.PlayerToStore(ItemCategory::Book,Container::Book);
+    assert(player->inventory[&nonkey].first==0 && RE::SCRIPT_FUNCTION::calls==beforeEquipmentCalls+1);
+    settings->GSC_SoulgemKeepAmount=25;stores.SoulgemMenu(&source);
+    assert(stores.options.size()==7 && stores.options[0].text=="Take Up To 25 Vault.Empty");
+    const int beforeWithdrawals=Soulgems::withdrawals;
+    settings->GSC_SoulgemKeepAmount=10;click(0);
+    assert(Soulgems::withdrawals==beforeWithdrawals+1 && Soulgems::lastTarget==25);
+    assert(stores.options[0].text=="Take Up To 10 Vault.Empty");
+    settings->GSC_SoulgemKeepAmount=0;stores.SoulgemMenu(&source);click(0);
+    assert(Soulgems::lastTarget==0 && stores.options[0].text=="Take Up To 0 Vault.Empty");
+    stores.options.clear();stores.closed=false;stores.EmptySoulgemsMenu(&source);
+    assert(stores.opened==Container::EmptySoulgems && stores.options.empty());
+    stores.onClose();assert(stores.closed && stores.options.empty());
+    player->inventory.clear();chest.inventory.clear();
+    put(&a,0);put(&b,3);chest.inventory[&a]=entry(4);chest.inventory[&b]=entry(6);
+    stores.KeysMenu(&source);assert(stores.options.size()==6 && stores.options[2].text=="Take Up To 1");
+    click(2);assert(player->inventory[&a].first==1 && chest.inventory[&a].first==3);
+    assert(player->inventory[&b].first==3 && chest.inventory[&b].first==6);
+    click(2);assert(player->inventory[&a].first==1 && chest.inventory[&a].first==3);
+    click(0);assert(player->inventory[&b].first==1 && chest.inventory[&b].first==8);
+    click(3);assert(player->inventory[&a].first==4 && player->inventory[&b].first==9);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,0);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,-1);
+    assert(player->inventory[&a].first==4);
+    player->inventory.clear();chest.inventory.clear();chest.removeLimit=9999;
+    chest.inventory[&a]=entry(50000);put(&a,10000);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,0,40000);
+    assert(player->inventory[&a].first==40000 && chest.inventory[&a].first==20000);
+    stores.StoreToPlayer(ItemCategory::Keys,Container::Keys,1000,45000);
+    assert(player->inventory[&a].first==41000 && chest.inventory[&a].first==19000);
+    chest.removeLimit=INT_MAX;
+    player->inventory.clear();chest.inventory.clear();
+    RE::TESBoundObject duplicateBook{ItemCategory::Book};
+    chest.inventory[&nonkey]=entry(4);chest.inventory[&duplicateBook]=entry(8);put(&duplicateBook,2);
+    stores.BookMenu(&source);assert(stores.options.size()==7 && stores.options[1].text=="Take Up To 1");
+    assert(stores.options[0].text=="Vault.StoreAll" && stores.options[2].text=="Vault.SpellTomes Vault.Vault" && stores.options[3].text=="Vault.SkillBooks Vault.Vault" && stores.options[4].text=="Vault.Open" && stores.options[5].text=="Keep 1" && stores.options[6].text=="Vault.Exit");
+    click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
+    assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
+    click(1);assert(player->inventory[&nonkey].first==1 && chest.inventory[&nonkey].first==3);
+    player->inventory[&duplicateBook].second->favorite=true;
+    click(0);assert(player->inventory[&nonkey].first==0 && chest.inventory[&nonkey].first==4);
+    assert(player->inventory[&duplicateBook].first==2 && chest.inventory[&duplicateBook].first==8);
+    click(4);assert(stores.opened==Container::Book);stores.onClose();
+    stores.closed=false;click(6);assert(stores.closed);
+    player->inventory.clear();chest.inventory.clear();settings->GSC_AlchemyKeepAmount=6;
+    for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient}) {
+        put(item,8);chest.inventory[item]=entry(10);
+    }
+    put(&favoriteIngredient,8,false,true);
+    stores.AlchemyMenu(&source);assert(stores.options.size()==7 && stores.options[1].text=="Keep 6" && stores.options[2].text=="Take Up To 6");
+    click(1);
+    for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient})
+        assert(player->inventory[item].first==6 && chest.inventory[item].first==12);
+    assert(player->inventory[&favoriteIngredient].first==8);
+    put(&ordinary,2);put(&craftingIngredient,9);chest.inventory[&ordinary].first=1;
+    click(2);assert(player->inventory[&ordinary].first==3 && chest.inventory[&ordinary].first==0);
+    assert(player->inventory[&craftingIngredient].first==9 && chest.inventory[&craftingIngredient].first==12);
+    settings->GSC_AlchemyKeepAmount=0;stores.AlchemyMenu(&source);click(2);
+    assert(player->inventory[&ordinary].first==3);click(1);
+    for (auto* item : {&ordinary,&craftingIngredient,&cookingIngredient,&foodIngredient,&overriddenIngredient})
+        assert(player->inventory[item].first==0);
+    assert(player->inventory[&favoriteIngredient].first==8);
+    for (const auto* text : {"bad","-1","2147483648","3junk",""}) {
+        ini.text=text;amount=8;settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==1);
+    }
+    ini.text="0";settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==0);
+    ini.text="7";settings->get_value(ini,amount,"General","AlchemyKeepAmount");assert(amount==7);
+    player->inventory.clear();chest.inventory.clear();
+    RE::TESBoundObject scrollA{ItemCategory::None}, scrollB{ItemCategory::None}, protectedScroll{ItemCategory::None};
+    for (auto* item : {&scrollA,&scrollB,&protectedScroll}) item->nativeScroll=true;
+    scrollA.formID=0x12345;scrollB.formID=0xFE123800;
+    assert(ClassifyItem(&scrollA)==ToMask(ItemCategory::Scroll) && ClassifyItem(&scrollB)==ToMask(ItemCategory::Scroll));
+    settings->GSC_ScrollKeepAmount=3;put(&scrollA,8);put(&scrollB,1);put(&protectedScroll,6,true);
+    chest.inventory[&scrollA]=entry(4);chest.inventory[&scrollB]=entry(1);
+    stores.ScrollMenu(&source);assert(stores.options.size()==5 && stores.options[1].text=="Keep 3" && stores.options[2].text=="Take Up To 3");
+    click(1);assert(player->inventory[&scrollA].first==3 && chest.inventory[&scrollA].first==9);
+    assert(player->inventory[&scrollB].first==1 && player->inventory[&protectedScroll].first==6);
+    click(2);assert(player->inventory[&scrollA].first==3 && chest.inventory[&scrollA].first==9);
+    assert(player->inventory[&scrollB].first==2 && chest.inventory[&scrollB].first==0);
+    settings->GSC_ScrollKeepAmount=5;stores.ScrollMenu(&source);click(2);
+    assert(player->inventory[&scrollA].first==5 && chest.inventory[&scrollA].first==7);
+    settings->GSC_ScrollKeepAmount=0;stores.ScrollMenu(&source);click(2);
+    assert(player->inventory[&scrollA].first==5);click(1);
+    assert(player->inventory[&scrollA].first==0 && player->inventory[&scrollB].first==0);
+    assert(player->inventory[&protectedScroll].first==6);
+    click(3);assert(stores.opened==Container::Scroll);stores.onClose();
+    stores.closed=false;click(4);assert(stores.closed);
+    for (const auto* text : {"bad","-1","2147483648","3junk",""}) {
+        ini.text=text;amount=8;settings->get_value(ini,amount,"General","ScrollKeepAmount");assert(amount==3);
+    }
+    ini.text="0";settings->get_value(ini,amount,"General","ScrollKeepAmount");assert(amount==0);
+    ini.text="6";settings->get_value(ini,amount,"General","ScrollKeepAmount");assert(amount==6);
+    player->inventory.clear();chest.inventory.clear();inbox.inventory.clear();utility->junk.inventory.clear();
+    inbox.inventory[&scrollA]=entry(12);inbox.inventory[&scrollB]=entry(7);stores.SortItems();
+    assert(inbox.inventory[&scrollA].first==0 && chest.inventory[&scrollA].first==12);
+    assert(inbox.inventory[&scrollB].first==0 && chest.inventory[&scrollB].first==7);
+    assert(!utility->junk.inventory.contains(&scrollA) && !utility->junk.inventory.contains(&scrollB));
+    chest.inventory.clear();settings->GSC_OffloadScrolls=false;put(&scrollA,9);stores.OffloadItems();
+    assert(player->inventory[&scrollA].first==9);
+    settings->GSC_OffloadScrolls=true;put(&scrollB,4,false,true);put(&protectedScroll,6,true);stores.OffloadItems();
+    assert(player->inventory[&scrollA].first==0 && chest.inventory[&scrollA].first==9);
+    assert(player->inventory[&scrollB].first==4 && player->inventory[&protectedScroll].first==6);
+    player->inventory[&scrollB].second->favorite=false;player->inventory[&scrollB].second->worn=true;stores.OffloadItems();
+    assert(player->inventory[&scrollB].first==4);
+    settings->overrides[&scrollA]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&scrollA)==ToMask(ItemCategory::Book));settings->overrides.erase(&scrollA);
+    player->inventory.clear();chest.inventory.clear();inbox.inventory.clear();utility->junk.inventory.clear();
+    settings->ignored.insert(&scrollA);put(&scrollA,15);put(&scrollB,4);player->inventory[&scrollB].second->worn=false;
+    stores.OffloadItems();assert(player->inventory[&scrollA].first==15 && player->inventory[&scrollB].first==0);
+    stores.PlayerToStore(ItemCategory::Scroll,Container::Scroll);assert(player->inventory[&scrollA].first==0);
+    inbox.inventory[&scrollA]=entry(15000);inbox.inventory[&scrollB]=entry(4);
+    inbox.removeLimit=9999;stores.SortItems();assert(player->inventory[&scrollA].first==15000 && inbox.inventory[&scrollA].first==0);
+    assert(chest.inventory[&scrollB].first==8);
+    inbox.inventory[&scrollA]=entry(5);inbox.rejectMove=true;stores.SortItems();
+    assert(inbox.inventory[&scrollA].first==5 && !utility->junk.inventory.contains(&scrollA));inbox.rejectMove=false;
+    settings->GSC_ReturnIgnoredItems=false;stores.SortItems();assert(inbox.inventory[&scrollA].first==0 && chest.inventory[&scrollA].first==20);
+    RE::TESBoundObject unknown{ItemCategory::None};settings->ignored.insert(&unknown);inbox.inventory[&unknown]=entry(6);
+    settings->GSC_ReturnIgnoredItems=true;stores.SortItems();assert(player->inventory[&unknown].first==6 && !utility->junk.inventory.contains(&unknown));
+    inbox.inventory[&unknown]=entry(3);settings->GSC_ReturnIgnoredItems=false;stores.SortItems();assert(utility->junk.inventory[&unknown].first==3);
+    settings->GSC_ReturnIgnoredItems=true;
+    inbox.inventory.clear();settings->ignored.clear();
+    // Depositing the last copy may clear its favourite flag.
+    player->inventory.clear();chest.inventory.clear();utility->junk.inventory.clear();
+    scrollA.formID=0x1001;unknown.formID=0x1002;
+    player->inventory[&scrollA]=entry(25000);player->inventory[&scrollA].second->favorite=true;
+    stores.CaptureSortFavorites();
+    player->inventory.clear();inbox.inventory[&scrollA]=entry(25000);inbox.removeLimit=9999;
+    settings->GSC_ReturnIgnoredItems=false;stores.SortItems();
+    assert(player->inventory[&scrollA].first==25000 && inbox.inventory[&scrollA].first==0);
+    assert(chest.inventory[&scrollA].first==0 && RE::SendHUDMessage::last=="Vault.FavoritesReturned");
+    assert(Soulgems::sortExcluded.contains(scrollA.formID));
+    player->inventory.clear();stores.CaptureSortFavorites();
+    assert(!stores.sortFavorites_.contains(scrollA.formID));
+    inbox.inventory[&unknown]=entry(3);inbox.inventory[&unknown].second->favorite=true;
+    settings->ignored.insert(&unknown);stores.SortItems();
+    assert(player->inventory[&unknown].first==3 && utility->junk.inventory[&unknown].first==0);
+    assert(RE::SendHUDMessage::last=="Vault.FavoritesReturned");
+    inbox.inventory[&scrollA]=entry(8);inbox.inventory[&scrollA].second->favorite=true;
+    inbox.rejectMove=true;stores.SortItems();
+    assert(inbox.inventory[&scrollA].first==8 && chest.inventory[&scrollA].first==0);
+    assert(utility->junk.inventory[&scrollA].first==0 && RE::SendHUDMessage::last=="Vault.StoreAllMessage");
+    inbox.inventory[&scrollA].second->favorite=false;stores.CaptureSortFavorites();
+    assert(stores.sortFavorites_.contains(scrollA.formID));
+    settings->GSC_ReturnIgnoredItems=true;stores.SortItems();assert(inbox.inventory[&scrollA].first==8);
+    inbox.rejectMove=false;stores.SortItems();assert(player->inventory[&scrollA].first==8);
+    stores.ResetSortFavorites();assert(stores.sortFavorites_.empty());
+    player->inventory.clear();inbox.inventory.clear();settings->ignored.clear();inbox.removeLimit=INT_MAX;
+    inbox.inventory[&scrollA]=entry(2);stores.SortItems();
+    assert(chest.inventory[&scrollA].first==2 && RE::SendHUDMessage::last=="Vault.StoreAllMessage");
+    chest.inventory.clear();
+    inbox.inventory[&scrollA]=entry(25000);inbox.inventory[&scrollB]=entry(2);settings->saveFails=true;
+    stores.FinishIgnorePicker();assert(settings->IsIgnored(&scrollA) && settings->IsIgnored(&scrollB));
+    assert(inbox.inventory[&scrollA].first==0 && inbox.inventory[&scrollB].first==0);
+    unknown.formID=0xFF000001;inbox.inventory[&unknown]=entry(4);stores.FinishIgnorePicker();
+    assert(!settings->IsIgnored(&unknown) && inbox.inventory[&unknown].first==0);
+    settings->saveFails=false;
+
+    player->inventory.clear();utility->junk.inventory.clear();chest.inventory.clear();
+    RE::TESBoundObject junkMaterial{ItemCategory::None,false,0x123123}, protectedJunk{ItemCategory::None,false,0x123124};
+    put(&junkMaterial,7);utility->junk.inventory[&junkMaterial]=entry(25000);utility->junk.inventory[&protectedJunk]=entry(3);utility->junk.inventory[&protectedJunk].second->quest=true;
+    player->removeLimit=9999;utility->junk.removeLimit=9999;
+    stores.BeginJunkLoan();assert(player->inventory[&junkMaterial].first==25007 && utility->junk.inventory[&junkMaterial].first==0);
+    assert(utility->junk.inventory[&protectedJunk].first==3);
+    player->inventory[&junkMaterial].first-=11;stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==7 && utility->junk.inventory[&junkMaterial].first==24989);
+    stores.EndJunkLoan();assert(player->inventory[&junkMaterial].first==7);
+    stores.BeginJunkLoan();player->inventory[&junkMaterial].first=3;stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==3 && utility->junk.inventory[&junkMaterial].first==0);
+    utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();stores.ResetJunkLoan();stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==8 && utility->junk.inventory[&junkMaterial].first==0);
+    player->inventory.clear();utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();
+    RE::SCRIPT_FUNCTION::equipped.insert(&junkMaterial);stores.EndJunkLoan();
+    assert(player->inventory[&junkMaterial].first==5);RE::SCRIPT_FUNCTION::equipped.erase(&junkMaterial);
+    player->inventory.clear();utility->junk.inventory[&junkMaterial]=entry(5);utility->junk.rejectMove=true;
+    stores.BeginJunkLoan();assert(player->inventory.empty() && stores.junkLoan_.empty());utility->junk.rejectMove=false;
+    settings->GSC_CraftingLoan=true;auto* crafting=CraftingLoanState::GetSingleton();
+    crafting->EnterCrafting(&source);assert(player->inventory[&junkMaterial].first==5);
+    settings->GSC_CraftingLoan=false;crafting->ExitCrafting();assert(utility->junk.inventory[&junkMaterial].first==5);
+
+    for (auto bench : {BenchType::Alchemy, BenchType::Cooking, BenchType::Enchanting, BenchType::StaffEnchanting}) {
+        player->inventory.clear();chest.inventory.clear();utility->junk.inventory.clear();utility->junk.inventory[&junkMaterial]=entry(9);
+        utility->bench=bench;settings->GSC_CraftingLoan=true;crafting->EnterCrafting(&source);
+        assert(player->inventory[&junkMaterial].first==9 && utility->junk.inventory[&junkMaterial].first==0);
+        player->inventory[&junkMaterial].first-=4;crafting->ExitCrafting();
+        assert(utility->junk.inventory[&junkMaterial].first==5 && player->inventory[&junkMaterial].first==0);
+    }
+    utility->bench=BenchType::None;utility->junk.inventory[&junkMaterial]=entry(9);crafting->EnterCrafting(&source);crafting->ExitCrafting();
+    assert(utility->junk.inventory[&junkMaterial].first==9);
+    utility->bench=BenchType::Smithing;player->inventory.clear();utility->smithing.inventory.clear();utility->junk.inventory.clear();
+    junkMaterial.category=ItemCategory::Smithing;put(&junkMaterial,3);utility->smithing.inventory[&junkMaterial]=entry(2);utility->junk.inventory[&junkMaterial]=entry(4);
+    crafting->EnterCrafting(&source);assert(player->inventory[&junkMaterial].first==9);
+    player->inventory[&junkMaterial].first-=1;crafting->ExitCrafting();
+    assert(utility->junk.inventory[&junkMaterial].first==3 && utility->smithing.inventory[&junkMaterial].first==5);
+    player->inventory.clear();utility->junk.inventory.clear();junkMaterial.category=ItemCategory::None;
+    put(&junkMaterial,INT_MAX-2);utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();
+    assert(player->inventory[&junkMaterial].first==INT_MAX && utility->junk.inventory[&junkMaterial].first==3);
+    stores.EndJunkLoan();assert(player->inventory[&junkMaterial].first==INT_MAX-2 && utility->junk.inventory[&junkMaterial].first==5);
+
+    player->inventory.clear();chest.inventory.clear();inbox.inventory.clear();utility->notes.inventory.clear();utility->junk.inventory.clear();
+    RE::TESObjectREFR scrollBank;utility->scrollContainer=&scrollBank;settings->ignored.clear();
+    RE::TESBoundObject plainBook{ItemCategory::None,false,0x120001}, spellBook{ItemCategory::None,false,0x120002}, skillBook{ItemCategory::None,false,0x120003}, noteBook{ItemCategory::None,false,0x120004}, recipeBook{ItemCategory::None,false,0x120005}, mapBook{ItemCategory::None,false,0x120006};
+    for (auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook}) item->nativeBook=true;
+    spellBook.book.spell=true;skillBook.book.skill=true;noteBook.book.note=true;recipeBook.book.note=true;recipeBook.book.recipe=true;mapBook.book.note=true;
+    RE::TESBoundObject modSkillBook{ItemCategory::None,false,0xFE789800};
+    modSkillBook.nativeBook=true;modSkillBook.book.skill=true;
+    RE::TESDataHandler bookData;
+    for (auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook,&modSkillBook}) {
+        item->book.formID=item->GetFormID();bookData.books.push_back(&item->book);
+    }
+    bookData.books.push_back(nullptr);
+    utility->CacheSkillBooks(nullptr);assert(utility->SkillBookMap.empty());
+    utility->CacheSkillBooks(&bookData);
+    assert(utility->SkillBookMap.size()==2 && utility->SkillBookMap.contains(skillBook.formID) && utility->SkillBookMap.contains(modSkillBook.formID));
+    skillBook.book.skill=false;modSkillBook.book.skill=false;
+    assert(ClassifyItem(&modSkillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    settings->overrides[&skillBook]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&skillBook)==ToMask(ItemCategory::Book));settings->overrides.erase(&skillBook);
+    assert(!skillBook.book.TeachesSkill() && ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    settings->overrides[&mapBook]=ToMask(ItemCategory::Map);
+    noteBook.book.note=false;noteBook.book.model="Clutter\\Books\\nOtE01.nif";
+    plainBook.book.model="Clutter\\Books\\Book01.nif";
+    spellBook.book.model="Meshes\\Notes\\spell.nif";skillBook.book.model="Clutter\\Books\\Note01.nif";
+    recipeBook.book.note=false;recipeBook.book.model="Meshes\\Notes\\recipe.nif";
+    RE::TESBoundObject typedNote{ItemCategory::None,false,0x120007};typedNote.nativeBook=true;typedNote.book.note=true;
+    assert(ClassifyItem(&typedNote)==ToMask(ItemCategory::Note));
+    assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Note));
+    settings->overrides[&noteBook]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Book));settings->overrides.erase(&noteBook);
+    assert(ClassifyItem(&plainBook)==ToMask(ItemCategory::Book));
+    assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
+    assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    assert(ClassifyItem(&noteBook)==ToMask(ItemCategory::Note));
+    assert(ClassifyItem(&recipeBook)==(ItemCategory::Note|ItemCategory::Recipe));
+    assert(ClassifyItem(&mapBook)==(ItemCategory::Note|ItemCategory::Map));
+    RE::TESBoundObject miscMap{ItemCategory::None,false,0xFE001800};settings->overrides[&miscMap]=ToMask(ItemCategory::Map);
+    assert(ClassifyItem(&miscMap)==(ItemCategory::Note|ItemCategory::Map));
+    spellBook.book.note=true;spellBook.book.recipe=true;spellBook.book.skill=true;
+    assert(ClassifyItem(&spellBook)==(ItemCategory::Book|ItemCategory::SpellTome));
+    skillBook.book.note=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SkillBook));
+    assert(ExpandCategories(ToMask(ItemCategory::SpellTome))==(ItemCategory::SpellTome|ItemCategory::Book));
+    assert(ExpandCategories(ToMask(ItemCategory::Recipe))==(ItemCategory::Recipe|ItemCategory::Note));
+    for(auto* item : {&plainBook,&spellBook,&skillBook,&noteBook,&recipeBook,&mapBook,&scrollA}) inbox.inventory[item]=entry(7);
+    stores.SortItems();
+    for(auto* item : {&plainBook,&spellBook,&skillBook}) assert(chest.inventory[item].first==7);
+    for(auto* item : {&noteBook,&recipeBook,&mapBook}) assert(utility->notes.inventory[item].first==7);
+    assert(scrollBank.inventory[&scrollA].first==7 && utility->junk.inventory.empty());
+    scrollBank.inventory[&noteBook]=entry(2);scrollBank.inventory[&plainBook]=entry(3);stores.ConsolidateBooks();
+    assert(utility->notes.inventory[&noteBook].first==9 && chest.inventory[&plainBook].first==10 && scrollBank.inventory[&scrollA].first==7);
+    stores.BookMenu(&source);assert(stores.options.size()==7);
+    click(2);assert(stores.opened==Container::SpellTomes && utility->spellTomes.inventory[&spellBook].first==7 && chest.inventory[&spellBook].first==0);
+    stores.onClose();assert(utility->spellTomes.inventory[&spellBook].first==0 && chest.inventory[&spellBook].first==7 && stores.options.size()==7 && stores.options[3].text=="Vault.SkillBooks Vault.Vault");
+    click(3);assert(stores.opened==Container::SkillBooks && utility->skillBooks.inventory[&skillBook].first==7);
+    stores.onClose();assert(utility->skillBooks.inventory[&skillBook].first==0 && chest.inventory[&skillBook].first==7 && stores.options.size()==7 && stores.options[2].text=="Vault.SpellTomes Vault.Vault");
+    stores.NotesMenu(&source);assert(stores.options.size()==7);
+    assert(stores.options[2].text=="Vault.Recipes Vault.Vault" && stores.options[3].text=="Vault.Maps Vault.Vault" && stores.options[4].text=="Vault.Open" && stores.options[5].text=="Keep 1" && stores.options[6].text=="Vault.Exit");
+    click(2);assert(stores.opened==Container::Recipes && utility->recipes.inventory[&recipeBook].first==7);
+    stores.onClose();assert(utility->recipes.inventory[&recipeBook].first==0 && stores.options.size()==7 && stores.options[3].text=="Vault.Maps Vault.Vault");
+    click(3);assert(stores.opened==Container::Maps && utility->maps.inventory[&mapBook].first==7);
+    stores.onClose();assert(utility->maps.inventory[&mapBook].first==0 && stores.options.size()==7 && stores.options[2].text=="Vault.Recipes Vault.Vault");
+    click(4);assert(stores.opened==Container::Notes);stores.onClose();assert(stores.options.size()==7);
+    stores.closed=false;click(6);assert(stores.closed);stores.NotesMenu(&source);
+    player->inventory[&noteBook]=entry(2);click(1);assert(player->inventory[&noteBook].first==2 && player->inventory[&recipeBook].first==1 && player->inventory[&mapBook].first==1);
+    click(0);assert(player->inventory[&noteBook].first==0 && utility->notes.inventory[&noteBook].first==11);
+    stores.closed=false;stores.OpenBookArchive(Container::Recipes,Container::Notes,ItemCategory::Recipe,&source);stores.onClose();assert(stores.closed);
+    utility->recipes.inventory[&recipeBook]=entry(2);utility->skillBooks.inventory[&skillBook]=entry(2);stores.ConsolidateBooks();
+    assert(utility->recipes.inventory[&recipeBook].first==0 && utility->notes.inventory[&recipeBook].first==9 && chest.inventory[&skillBook].first==9);
+    player->inventory.clear();settings->GSC_OffloadNotes=false;settings->GSC_OffloadBooks=true;
+    put(&noteBook,5);put(&plainBook,5);stores.OffloadItems();assert(player->inventory[&noteBook].first==5 && player->inventory[&plainBook].first==0);
+    settings->GSC_OffloadNotes=true;settings->ignored.clear();settings->ignored.insert(&mapBook);put(&mapBook,4);stores.OffloadItems();
+    assert(player->inventory[&noteBook].first==0 && player->inventory[&mapBook].first==4);
+    const int notesBeforeMigration=utility->notes.inventory[&noteBook].first;
+    chest.inventory[&noteBook]=entry(4);stores.ConsolidateBooks();
+    assert(chest.inventory[&noteBook].first==0 && utility->notes.inventory[&noteBook].first==notesBeforeMigration+4);
+    utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());
+    skillBook.book.skill=true;utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.size()==1);
+    skillBook.book.spell=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SpellTome));
+    utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());skillBook.book.spell=false;
+    player->inventory.clear();utility->notes.inventory.clear();settings->ignored.clear();
+    constexpr std::array<unsigned,8> fishingIDs{FISHING_MAP_LOCAL_IDS};
+    std::array<RE::TESBoundObject,8> fishingMaps{};
+    for(unsigned i=0;i<fishingMaps.size();++i) {
+        auto& map=fishingMaps[i];map.category=ItemCategory::None;map.formID=0x04000000|fishingIDs[i];map.nativeBook=true;
+        settings->overrides[&map]=ToMask(ItemCategory::Map);
+        assert(ClassifyItem(&map)==(ItemCategory::Note|ItemCategory::Map));
+        put(&map,4,i==1,i==0);
+    }
+    settings->GSC_OffloadNotes=true;stores.OffloadItems();
+    for(unsigned i=0;i<fishingMaps.size();++i) {
+        auto* map=&fishingMaps[i];assert(player->inventory[map].first==(i<2?4:0));
+        assert(utility->notes.inventory[map].first==(i<2?0:4));utility->inbox.inventory[map]=entry(2);
+    }
+    stores.SortItems();
+    stores.OpenBookArchive(Container::Maps,Container::Notes,ItemCategory::Map,&source,true);
+    for(unsigned i=0;i<fishingMaps.size();++i)assert(utility->maps.inventory[&fishingMaps[i]].first==(i<2?2:6));
+    stores.onClose();assert(stores.options.size()==7);
+    stores.closed=false;stores.OpenBookArchive(Container::Maps,Container::Notes,ItemCategory::Map,&source);
+    stores.onClose();assert(stores.closed);
+    for(unsigned i=0;i<fishingMaps.size();++i)assert(utility->notes.inventory[&fishingMaps[i]].first==(i<2?2:6));
+    settings->overrides[&fishingMaps[0]]=ToMask(ItemCategory::Book);
+    assert(ClassifyItem(&fishingMaps[0])==ToMask(ItemCategory::Book));
+    RE::TESBoundObject fishingJournal{ItemCategory::None,false,0x04710000};fishingJournal.nativeBook=true;
+    assert(ClassifyItem(&fishingJournal)==ToMask(ItemCategory::Book));
+    utility->scrollContainer=nullptr;
+
+    player->inventory.clear();ammoChest.inventory.clear();settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.clear();
+    RE::TESBoundObject selectedArrows{ItemCategory::Ammunition,false,0x130001}, selectedBolts{ItemCategory::Ammunition,true,0x130002}, spareArrows{ItemCategory::Ammunition,false,0x130003}, questAmmo{ItemCategory::Ammunition,false,0x130004}, ignoredAmmo{ItemCategory::Ammunition,false,0x130005}, wornAmmo{ItemCategory::Ammunition,false,0x130006}, virtualAmmo{ItemCategory::Ammunition,false,0x130007};
+    settings->GSC_AmmunitionKeepAmount=100;settings->GSC_KeepSelectedAmmunition=false;
+    player->currentAmmo=&selectedBolts;put(&selectedArrows,250,false,true);put(&selectedBolts,180);put(&spareArrows,160);put(&questAmmo,200,true);put(&ignoredAmmo,225);
+    settings->ignored.insert(&ignoredAmmo);stores.KeepAmmunition(true);
+    assert(player->inventory[&selectedArrows].first==250 && player->inventory[&selectedBolts].first==180 && player->inventory[&spareArrows].first==100);
+    assert(player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
+    settings->GSC_KeepSelectedAmmunition=true;put(&wornAmmo,200,false,false,true);put(&virtualAmmo,220);RE::SCRIPT_FUNCTION::equipped.insert(&virtualAmmo);
+    stores.KeepAmmunition(true);
+    for(auto* item : {&selectedArrows,&selectedBolts,&wornAmmo,&virtualAmmo}) assert(player->inventory[item].first==100);
+    assert(player->inventory[&spareArrows].first==0 && player->inventory[&questAmmo].first==200 && player->inventory[&ignoredAmmo].first==225);
+    player->inventory[&selectedBolts].second->favorite=true;put(&selectedBolts,180,false,true);stores.KeepAmmunition(true);
+    assert(player->inventory[&selectedBolts].first==100);
+    stores.KeepAmmunition();assert(player->inventory[&ignoredAmmo].first==0 && player->inventory[&questAmmo].first==200);
+    stores.AmmunitionMenu(&source);assert(stores.options.size()==6 && stores.options[0].text=="Keep 100" && stores.options[2].text=="Take Up To 100");
+    put(&selectedArrows,30,false,true);put(&selectedBolts,140);put(&wornAmmo,20,false,false,true);put(&virtualAmmo,20);
+    ammoChest.inventory[&wornAmmo]=entry(5);ammoChest.inventory[&virtualAmmo]=entry(150);ammoChest.inventory[&spareArrows]=entry(200);
+    click(2);assert(player->inventory[&selectedArrows].first==100 && player->inventory[&selectedBolts].first==140);
+    assert(player->inventory[&wornAmmo].first==25 && player->inventory[&virtualAmmo].first==100 && player->inventory[&spareArrows].first==0);
+    click(2);assert(player->inventory[&selectedArrows].first==100 && player->inventory[&selectedBolts].first==140);
+    settings->GSC_KeepSelectedAmmunition=false;click(2);assert(player->inventory[&spareArrows].first==100 && player->inventory[&ignoredAmmo].first==100);
+    settings->GSC_KeepSelectedAmmunition=true;player->inventory.clear();player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::equipped.clear();
+    stores.TakeAmmunition();assert(player->inventory.empty());put(&spareArrows,60);put(&selectedArrows,60,false,true);stores.KeepAmmunition();
+    assert(player->inventory[&spareArrows].first==0 && player->inventory[&selectedArrows].first==60);
+    player->inventory[&selectedArrows].second->favorite=false;player->currentAmmo=&selectedArrows;settings->GSC_AmmunitionKeepAmount=0;
+    stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==60);stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=false;put(&selectedArrows,60,false,true);put(&spareArrows,60);stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==60);stores.KeepAmmunition();
+    assert(player->inventory[&selectedArrows].first==60 && player->inventory[&spareArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=true;settings->GSC_AmmunitionKeepAmount=40000;ammoChest.inventory[&selectedArrows]=entry(50000);player->inventory.clear();
+    ammoChest.removeLimit=9999;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==40000 && ammoChest.inventory[&selectedArrows].first==10000);
+    settings->GSC_AmmunitionKeepAmount=100;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==100 && ammoChest.inventory[&selectedArrows].first==49900);
+    put(&selectedArrows,150,false,true);player->rejectMove=true;stores.KeepAmmunition();assert(player->inventory[&selectedArrows].first==150);player->rejectMove=false;
+    put(&selectedArrows,20,false,true);ammoChest.rejectMove=true;stores.TakeAmmunition();assert(player->inventory[&selectedArrows].first==20);ammoChest.rejectMove=false;
+    settings->GSC_OffloadAmmunition=true;put(&selectedArrows,150,false,true);put(&spareArrows,20);stores.OffloadItems();
+    assert(player->inventory[&selectedArrows].first==100 && player->inventory[&spareArrows].first==0);
+    put(&selectedArrows,150,false,true);settings->GSC_OffloadAmmunition=false;stores.OffloadItems();assert(player->inventory[&selectedArrows].first==150);
+    stores.AmmunitionMenu(&source);click(0);assert(player->inventory[&selectedArrows].first==100);
+    put(&selectedArrows,180,false,true);put(&selectedBolts,180);put(&spareArrows,20);player->currentAmmo=&selectedBolts;
+    click(1);assert(player->inventory[&selectedArrows].first==180 && player->inventory[&selectedBolts].first==180 && player->inventory[&spareArrows].first==0);
+    settings->GSC_KeepSelectedAmmunition=false;put(&spareArrows,20);click(1);assert(player->inventory[&spareArrows].first==0);
+    click(4);assert(stores.opened==Container::Ammunition);stores.onClose();stores.closed=false;click(5);assert(stores.closed);
+
+    for(bool mode : {false,true}) {
+        settings->GSC_KeepSelectedAmmunition=mode;player->inventory.clear();ammoChest.inventory.clear();
+        put(&spareArrows,10);ammoChest.inventory[&spareArrows]=entry(40);stores.AmmunitionMenu(&source);click(3);
+        assert(player->inventory[&spareArrows].first==50 && ammoChest.inventory[&spareArrows].first==0);
+    }
+    player->currentAmmo=nullptr;RE::SCRIPT_FUNCTION::available=false;settings->GSC_KeepSelectedAmmunition=true;
+    put(&selectedArrows,150,false,true);put(&wornAmmo,200,false,false,true);stores.KeepAmmunition();
+    assert(player->inventory[&selectedArrows].first==100 && player->inventory[&wornAmmo].first==100);
+    player->currentAmmo=&selectedBolts;put(&selectedBolts,180);stores.KeepAmmunition();assert(player->inventory[&selectedBolts].first==100);
+    RE::SCRIPT_FUNCTION::available=true;player->currentAmmo=nullptr;
+
+    player->inventory.clear();utility->armor.inventory.clear();settings->ignored.clear();
+    RE::TESBoundObject broadArmor{ItemCategory::None,false,0x140001}, leafArmor{ItemCategory::None,false,0x140002};
+    settings->overrides[&broadArmor]=ToMask(ItemCategory::Armor);settings->overrides[&leafArmor]=ToMask(ItemCategory::HeavyArmor);
+    settings->GSC_OffloadClothing=false;settings->GSC_OffloadHeavyArmor=false;settings->GSC_OffloadLightArmor=false;settings->GSC_OffloadJewelry=false;
+    put(&broadArmor,4);put(&leafArmor,5);stores.OffloadItems();assert(player->inventory[&broadArmor].first==4);
+    settings->GSC_OffloadJewelry=true;stores.OffloadItems();assert(player->inventory[&broadArmor].first==0 && utility->armor.inventory[&broadArmor].first==4 && player->inventory[&leafArmor].first==5);
+    settings->ignored.insert(&broadArmor);put(&broadArmor,3);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+    settings->ignored.clear();put(&broadArmor,3,false,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+    put(&broadArmor,3,true);stores.OffloadItems();assert(player->inventory[&broadArmor].first==3);
+
+    player->inventory.clear();inbox.inventory.clear();chest.inventory.clear();settings->ignored.clear();stores.ResetSortFavorites();
+    auto& personal=utility->personal;
+    RE::TESBoundObject personalKey{ItemCategory::Keys,false,0x150001};
+    settings->overrides[&personalKey]=ToMask(ItemCategory::Personal);
+    assert(ClassifyItem(&personalKey)==ToMask(ItemCategory::Personal));
+    put(&personalKey,30000);stores.OffloadItems();
+    assert(player->inventory[&personalKey].first==30000 && personal.inventory.empty());
+    settings->GSC_OffloadPersonal=true;stores.OffloadItems();
+    assert(player->inventory[&personalKey].first==0 && personal.inventory[&personalKey].first==30000);
+    for(int protection=0;protection<5;++protection) {
+        put(&personalKey,4,protection==0,protection==1,protection==2);
+        if(protection==3) settings->ignored.insert(&personalKey);
+        if(protection==4) RE::SCRIPT_FUNCTION::equipped.insert(&personalKey);
+        stores.OffloadItems();assert(player->inventory[&personalKey].first==4);
+        settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.erase(&personalKey);
+    }
+    player->inventory.clear();personal.inventory.clear();inbox.inventory[&personalKey]=entry(7);
+    stores.SortItems();assert(personal.inventory[&personalKey].first==7 && inbox.inventory[&personalKey].first==0);
+    assert(!chest.inventory.contains(&personalKey));
+    settings->overrides.erase(&personalKey);assert(ClassifyItem(&personalKey)==ToMask(ItemCategory::Keys));
+    inbox.inventory[&personalKey]=entry(2);stores.SortItems();
+    assert(chest.inventory[&personalKey].first==2 && personal.inventory[&personalKey].first==7);
+
+    player->inventory.clear();inbox.inventory.clear();settings->ignored.clear();stores.ResetSortFavorites();
+    auto& gear=utility->gear;auto& instruments=utility->instruments;
+    RE::TESBoundObject lockpick{ItemCategory::None,false,0xA},torch{ItemCategory::None,false,0x160001},lamp{ItemCategory::None,false,0x160002};
+    torch.nativeLight=true;lamp.nativeLight=true;lamp.light.carryable=false;
+    RE::TESBoundObject tent{ItemCategory::None,false,0x160003},flute{ItemCategory::None,false,0xDABA7},skeleton{ItemCategory::Keys,false,0x3A070};
+    settings->overrides[&tent]=ToMask(ItemCategory::Gear);settings->overrides[&flute]=ToMask(ItemCategory::Instrument);
+    assert(ClassifyItem(&lockpick)==(ItemCategory::Gear|ItemCategory::Lockpick));
+    assert(ClassifyItem(&torch)==ToMask(ItemCategory::Gear) && ClassifyItem(&lamp)==0);
+    assert(ClassifyItem(&flute)==(ItemCategory::Gear|ItemCategory::Instrument));
+    assert(ClassifyItem(&skeleton)==ToMask(ItemCategory::Keys));
+    settings->overrides[&torch]=ToMask(ItemCategory::Personal);assert(ClassifyItem(&torch)==ToMask(ItemCategory::Personal));settings->overrides.erase(&torch);
+    put(&lockpick,50);put(&torch,3);put(&tent,2);put(&flute,4);
+    stores.OffloadItems();assert(player->inventory[&lockpick].first==50 && player->inventory[&torch].first==3);
+    settings->GSC_OffloadGear=true;stores.OffloadItems();
+    assert(player->inventory[&lockpick].first==25 && gear.inventory[&lockpick].first==25);
+    assert(player->inventory[&torch].first==0 && gear.inventory[&torch].first==3 && gear.inventory[&tent].first==2 && gear.inventory[&flute].first==4);
+    stores.OffloadItems();assert(player->inventory[&lockpick].first==25 && gear.inventory[&lockpick].first==25);
+    for(int protection=0;protection<5;++protection) {
+        put(&lockpick,60,protection==0,protection==1,protection==2);
+        if(protection==3) settings->ignored.insert(&lockpick);
+        if(protection==4) RE::SCRIPT_FUNCTION::equipped.insert(&lockpick);
+        stores.OffloadItems();assert(player->inventory[&lockpick].first==60);
+        settings->ignored.clear();RE::SCRIPT_FUNCTION::equipped.erase(&lockpick);
+    }
+    player->inventory.clear();put(&lockpick,30);settings->GSC_LockpickKeepAmount=0;stores.OffloadItems();
+    assert(player->inventory[&lockpick].first==0);
+    stores.GearMenu(player);assert(stores.options.size()==5 && stores.options[0].text=="Vault.Open" && stores.options[1].text=="Vault.Exit");
+    assert(stores.options[2].text=="Keep 0 Lockpicks" && stores.options[3].text=="Take Up To 0 Lockpicks");
+    stores.options[3].action();assert(player->inventory[&lockpick].first==0);
+    settings->GSC_LockpickKeepAmount=25;put(&lockpick,10);stores.GearMenu(player);stores.options[3].action();
+    assert(player->inventory[&lockpick].first==25);const int banked=gear.inventory[&lockpick].first;
+    stores.options[3].action();assert(gear.inventory[&lockpick].first==banked);
+    put(&lockpick,40);stores.options[3].action();assert(player->inventory[&lockpick].first==40);
+    stores.options[2].action();assert(player->inventory[&lockpick].first==25);
+    bool back=false;stores.returnToVault_=[&]{back=true;};stores.GearMenu(player);
+    assert(stores.options.size()==6 && stores.options[2].text=="Vault.Back" && stores.options[3].text=="Keep 25 Lockpicks" && stores.options[4].text=="Take Up To 25 Lockpicks");
+    stores.options[2].action();assert(back);stores.returnToVault_={};stores.GearMenu(player);
+    stores.options[0].action();assert(stores.opened==Container::Gear);stores.onClose();assert(stores.options.size()==5);
+    player->inventory.clear();gear.inventory.clear();gear.inventory[&lockpick]=entry(4);stores.options[3].action();
+    assert(player->inventory[&lockpick].first==4 && gear.inventory[&lockpick].first==0);
+    inbox.inventory[&lockpick]=entry(30000);inbox.inventory[&torch]=entry(3);inbox.inventory[&flute]=entry(2);
+    stores.SortItems();assert(gear.inventory[&lockpick].first==30000 && gear.inventory[&torch].first==3 && gear.inventory[&flute].first==2);
+    assert(player->inventory[&lockpick].first==4);
+    instruments.inventory[&flute]=entry(3);stores.closed=false;
+    stores.OpenBookArchive(Container::Instruments,Container::Gear,ItemCategory::Instrument,player);
+    assert(instruments.inventory[&flute].first==5 && gear.inventory[&flute].first==0 && gear.inventory[&torch].first==3);
+    assert(stores.opened==Container::Instruments);stores.onClose();assert(stores.closed && gear.inventory[&flute].first==5 && instruments.inventory[&flute].first==0);
+    instruments.inventory[&flute]=entry(2);stores.SortItems();assert(gear.inventory[&flute].first==7 && instruments.inventory[&flute].first==0);
+    for(const auto* value:{"-1","bad","25junk","2147483648",""}) {
+        ini.text=value;amount=9;settings->get_value(ini,amount,"General","LockpickKeepAmount");assert(amount==25);
+    }
+    for(const auto* value:{"0","100","2147483647"}) {
+        ini.text=value;settings->get_value(ini,amount,"General","LockpickKeepAmount");assert(amount==std::stoi(value));
+    }
+
+    static_assert(static_cast<unsigned>(ItemCategory::StaminaPotion)<64);
+    settings->overrides.clear();player->inventory.clear();utility->concoction.inventory.clear();
+    for(auto archive:{Container::Potion,Container::Poison,Container::Restorative,Container::HealthPotions,Container::MagickaPotions,Container::StaminaPotions})utility->GetContainer(archive)->inventory.clear();
+    RE::TESBoundObject healthPotion{ItemCategory::None,false,0x170001},mixedPotion{ItemCategory::None,false,0x170002},staminaPotion{ItemCategory::None,false,0x170003};
+    healthPotion.nativeAlchemy=mixedPotion.nativeAlchemy=staminaPotion.nativeAlchemy=true;
+    RE::EffectSetting healthEffect,magickaEffect,staminaEffect;
+    healthEffect.data.primaryAV=RE::ActorValue::kHealth;magickaEffect.data.primaryAV=RE::ActorValue::kMagicka;staminaEffect.data.primaryAV=RE::ActorValue::kStamina;
+    RE::Effect health{&healthEffect,25},magicka{&magickaEffect,20},stamina{&staminaEffect,15},missing{nullptr,10};
+    healthPotion.alchemy.effects={&health};mixedPotion.alchemy.effects={&health,&magicka};staminaPotion.alchemy.effects={&stamina};
+    const std::array attributes={RE::ActorValue::kHealth,RE::ActorValue::kHealRate,RE::ActorValue::kHealRateMult,
+        RE::ActorValue::kMagicka,RE::ActorValue::kMagickaRate,RE::ActorValue::kMagickaRateMult,
+        RE::ActorValue::kStamina,RE::ActorValue::kStaminaRate,RE::ActorValue::kStaminaRateMult};
+    const std::array groups={ItemCategory::HealthPotion,ItemCategory::MagickaPotion,ItemCategory::StaminaPotion};
+    for(std::size_t i=0;i<attributes.size();++i) {
+        healthEffect.data.primaryAV=attributes[i];
+        for(auto type:{RE::EffectArchetypes::ArchetypeID::kValueModifier,RE::EffectArchetypes::ArchetypeID::kPeakValueModifier}) {
+            healthEffect.archetype=type;auto classified=ClassifyItem(&healthPotion);
+            assert(HasCategory(classified,groups[i/3]) && HasCategory(classified,ItemCategory::Potion) && HasCategory(classified,ItemCategory::Concoction));
+            for(auto group:groups)assert(HasCategory(classified,group)==(group==groups[i/3]));
+        }
+    }
+    healthEffect.data.primaryAV=RE::ActorValue::kHealth;healthEffect.archetype=RE::EffectArchetypes::ArchetypeID::kDualValueModifier;
+    healthEffect.data.secondaryAV=RE::ActorValue::kStamina;healthEffect.data.secondAVWeight=1;
+    assert(ClassifyPotionEffects(&healthPotion.alchemy)==(ItemCategory::HealthPotion|ItemCategory::StaminaPotion));
+    healthEffect.data.secondAVWeight=0;assert(ClassifyPotionEffects(&healthPotion.alchemy)==ToMask(ItemCategory::HealthPotion));
+    healthEffect.data.secondAVWeight=-1;assert(ClassifyPotionEffects(&healthPotion.alchemy)==ToMask(ItemCategory::HealthPotion));
+    healthEffect.archetype=RE::EffectArchetypes::ArchetypeID::kScript;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);
+    healthEffect.archetype=RE::EffectArchetypes::ArchetypeID::kValueModifier;
+    healthEffect.hostile=true;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);healthEffect.hostile=false;
+    healthEffect.detrimental=true;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);healthEffect.detrimental=false;
+    for(auto magnitude:{0.0F,-1.0F,std::numeric_limits<float>::quiet_NaN()}) {health.magnitude=magnitude;assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);}
+    health.magnitude=25;healthPotion.alchemy.effects={nullptr,&missing};assert(ClassifyPotionEffects(&healthPotion.alchemy)==0);
+    assert(!utility->FoundRestore(nullptr));
+    assert(!HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));
+    healthPotion.alchemy.effects={nullptr,&missing,&health};healthEffect.formID=utility->RestoreHealth->formID;
+    assert(HasCategory(ClassifyItem(&healthPotion),ItemCategory::Restorative) && HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));
+    auto* restoreBinding=utility->RestoreHealth;utility->RestoreHealth=nullptr;
+    assert(!utility->FoundRestore(&healthPotion.alchemy));utility->RestoreHealth=restoreBinding;healthEffect.formID=0;
+    healthPotion.alchemy.effects={&health};healthPotion.alchemy.food=true;assert(!HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));healthPotion.alchemy.food=false;
+    healthPotion.alchemy.poison=true;assert(HasCategory(ClassifyItem(&healthPotion),ItemCategory::Poison) && !HasCategory(ClassifyItem(&healthPotion),ItemCategory::HealthPotion));healthPotion.alchemy.poison=false;
+    settings->overrides[&healthPotion]=ToMask(ItemCategory::MagickaPotion);
+    assert(ClassifyItem(&healthPotion)==(ItemCategory::MagickaPotion|ItemCategory::Potion|ItemCategory::Concoction));settings->overrides.erase(&healthPotion);
+    assert(ClassifyPotionEffects(nullptr)==0);
+    auto& concoction=utility->concoction;
+    concoction.inventory[&healthPotion]=entry(8);concoction.inventory[&mixedPotion]=entry(11);concoction.inventory[&staminaPotion]=entry(6);
+    stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,player);
+    assert(stores.opened==Container::HealthPotions && utility->healthPotions.inventory[&healthPotion].first==8 && utility->healthPotions.inventory[&mixedPotion].first==11 && concoction.inventory[&staminaPotion].first==6);
+    stores.onClose();assert(concoction.inventory[&mixedPotion].first==11 && utility->healthPotions.inventory[&mixedPotion].first==0);
+    stores.OpenBookArchive(Container::MagickaPotions,Container::Concoction,ItemCategory::MagickaPotion,player);
+    assert(utility->magickaPotions.inventory[&mixedPotion].first==11 && concoction.inventory[&healthPotion].first==8);stores.onClose();
+    stores.OpenBookArchive(Container::HealthPotions,Container::Concoction,ItemCategory::HealthPotion,player);
+    stores.OpenBookArchive(Container::StaminaPotions,Container::Concoction,ItemCategory::StaminaPotion,player);
+    assert(utility->healthPotions.inventory[&mixedPotion].first==0 && concoction.inventory[&mixedPotion].first==11 && utility->staminaPotions.inventory[&staminaPotion].first==6);
+    stores.onClose();stores.ConsolidatePotions();assert(concoction.inventory[&healthPotion].first==8 && concoction.inventory[&mixedPotion].first==11 && concoction.inventory[&staminaPotion].first==6);
+
+    settings->override.reset();settings->overrides.clear();
+    RE::TESObjectREFR archerySource;
+    RE::TESBoundObject archiveBow{ItemCategory::Archery},archiveCrossbow{ItemCategory::Archery},archiveArrows{ItemCategory::Ammunition},archiveBolts{ItemCategory::Ammunition},archiveNote{ItemCategory::Note};
+    auto& archery=utility->archery;auto& weaponBank=utility->chest;
+    player->inventory.clear();ammoChest.inventory.clear();weaponBank.inventory.clear();archery.inventory.clear();
+    weaponBank.inventory[&archiveBow]=entry(2);weaponBank.inventory[&archiveCrossbow]=entry(1);
+    ammoChest.inventory[&archiveArrows]=entry(25000);ammoChest.inventory[&archiveBolts]=entry(70);ammoChest.inventory[&archiveNote]=entry(4);
+    stores.closed=false;stores.ShowWeaponArcheryMenu(&archerySource);
+    assert(stores.opened==Container::Archery && archery.inventory[&archiveBow].first==2 && archery.inventory[&archiveCrossbow].first==1);
+    assert(archery.inventory[&archiveArrows].first==25000 && archery.inventory[&archiveBolts].first==70 && ammoChest.inventory[&archiveNote].first==4);
+    assert(weaponBank.inventory[&archiveBow].first==0 && ammoChest.inventory[&archiveArrows].first==0);
+    archery.RemoveItem(&archiveArrows,10,RE::ITEM_REMOVE_REASON::kStoreInContainer,nullptr,player);
+    archery.inventory[&archiveBolts].first+=5;archery.removeLimit=9999;stores.onClose();
+    assert(stores.closed && ammoChest.inventory[&archiveArrows].first==24990 && ammoChest.inventory[&archiveBolts].first==75);
+    assert(weaponBank.inventory[&archiveBow].first==2 && weaponBank.inventory[&archiveCrossbow].first==1);
+    assert(weaponBank.inventory[&archiveArrows].first==0 && player->inventory[&archiveArrows].first==10);
+    stores.ShowWeaponArcheryMenu(&archerySource);archery.rejectMove=true;stores.onClose();
+    assert(archery.inventory[&archiveArrows].first==24990 && weaponBank.inventory[&archiveArrows].first==0);
+    assert(archery.inventory[&archiveBow].first==2);
+    archery.rejectMove=false;stores.ShowWeaponArcheryMenu(&archerySource);stores.onClose();
+    assert(archery.inventory[&archiveArrows].first==0 && ammoChest.inventory[&archiveArrows].first==24990);
+    assert(archery.inventory[&archiveBow].first==0 && weaponBank.inventory[&archiveBow].first==2);
+    stores.ShowWeaponArcheryMenu(nullptr);assert(ammoChest.inventory[&archiveArrows].first==24990);
+
+    player->inventory.clear();utility->chest.inventory.clear();utility->inbox.inventory.clear();
+    RE::TESBoundObject soulOverride{ItemCategory::Soulgem};
+    player->inventory[&soulOverride]=entry(7);settings->GSC_OffloadSoulgems=true;
+    stores.OffloadItems();
+    assert(player->inventory[&soulOverride].first==0 && utility->GetContainer(Container::Soulgem)->inventory[&soulOverride].first==7);
+    utility->inbox.inventory[&soulOverride]=entry(3);stores.SortItems();
+    assert(utility->GetContainer(Container::Soulgem)->inventory[&soulOverride].first==10 && utility->junk.inventory[&soulOverride].first==0);
+
+    player->inventory.clear();utility->junk.inventory.clear();
+    RE::TESBoundObject declaredJunk{ItemCategory::Junk},unclassified{ItemCategory::None};
+    player->inventory[&declaredJunk]=entry(5);player->inventory[&unclassified]=entry(4);
+    settings->GSC_OffloadJunk=false;stores.OffloadItems();assert(player->inventory[&declaredJunk].first==5);
+    settings->GSC_OffloadJunk=true;stores.OffloadItems();
+    assert(player->inventory[&declaredJunk].first==0 && utility->junk.inventory[&declaredJunk].first==5);
+    assert(player->inventory[&unclassified].first==4);
+
+    player->inventory.clear();utility->smithing.inventory.clear();utility->junk.inventory.clear();utility->missingSmithing=false;
+    RE::TESBoundObject houseLogs{ItemCategory::PreciousIngot};houseLogs.formID=0x0300300E;
+    utility->ConstructionMap.insert(houseLogs.formID);utility->smithing.inventory[&houseLogs]=entry(20);
+    assert(HasCategory(ClassifyItem(&houseLogs),ItemCategory::Construction));
+    utility->bench=BenchType::Smithing;settings->GSC_CraftingLoan=true;
+    CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+    assert(player->inventory[&houseLogs].first==20 && utility->smithing.inventory[&houseLogs].first==0);
+    player->inventory[&houseLogs].first-=7;
+    CraftingLoanState::GetSingleton()->ExitCrafting();
+    assert(player->inventory[&houseLogs].first==0 && utility->smithing.inventory[&houseLogs].first==13);
+
+    RE::TESObjectREFR foodLoanBank,alchemyLoanBank;
+    utility->foodContainer=&foodLoanBank;utility->alchemyContainer=&alchemyLoanBank;
+    RE::TESBoundObject loanSmith{ItemCategory::None},loanFood{ItemCategory::None},loanAlchemy{ItemCategory::None},loanJunk{ItemCategory::None},loanArmor{ItemCategory::None};
+    loanSmith.formID=0xF101;loanFood.formID=0xF102;loanAlchemy.formID=0xF103;loanJunk.formID=0xF104;loanArmor.formID=0xF105;
+    settings->overrides[&loanSmith]=ToMask(ItemCategory::Smithing);settings->overrides[&loanFood]=ToMask(ItemCategory::Food);
+    settings->overrides[&loanAlchemy]=ToMask(ItemCategory::Alchemy);settings->overrides[&loanJunk]=ToMask(ItemCategory::Junk);
+    for(bool all:{false,true})for(auto bench:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::Enchanting,BenchType::StaffEnchanting}){
+        player->inventory.clear();utility->smithing.inventory.clear();foodLoanBank.inventory.clear();alchemyLoanBank.inventory.clear();utility->junk.inventory.clear();utility->armor.inventory.clear();
+        utility->smithing.inventory[&loanSmith]=entry(10);foodLoanBank.inventory[&loanFood]=entry(11);alchemyLoanBank.inventory[&loanAlchemy]=entry(12);
+        utility->junk.inventory[&loanJunk]=entry(13);utility->armor.inventory[&loanArmor]=entry(14);player->inventory[&loanArmor]=entry(1);
+        settings->GSC_CraftingLoan=true;settings->GSC_AllCraftingMaterials=all;utility->bench=bench;
+        const int begins=Soulgems::loanBegins,ends=Soulgems::loanEnds;
+        auto* session=CraftingLoanState::GetSingleton();session->EnterCrafting(&source);
+        const bool smith=all || bench==BenchType::Smithing,food=all || bench==BenchType::Cooking,alchemy=all || bench==BenchType::Alchemy;
+        assert(player->inventory[&loanSmith].first==(smith?10:0) && player->inventory[&loanFood].first==(food?11:0) && player->inventory[&loanAlchemy].first==(alchemy?12:0));
+        assert(player->inventory[&loanJunk].first==13 && utility->armor.inventory[&loanArmor].first==14 && player->inventory[&loanArmor].first==1);
+        if(all)assert(Soulgems::loanBegins==begins+1 && Soulgems::allLoan);
+        if(smith)player->inventory[&loanSmith].first-=2;
+        if(food)player->inventory[&loanFood].first-=2;
+        if(alchemy)player->inventory[&loanAlchemy].first-=2;
+        player->inventory[&loanJunk].first-=3;
+        settings->GSC_CraftingLoan=false;settings->GSC_AllCraftingMaterials=!all;session->ExitCrafting();
+        assert(utility->smithing.inventory[&loanSmith].first==(smith?8:10) && foodLoanBank.inventory[&loanFood].first==(food?9:11) && alchemyLoanBank.inventory[&loanAlchemy].first==(alchemy?10:12));
+        assert(player->inventory[&loanSmith].first==0 && player->inventory[&loanFood].first==0 && player->inventory[&loanAlchemy].first==0 && utility->junk.inventory[&loanJunk].first==10);
+        if(all)assert(Soulgems::loanEnds==ends+1);
+    }
+    settings->GSC_AllCraftingMaterials=false;utility->foodContainer=utility->alchemyContainer=nullptr;
+
+    player->inventory.clear();utility->treasure.inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
+    RE::TESBoundObject heartscales{ItemCategory::None};heartscales.formID=0xD0756;
+    settings->overrides[&heartscales]=ToMask(ItemCategory::Treasure);settings->GSC_OffloadTreasure=true;
+    player->inventory[&heartscales]=entry(1);player->inventory[&heartscales].second->quest=true;
+    stores.OffloadItems();assert(player->inventory[&heartscales].first==1 && utility->treasure.inventory[&heartscales].first==0);
+    player->inventory[&heartscales].second->quest=false;stores.OffloadItems();
+    assert(player->inventory[&heartscales].first==0 && utility->treasure.inventory[&heartscales].first==1);
+    stores.ShowTreasureMenu(&source);assert(stores.opened==Container::Treasure);
+    assert(utility->treasure.inventory[&heartscales].first==1 && utility->junk.inventory[&heartscales].first==0);
+    utility->inbox.inventory[&heartscales]=entry(2);stores.SortItems();
+    assert(utility->treasure.inventory[&heartscales].first==3 && utility->inbox.inventory[&heartscales].first==0);
+    stores.FoodSaltMenu(&source);assert(stores.opened==Container::Reagent);
+
+    // Hidden construction resources must remain carried across automatic transfers.
+    RE::TESBoundObject retainedLogs{ItemCategory::PreciousIngot},ordinaryIngot{ItemCategory::PreciousIngot};
+    retainedLogs.formID=0x08000000|SAWN_LOG_LOCAL_ID;ordinaryIngot.formID=0x5ACE4;
+    utility->ConstructionMap.insert(retainedLogs.formID);utility->SmithingMap.insert(ordinaryIngot.formID);
+    int retentionFailures=0,retentionChecks=0;
+    for(bool ignored:{false,true}){
+        const auto resetRetention=[&]{
+            CraftingLoanState::GetSingleton()->Reset();
+            for(auto* ref:{static_cast<RE::TESObjectREFR*>(player),&utility->smithing,&utility->inbox,
+                &utility->junk,&utility->chest,&utility->gear,&utility->instruments})ref->inventory.clear();
+            *settings=Settings{};stores.ResetSortFavorites();
+            utility->bench=BenchType::Smithing;
+            settings->GSC_CraftingLoan=true;settings->GSC_ReturnIgnoredItems=true;
+            settings->GSC_OffloadConstruction=true;settings->GSC_OffloadCrafting=true;
+            SAWN_LOG_BUNDLED_OVERRIDE
+            if(ignored)settings->ignored.insert(&retainedLogs);
+        };
+        const auto checkRetention=[&](const char* phase,int expected){
+            ++retentionChecks;
+            const int carried=player->inventory[&retainedLogs].first;
+            const int banked=utility->smithing.inventory[&retainedLogs].first;
+            const int sort=utility->inbox.inventory[&retainedLogs].first,junk=utility->junk.inventory[&retainedLogs].first;
+            assert(carried+banked+sort+junk==expected);
+            const bool passed=carried==expected && banked==0 && sort==0 && junk==0;
+            if(!passed)++retentionFailures;
+            std::cout<<(passed?"PASS":"FAIL")<<" sawn-log retention "<<phase<<" ignore_list="<<ignored
+                <<" expected_carried="<<expected<<" actual_carried="<<carried<<" smithing="<<banked
+                <<" sort="<<sort<<" junk="<<junk<<'\n';
+        };
+        resetRetention();player->inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+        player->inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);stores.OffloadItems();
+        checkRetention("quick-transfer",SAWN_LOG_CARRIED);
+        assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+
+        resetRetention();utility->inbox.inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+        utility->inbox.inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);stores.SortItems();
+        checkRetention("sort-chest",SAWN_LOG_CARRIED);
+        assert(utility->inbox.inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+
+        resetRetention();settings->GSC_ReturnIgnoredItems=false;
+        settings->ignored.insert(&ordinaryIngot);
+        utility->inbox.inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+        utility->inbox.inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);stores.SortItems();
+        checkRetention("sort-ignore-toggle-off",SAWN_LOG_CARRIED);
+        assert(utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+
+        resetRetention();settings->ignored.insert(&ordinaryIngot);
+        player->inventory[&ordinaryIngot]=entry(5);utility->smithing.inventory[&ordinaryIngot]=entry(10);
+        CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+        assert(player->inventory[&ordinaryIngot].first==15);
+        CraftingLoanState::GetSingleton()->ExitCrafting();
+        assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==15);
+
+        resetRetention();RE::TESDataHandler::sawnLogs=&retainedLogs;
+        utility->smithing.removeLimit=1;utility->smithing.inventory[&retainedLogs]=entry(100);
+        utility->inbox.inventory[&retainedLogs]=entry(7);utility->junk.inventory[&retainedLogs]=entry(3);
+        stores.RecoverSawnLogs();checkRetention("stored-log-recovery",110);
+        stores.RecoverSawnLogs();checkRetention("recovery-repeat",110);
+        utility->smithing.rejectMove=true;utility->smithing.inventory[&retainedLogs]=entry(9);
+        stores.RecoverSawnLogs();assert(player->inventory[&retainedLogs].first==110 && utility->smithing.inventory[&retainedLogs].first==9);
+        utility->smithing.rejectMove=false;stores.RecoverSawnLogs();checkRetention("recovery-retry",119);
+        utility->smithing.removeLimit=INT_MAX;
+        settings->overrides[&retainedLogs]=ToMask(ItemCategory::Construction);
+        utility->smithing.inventory[&retainedLogs]=entry(4);stores.RecoverSawnLogs();
+        assert(utility->smithing.inventory[&retainedLogs].first==4 && player->inventory[&retainedLogs].first==119);
+        stores.PlayerToStore(ItemCategory::Smithing,Container::Smithing);
+        assert(player->inventory[&retainedLogs].first==0 && utility->smithing.inventory[&retainedLogs].first==123);
+
+        resetRetention();utility->junk.inventory[&retainedLogs]=entry(6);
+        CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+        CraftingLoanState::GetSingleton()->ExitCrafting();checkRetention("junk-loan-return",6);
+
+        resetRetention();RE::TESDataHandler::sawnLogs=nullptr;
+        utility->smithing.inventory[&retainedLogs]=entry(4);stores.RecoverSawnLogs();
+        assert(player->inventory[&retainedLogs].first==0 && utility->smithing.inventory[&retainedLogs].first==4);
+        RE::TESDataHandler::sawnLogs=&retainedLogs;
+        utility->smithing.inventory[&retainedLogs].second->quest=true;stores.RecoverSawnLogs();
+        assert(utility->smithing.inventory[&retainedLogs].first==4);
+
+        resetRetention();utility->inbox.rejectMove=true;
+        utility->inbox.inventory[&retainedLogs]=entry(10);stores.SortItems();
+        assert(utility->inbox.inventory[&retainedLogs].first==10 && utility->junk.inventory[&retainedLogs].first==0);
+        utility->inbox.rejectMove=false;stores.ReturnIgnoredItems();checkRetention("sort-return-retry",10);
+
+        for(bool all:{false,true})for(int consumed:SAWN_LOG_CONSUMPTION){
+            resetRetention();settings->GSC_AllCraftingMaterials=all;utility->bench=BenchType::Smithing;
+            player->inventory[&retainedLogs]=entry(SAWN_LOG_CARRIED);
+            utility->smithing.inventory[&ordinaryIngot]=entry(SAWN_LOG_INGOTS);
+            int remaining=SAWN_LOG_CARRIED;
+            for(int visit=0;visit<SAWN_LOG_VISITS;++visit){
+                CraftingLoanState::GetSingleton()->EnterCrafting(&source);
+                assert(player->inventory[&retainedLogs].first==remaining);
+                assert(player->inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+                player->inventory[&retainedLogs].first-=consumed;remaining-=consumed;
+                CraftingLoanState::GetSingleton()->ExitCrafting();
+                std::cout<<"loan all_materials="<<all<<" consumed="<<consumed<<" visit="<<visit+1<<'\n';
+                checkRetention("loan-exit",remaining);
+                assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==SAWN_LOG_INGOTS);
+            }
+        }
+    }
+    std::cout<<"Sawn-log retention failures="<<retentionFailures<<" checks="<<retentionChecks<<std::endl;
+    return retentionFailures?1:0;
 }
 '''
-with tempfile.TemporaryDirectory(prefix="arcanevault-jewelry-check-") as temporary:
+retention = log_fixture['retention']
+program = program.replace('SAWN_LOG_LOCAL_ID', log_fixture['local_id'])
+program = program.replace('SAWN_LOG_CARRIED', str(retention['carried']))
+program = program.replace('SAWN_LOG_INGOTS', str(retention['ordinary_ingots']))
+program = program.replace('SAWN_LOG_CONSUMPTION', '{' + ','.join(map(str, retention['consumption_per_visit'])) + '}')
+program = program.replace('SAWN_LOG_VISITS', str(retention['visits']))
+override_code = ''
+if log_override is not None:
+    names = [name.strip() for name in log_override.split(',')]
+    override_code = 'CategoryMask bundledLogMask=0;'
+    for name in names:
+        override_code += ('{const auto found=std::ranges::find_if(categoryNames,[](const auto& row){return row.first=='
+                          + json.dumps(name) + ';});assert(found!=categoryNames.end());bundledLogMask|=found->second;}')
+    override_code += 'settings->overrides[&retainedLogs]=bundledLogMask;'
+program = program.replace('SAWN_LOG_BUNDLED_OVERRIDE', override_code)
+program = program.replace('FISHING_MAP_LOCAL_IDS', ','.join(row['local_id'] for row in fishing_maps['maps']))
+with tempfile.TemporaryDirectory(prefix="arcanevault-key-check-") as temporary:
     path = Path(temporary)
     (path / "check.cpp").write_text(program)
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT),
                     str(path / "check.cpp"), "-o", str(path / "check")], check=True)
     subprocess.run([str(path / "check")], check=True)
-print("PASS: native armor slot and keyword Jewelry classification")
+working = json.loads((ROOT / "release/ArcaneVaults-LinkedStorage.json").read_text())
+assert validate_esp(ROOT, generate_esp(working)) == 117
+nodes = list(walk(working["records"]))
+assert len([n for n in nodes if n["type"] == "CONT"]) == 54
+for local_id, flag, field in [("0x01000DC7", 0x400, None), ("0x01000DC6", None, "DATA"), ("0x01000DC9", 0x400, None), ("0x01000DC8", None, "DATA"), ("0x01000DD3", 0x400, None), ("0x01000DD2", None, "DATA"), *[(f"0x01000{local:03X}", 0x400, None) for local in (0xDD5,0xDD7,0xDD9,0xDDB,0xDDD,0xDDF,0xDE2,0xDE4,0xDE6,0xDE8,0xDEA,0xDEC,0xDEF,0xDF2)], *[(f"0x01000{local:03X}", None, "DATA") for local in (0xDD4,0xDD6,0xDD8,0xDDA,0xDDC,0xDDE,0xDE1,0xDE3,0xDE5,0xDE7,0xDE9,0xDEB,0xDEE,0xDF1)]]:
+    changed = copy.deepcopy(working)
+    node = next(n for n in walk(changed["records"]) if n["form_id"] == local_id)
+    if flag:
+        node["flags"] &= ~flag
+    else:
+        next(f for f in node["fields"] if f["type"] == field)["hex"] = "0200000000"
+    try:
+        validate_esp(ROOT, generate_esp(changed))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Unsafe storage accepted")
 
-map_lines=[line for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.strip().endswith("= Map")]
-assert len(map_lines)==21
-assert {int(line.split("|0x")[1].split()[0],16) for line in map_lines if line.startswith("ccBGSSSE001-Fish.esm|")} == set(range(0x70CCC,0x70CD4))
-print("PASS: official treasure and Fishing map defaults")
+map_overrides = {}
+for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines():
+    if "=" in line:
+        identifier, categories = (part.strip() for part in line.split("=", 1))
+        if categories == "Map":
+            plugin, local = identifier.split("|", 1)
+            map_overrides[(plugin, int(local, 16))] = categories
+assert set(map_overrides) == {("Skyrim.esm", local) for local in
+    (0xEF07A, 0xF33CE, 0xF33CF, 0xF33D1, 0xF33D4, 0xF33D0, 0xF33D5, 0xF33D3,
+     0xF33CD, 0xF33E0, 0xF33D2, 0xDDEFB)} | {("Dragonborn.esm", 0x2BAAE)} | {(fishing_maps['plugin'], int(row['local_id'], 16)) for row in fishing_maps['maps']}
+print("PASS: direct Archery ammunition gather/return, withdrawals, deposits and failed/large transfers; native potion effects, exclusions and archive gather/return; ammunition selection/reserve/top-up modes and menus; Books/Notes classification, archives, migration and routing; ignore-aware Sort/Quick Transfer and picker returns, Junk crafting loans, native spell-scroll sorting/Quick Transfer/overrides, vault carried targets, equipped protections, Alchemy/Welkynd sorting, Jewelry/Valuables filtering, reserves, partial transfers, crafting-loan return, INI validation, and ESP storage")
+
+assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Instrument")} == {0xDABA7,0x105177,0xDABAB,0xDABA9}
+
+assert {int(line.split("|",1)[1].split("=",1)[0].strip(),16) for line in (ROOT / "ini/ArcaneVaultOverrides.ini").read_text().splitlines() if line.endswith("= Junk")} >= {0xE3CB7,0xCE70B,0xE4897,0x4C3C8,0x4C3C6,0xCC84D,0xAEBF3,0xAEBF7}
+
+assert "Skyrim.esm|0x0D0756 = Treasure" in (ROOT/"ini/ArcaneVaultOverrides.ini").read_text()

@@ -126,8 +126,8 @@ enum class ContainerGroup {
 [[nodiscard]] constexpr std::string_view ContainerTranslationKey(Container a_container) noexcept {
     switch (a_container) {
     case Container::Master:       return "Vault.Arcane";
-    case Container::QuickTransfer: return "Vault.QuickTransfer";
     case Container::Sort:         return "Vault.Conduit";
+    case Container::QuickTransfer: return "Vault.QuickTransfer";
     case Container::Alchemy:      return "Vault.Alchemy";
     case Container::Armor:        return "Vault.Armor";
     case Container::Clothing:     return "Vault.Clothing";
@@ -146,8 +146,8 @@ enum class ContainerGroup {
     case Container::Poison:       return "Vault.Poison";
     case Container::Restorative:  return "Vault.Restoritive";
     case Container::Scroll:       return "Vault.Scroll";
-    case Container::Remains:      return "Vault.Remains";
     case Container::Smithing:     return "Vault.Smithing";
+    case Container::Remains:      return "Vault.Remains";
     case Container::Construction: return "Vault.Construction";
     case Container::Crafting:     return "Vault.Crafting";
     case Container::Smelting:     return "Vault.Smelting";
@@ -160,27 +160,26 @@ enum class ContainerGroup {
     case Container::TwoHand:      return "Vault.TwoHand";
     case Container::Staff:        return "Vault.Staff";
     case Container::Keys:         return "Vault.Keys";
-    case Container::Ignore:       return "Ignore";
     case Container::Ammunition:   return "Vault.Ammunition";
     case Container::Valuables:    return "Vault.Valuables";
     case Container::FilledSoulgems: return "Vault.FilledSoulgems";
     case Container::EmptySoulgems: return "Vault.EmptySoulgems";
     case Container::Trade:        return "Vault.Trade";
     case Container::Junk:         return "Vault.Junk";
-    case Container::Notes: return "Vault.Notes";
-    case Container::SpellTomes: return "Vault.SpellTomes";
-    case Container::SkillBooks: return "Vault.SkillBooks";
-    case Container::Recipes: return "Vault.Recipes";
-    case Container::Maps:        return "Vault.Maps";
-    case Container::Gear:        return "Vault.Gear";
-    case Container::Instruments: return "Vault.Instruments";
-    case Container::StolenItems: return "Vault.StolenItems";
-    case Container::EnchantedItems: return "Vault.EnchantedItems";
+    case Container::Ignore:       return "Ignore";
+    case Container::Notes:        return "Vault.Notes";
+    case Container::SpellTomes:   return "Vault.SpellTomes";
+    case Container::SkillBooks:   return "Vault.SkillBooks";
+    case Container::Recipes:      return "Vault.Recipes";
+    case Container::Maps: return "Vault.Maps";
+    case Container::StolenItems:  return "Vault.StolenItems";
+    case Container::Gear:         return "Vault.Gear";
+    case Container::Instruments:  return "Vault.Instruments";
     case Container::HealthPotions: return "Vault.HealthPotions";
     case Container::MagickaPotions: return "Vault.MagickaPotions";
     case Container::StaminaPotions: return "Vault.StaminaPotions";
+    case Container::EnchantedItems: return "Vault.EnchantedItems";
     case Container::None:         return {};
-    default: return {};
     }
     return {};
 };

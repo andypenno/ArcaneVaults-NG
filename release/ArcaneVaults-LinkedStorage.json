@@ -11,7 +11,7 @@
       "fields": [
         {
           "type": "HEDR",
-          "hex": "48e1da3f7c000000f30d0000"
+          "hex": "48e1da3f7d000000f30d0000"
         },
         {
           "type": "CNAM",
@@ -32,6 +32,68 @@
         {
           "type": "INCC",
           "hex": "01000000"
+        }
+      ]
+    },
+    {
+      "type": "GRUP",
+      "label_hex": "4b595744",
+      "group_type": 0,
+      "stamp_hex": "0000000000000000",
+      "children": [
+        {
+          "type": "KYWD",
+          "flags": 0,
+          "form_id": "0x01000DE0",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_StolenOrigin"
+            },
+            {
+              "type": "CNAM",
+              "hex": "00000000"
+            }
+          ]
+        },
+        {
+          "type": "KYWD",
+          "flags": 0,
+          "form_id": "0x01000DED",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_EnchantedOrigin"
+            },
+            {
+              "type": "CNAM",
+              "hex": "00000000"
+            }
+          ]
+        },
+        {
+          "type": "KYWD",
+          "flags": 0,
+          "form_id": "0x01000DF0",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_SortFavorite"
+            },
+            {
+              "type": "CNAM",
+              "hex": "00000000"
+            }
+          ]
         }
       ]
     },
@@ -198,50 +260,6 @@
             {
               "type": "EFIT",
               "hex": "000000000000000000000000"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "GRUP",
-      "label_hex": "4b595744",
-      "group_type": 0,
-      "stamp_hex": "0000000000000000",
-      "children": [
-        {
-          "type": "KYWD",
-          "flags": 0,
-          "form_id": "0x01000DE0",
-          "revision": 0,
-          "version": 44,
-          "unknown": 0,
-          "fields": [
-            {
-              "type": "EDID",
-              "text": "AV_StolenOrigin"
-            },
-            {
-              "type": "CNAM",
-              "hex": "00000000"
-            }
-          ]
-        },
-        {
-          "type": "KYWD",
-          "flags": 0,
-          "form_id": "0x01000DED",
-          "revision": 0,
-          "version": 44,
-          "unknown": 0,
-          "fields": [
-            {
-              "type": "EDID",
-              "text": "AV_EnchantedOrigin"
-            },
-            {
-              "type": "CNAM",
-              "hex": "00000000"
             }
           ]
         }
@@ -1378,40 +1396,6 @@
         {
           "type": "CONT",
           "flags": 0,
-          "form_id": "0x01000DD2",
-          "revision": 0,
-          "version": 44,
-          "unknown": 0,
-          "fields": [
-            {
-              "type": "EDID",
-              "text": "AV_IgnorePicker"
-            },
-            {
-              "type": "OBND",
-              "hex": "f1fff1fff9ff0f000f000e00"
-            },
-            {
-              "type": "FULL",
-              "text": "Ignore List"
-            },
-            {
-              "type": "MODL",
-              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
-            },
-            {
-              "type": "MODT",
-              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
-            },
-            {
-              "type": "DATA",
-              "hex": "0000000000"
-            }
-          ]
-        },
-        {
-          "type": "CONT",
-          "flags": 0,
           "form_id": "0x01000DC6",
           "revision": 0,
           "version": 44,
@@ -1616,6 +1600,40 @@
         {
           "type": "CONT",
           "flags": 0,
+          "form_id": "0x01000DD2",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_IgnorePicker"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Ignore List"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
           "form_id": "0x01000DD4",
           "revision": 0,
           "version": 44,
@@ -1786,6 +1804,40 @@
         {
           "type": "CONT",
           "flags": 0,
+          "form_id": "0x01000DDE",
+          "revision": 0,
+          "version": 44,
+          "unknown": 0,
+          "fields": [
+            {
+              "type": "EDID",
+              "text": "AV_StolenItems"
+            },
+            {
+              "type": "OBND",
+              "hex": "f1fff1fff9ff0f000f000e00"
+            },
+            {
+              "type": "FULL",
+              "text": "Stolen Items Archive"
+            },
+            {
+              "type": "MODL",
+              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
+            },
+            {
+              "type": "MODT",
+              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
+            },
+            {
+              "type": "DATA",
+              "hex": "0000000000"
+            }
+          ]
+        },
+        {
+          "type": "CONT",
+          "flags": 0,
           "form_id": "0x01000DE1",
           "revision": 0,
           "version": 44,
@@ -1836,74 +1888,6 @@
             {
               "type": "FULL",
               "text": "Instruments Archive"
-            },
-            {
-              "type": "MODL",
-              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
-            },
-            {
-              "type": "MODT",
-              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
-            },
-            {
-              "type": "DATA",
-              "hex": "0000000000"
-            }
-          ]
-        },
-        {
-          "type": "CONT",
-          "flags": 0,
-          "form_id": "0x01000DDE",
-          "revision": 0,
-          "version": 44,
-          "unknown": 0,
-          "fields": [
-            {
-              "type": "EDID",
-              "text": "AV_StolenItems"
-            },
-            {
-              "type": "OBND",
-              "hex": "f1fff1fff9ff0f000f000e00"
-            },
-            {
-              "type": "FULL",
-              "text": "Stolen Items Archive"
-            },
-            {
-              "type": "MODL",
-              "text": "Clutter\\Containers\\Chest01\\Chest01.nif"
-            },
-            {
-              "type": "MODT",
-              "hex": "02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"
-            },
-            {
-              "type": "DATA",
-              "hex": "0000000000"
-            }
-          ]
-        },
-        {
-          "type": "CONT",
-          "flags": 0,
-          "form_id": "0x01000DEB",
-          "revision": 0,
-          "version": 44,
-          "unknown": 0,
-          "fields": [
-            {
-              "type": "EDID",
-              "text": "AV_EnchantedItems"
-            },
-            {
-              "type": "OBND",
-              "hex": "f1fff1fff9ff0f000f000e00"
-            },
-            {
-              "type": "FULL",
-              "text": "Enchanted Items Archive"
             },
             {
               "type": "MODL",
@@ -2024,14 +2008,14 @@
         {
           "type": "CONT",
           "flags": 0,
-          "form_id": "0x01000DF1",
+          "form_id": "0x01000DEB",
           "revision": 0,
           "version": 44,
           "unknown": 0,
           "fields": [
             {
               "type": "EDID",
-              "text": "AV_Remains"
+              "text": "AV_EnchantedItems"
             },
             {
               "type": "OBND",
@@ -2039,7 +2023,7 @@
             },
             {
               "type": "FULL",
-              "text": "Remains Vault"
+              "text": "Enchanted Items Archive"
             },
             {
               "type": "MODL",
@@ -2088,7 +2072,8 @@
               "hex": "0000000000"
             }
           ]
-        }
+        },
+        {"type":"CONT","flags":0,"form_id":"0x01000DF1","revision":0,"version":44,"unknown":0,"fields":[{"type":"EDID","text":"AV_Remains"},{"type":"OBND","hex":"f1fff1fff9ff0f000f000e00"},{"type":"FULL","text":"Remains Vault"},{"type":"MODL","text":"Clutter\\Containers\\Chest01\\Chest01.nif"},{"type":"MODT","hex":"02000000020000000000000045dac1ab64647300b3b824948f26217c64647300b3b82494"},{"type":"DATA","hex":"0000000000"}]}
       ]
     },
     {
@@ -2889,28 +2874,6 @@
                         {
                           "type": "REFR",
                           "flags": 1024,
-                          "form_id": "0x01000DD3",
-                          "revision": 0,
-                          "version": 44,
-                          "unknown": 0,
-                          "fields": [
-                            {
-                              "type": "EDID",
-                              "text": "AV_Ref_IgnorePicker"
-                            },
-                            {
-                              "type": "NAME",
-                              "form_id": "0x01000DD2"
-                            },
-                            {
-                              "type": "DATA",
-                              "hex": "0000dc440000000000000000000000000000000000000000"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "REFR",
-                          "flags": 1024,
                           "form_id": "0x01000DC7",
                           "revision": 0,
                           "version": 44,
@@ -3043,6 +3006,28 @@
                         {
                           "type": "REFR",
                           "flags": 1024,
+                          "form_id": "0x01000DD3",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_IgnorePicker"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DD2"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "0000dc440000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
                           "form_id": "0x01000DD5",
                           "revision": 0,
                           "version": 44,
@@ -3153,6 +3138,28 @@
                         {
                           "type": "REFR",
                           "flags": 1024,
+                          "form_id": "0x01000DDF",
+                          "revision": 0,
+                          "version": 44,
+                          "unknown": 0,
+                          "fields": [
+                            {
+                              "type": "EDID",
+                              "text": "AV_Ref_StolenItems"
+                            },
+                            {
+                              "type": "NAME",
+                              "form_id": "0x01000DDE"
+                            },
+                            {
+                              "type": "DATA",
+                              "hex": "000036450000000000000000000000000000000000000000"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "REFR",
+                          "flags": 1024,
                           "form_id": "0x01000DE2",
                           "revision": 0,
                           "version": 44,
@@ -3191,50 +3198,6 @@
                             {
                               "type": "DATA",
                               "hex": "00404e450000000000000000000000000000000000000000"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "REFR",
-                          "flags": 1024,
-                          "form_id": "0x01000DDF",
-                          "revision": 0,
-                          "version": 44,
-                          "unknown": 0,
-                          "fields": [
-                            {
-                              "type": "EDID",
-                              "text": "AV_Ref_StolenItems"
-                            },
-                            {
-                              "type": "NAME",
-                              "form_id": "0x01000DDE"
-                            },
-                            {
-                              "type": "DATA",
-                              "hex": "000036450000000000000000000000000000000000000000"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "REFR",
-                          "flags": 1024,
-                          "form_id": "0x01000DEC",
-                          "revision": 0,
-                          "version": 44,
-                          "unknown": 0,
-                          "fields": [
-                            {
-                              "type": "EDID",
-                              "text": "AV_Ref_EnchantedItems"
-                            },
-                            {
-                              "type": "NAME",
-                              "form_id": "0x01000DEB"
-                            },
-                            {
-                              "type": "DATA",
-                              "hex": "002080450000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -3307,22 +3270,22 @@
                         {
                           "type": "REFR",
                           "flags": 1024,
-                          "form_id": "0x01000DF2",
+                          "form_id": "0x01000DEC",
                           "revision": 0,
                           "version": 44,
                           "unknown": 0,
                           "fields": [
                             {
                               "type": "EDID",
-                              "text": "AV_Ref_Remains"
+                              "text": "AV_Ref_EnchantedItems"
                             },
                             {
                               "type": "NAME",
-                              "form_id": "0x01000DF1"
+                              "form_id": "0x01000DEB"
                             },
                             {
                               "type": "DATA",
-                              "hex": "004083450000000000000000000000000000000000000000"
+                              "hex": "002080450000000000000000000000000000000000000000"
                             }
                           ]
                         },
@@ -3347,7 +3310,8 @@
                               "hex": "007080450000000000000000000000000000000000000000"
                             }
                           ]
-                        }
+                        },
+                        {"type":"REFR","flags":1024,"form_id":"0x01000DF2","revision":0,"version":44,"unknown":0,"fields":[{"type":"EDID","text":"AV_Ref_Remains"},{"type":"NAME","form_id":"0x01000DF1"},{"type":"DATA","hex":"004083450000000000000000000000000000000000000000"}]}
                       ]
                     }
                   ]

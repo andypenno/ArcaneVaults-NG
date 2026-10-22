@@ -17,7 +17,7 @@ def main():
         raise ValueError('No inventory scenarios found')
     with tempfile.TemporaryDirectory(prefix='av-inventories-') as directory:
         root = Path(directory)
-        (root / 'common.hpp').write_text((ROOT / 'tests/support/engine.hpp').read_text().split('#include "src/PlayerEquipment.h"', 1)[0] + '\n#include "src/InventoryStacks.h"\n')
+        (root / 'common.hpp').write_text((ROOT / 'tests/support/engine.hpp').read_text())
         flags = ['-fsanitize=address,undefined', '-fno-omit-frame-pointer'] if args.sanitize else []
         subprocess.run(['g++', '-std=c++20', '-O1', '-Wall', '-Wextra', '-Werror', *flags, '-I', str(root), '-I', str(ROOT),
                         '-include', str(root / 'common.hpp'), str(ROOT / 'src/InventoryStacks.cpp'),

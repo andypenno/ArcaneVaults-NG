@@ -1,0 +1,18 @@
+{
+  "plugin": "HearthFires.esm",
+  "local_id": "0x00300E",
+  "retention": {"carried": 100, "ordinary_ingots": 10, "consumption_per_visit": [0, 7], "visits": 2},
+  "boundary": "Carried counts model purchased logs. Hidden UI and optional bulk exclusion are modelled independently. Native purchase, non-playable bulk filtering, house state and crafting conditions require Skyrim.",
+  "sources": [
+    "https://en.uesp.net/wiki/Skyrim:Cutting_Lumber#Sawn_Logs",
+    "https://www.nexusmods.com/skyrimspecialedition/mods/84320?tab=logs",
+    "https://www.afkmods.com/Unofficial%20Hearthfire%20Patch%20Version%20History.html"
+  ],
+  "cases": [
+    {"name": "purchased-unused", "carried": 100, "banked": 0, "consume": [0, 0, 0]},
+    {"name": "purchased-partly-consumed", "carried": 100, "banked": 0, "consume": [7, 13, 5]},
+    {"name": "purchased-exhausted", "carried": 100, "banked": 0, "consume": [100, 0, 0]},
+    {"name": "purchased-and-banked", "carried": 100, "banked": 25, "consume": [10, 20, 5]},
+    {"name": "banked-only", "carried": 0, "banked": 100, "consume": [7, 13, 0]}
+  ]
+}
