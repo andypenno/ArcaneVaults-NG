@@ -83,6 +83,7 @@ int main(int argc,char** argv){
   };
   int visit=0;
   for(int consumed:test.at("consume")){
+   const int carriedBefore=count(player,&logs);
    session->EnterCrafting(&bench);
    const int available=count(player,&logs);
    const bool usable=available==remaining && count(smithing,&logs)==0;
@@ -98,7 +99,7 @@ int main(int argc,char** argv){
    assert(consumed<=remaining);const int actualConsumption=std::min(consumed,available);
    player->rows[&logs].total-=actualConsumption;remaining-=actualConsumption;
    session->ExitCrafting();session->ExitCrafting();
-   assert(count(player,&logs)==0 && count(smithing,&logs)==remaining);
+   assert(count(player,&logs)==std::min(carriedBefore,remaining) && count(smithing,&logs)==remaining-std::min(carriedBefore,remaining));
    auto& observation=report["visits"].back();
    observation["consumed"]=actualConsumption;observation["post_exit_carried"]=count(player,&logs);
    observation["post_exit_banked"]=count(smithing,&logs);

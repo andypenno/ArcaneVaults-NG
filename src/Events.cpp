@@ -281,6 +281,7 @@ public:
 
         if (benchType == BenchType::None || !materials) return;
         stores->RecoverSawnLogs();
+        carriedBefore_ = RE::PlayerCharacter::GetSingleton()->GetInventoryCounts();
         loanBench_ = benchType;
         loanFurniture_ = a_furniture->GetHandle();
         materialsLoan_ = materials;
@@ -329,6 +330,7 @@ public:
         ++session_;
         loanBench_.reset();
         loanFurniture_ = {};
+        carriedBefore_.clear();
         materialsLoan_ = false;
         allMaterialsLoan_ = false;
         Soulgems::ResetLoan();
@@ -343,14 +345,18 @@ public:
         loanFurniture_ = {};
         if (!std::exchange(materialsLoan_, false)) return;
         auto* stores = Stores::GetSingleton();
+        auto carriedBefore = std::move(carriedBefore_);
+        const auto returnMaterials = [&](ItemCategory category, Container chest) {
+            stores->PlayerToStore(category, chest, 0, 0, false, 0, &carriedBefore);
+        };
         stores->EndJunkLoan();
         if (allMaterialsLoan_ || benchType == BenchType::Smithing || benchType == BenchType::Enchanting)
             Soulgems::EndLoan();
 
         if (std::exchange(allMaterialsLoan_, false)) {
-            stores->PlayerToStore(ItemCategory::Smithing, Container::Smithing);
-            stores->PlayerToStore(ItemCategory::Food, Container::Food);
-            stores->PlayerToStore(ItemCategory::Alchemy, Container::Alchemy);
+            returnMaterials(ItemCategory::Smithing, Container::Smithing);
+            returnMaterials(ItemCategory::Food, Container::Food);
+            returnMaterials(ItemCategory::Alchemy, Container::Alchemy);
             return;
         }
         switch (benchType) {
@@ -358,18 +364,18 @@ public:
             break;
         // Alchemy
         case BenchType::Alchemy:
-            stores->PlayerToStore(ItemCategory::Alchemy, Container::Alchemy);
+            returnMaterials(ItemCategory::Alchemy, Container::Alchemy);
             break;
 
         // Smithing
         case BenchType::Smithing:
-            stores->PlayerToStore(ItemCategory::Smithing, Container::Smithing);
-            stores->PlayerToStore(ItemCategory::Catalyst, Container::Alchemy);
+            returnMaterials(ItemCategory::Smithing, Container::Smithing);
+            returnMaterials(ItemCategory::Catalyst, Container::Alchemy);
             break;
 
         case BenchType::Cooking:
-            stores->PlayerToStore(ItemCategory::Food, Container::Food);
-            stores->PlayerToStore(ItemCategory::Reagent, Container::Alchemy);
+            returnMaterials(ItemCategory::Food, Container::Food);
+            returnMaterials(ItemCategory::Reagent, Container::Alchemy);
             break;
 
         // Enchanting Table
@@ -378,7 +384,7 @@ public:
 
         // Staff Enchanting
         case BenchType::StaffEnchanting:
-            stores->PlayerToStore(ItemCategory::Catalyst, Container::Alchemy);
+            returnMaterials(ItemCategory::Catalyst, Container::Alchemy);
             break;
         }
     }
@@ -404,6 +410,7 @@ private:
     std::optional<BenchType> loanBench_;
     RE::ObjectRefHandle loanFurniture_;
     std::atomic<std::uint64_t> session_{};
+    std::map<RE::TESBoundObject*, std::int32_t> carriedBefore_;
     bool materialsLoan_{};
     bool allMaterialsLoan_{};
 };

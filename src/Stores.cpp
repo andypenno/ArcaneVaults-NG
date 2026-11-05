@@ -205,7 +205,7 @@ void Stores::ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuO
 //===================================================
 // Storage Functions
 //===================================================
-void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores, CategoryMask a_excluded) {
+void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_count, int a_keepCount, bool a_respectIgnores, CategoryMask a_excluded, const std::map<RE::TESBoundObject*, std::int32_t>* a_carriedBefore) {
     auto* utility = Utility::GetSingleton();
     auto* chest = utility->GetContainer(a_chest);
     auto* player = RE::PlayerCharacter::GetSingleton();
@@ -258,14 +258,19 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
         return !OffloadBatch::current || OffloadBatch::current->item == &item;
     });
     for (const auto& [item, total] : inventory) {
-        if (!item || total <= a_keepCount || item->As<RE::TESSoulGem>()) continue;
+        int keepCount = a_keepCount;
+        if (a_carriedBefore) {
+            const auto before = a_carriedBefore->find(item);
+            if (before != a_carriedBefore->end()) keepCount = (std::max)(keepCount, before->second);
+        }
+        if (!item || total <= keepCount || item->As<RE::TESSoulGem>()) continue;
         const auto categories = ClassifyItem(item);
         if (!HasCategory(categories, a_category) || HasAnyCategory(categories, a_excluded)) continue;
         const auto fresh = player->GetInventory([item](RE::TESBoundObject& candidate) { return &candidate == item; });
         const auto found = fresh.find(item);
         if (found == fresh.end()) continue;
         const auto& data = found->second;
-        if (!data.second || data.first <= a_keepCount) continue;
+        if (!data.second || data.first <= keepCount) continue;
 
         if (a_respectIgnores && Settings::GetSingleton()->IsIgnored(item)) continue;
 
@@ -296,7 +301,7 @@ void Stores::PlayerToStore(ItemCategory a_category, Container a_chest, int i_cou
             if (stack.extra && (stack.extra->HasType<RE::ExtraWorn>() || stack.extra->HasType<RE::ExtraWornLeft>()))
                 protectedStacks.insert(stack.extra);
 
-        int count = InventoryStacks::Count(player, item) - a_keepCount;
+        int count = InventoryStacks::Count(player, item) - keepCount;
         if (i_count > 0) count = std::min(count, i_count);
         while (count > 0) {
             if (OffloadBatch::current && !OffloadBatch::current->active()) break;

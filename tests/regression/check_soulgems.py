@@ -83,6 +83,7 @@ struct TESObjectREFR {
         for(const auto& [item,data]:inventory) if(item && filter(*item)) selected[item]=data;
         return selected;
     }
+    std::map<TESBoundObject*,std::int32_t> GetInventoryCounts()const {std::map<TESBoundObject*,std::int32_t> result;for(const auto& [item,data]:inventory)result[item]=data.first;return result;}
     void Put(TESBoundObject* item,int count,std::optional<SOUL_LEVEL> soul={},std::string owner={},bool explicitStack=false) {
         auto& data=inventory[item];data.first+=count;
         if (!data.second) data.second=std::make_shared<InventoryEntryData>();
@@ -195,7 +196,7 @@ struct Stores {
     void ResetJunkLoan() {}
     void AllToPlayer(Container) {}
     void StoreToPlayer(ItemCategory,Container) {}
-    void PlayerToStore(ItemCategory,Container) {}
+    void PlayerToStore(ItemCategory,Container,int,int,bool,CategoryMask,const std::map<RE::TESBoundObject*,std::int32_t>*) {}
 };
 '''
 program += "\n"

@@ -2,6 +2,7 @@
 #include "ItemClass.h"
 #include "Utility.h"
 #include <optional>
+#include <map>
 
 using MenuAction = std::function<void()>;
 
@@ -42,7 +43,7 @@ public:
     void ShowDynamicMessageBox(std::string_view a_message, std::vector<MenuOption> a_options, std::int32_t a_cancelOption = -1);
 
     // Storage Functions
-    void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0, int a_keepCount = 0, bool a_respectIgnores = false, CategoryMask a_excluded = 0);
+    void PlayerToStore(ItemCategory a_category, Container a_chest, int i_count = 0, int a_keepCount = 0, bool a_respectIgnores = false, CategoryMask a_excluded = 0, const std::map<RE::TESBoundObject*, std::int32_t>* a_carriedBefore = nullptr);
     void StoreToPlayer(ItemCategory a_category, Container a_chest, int i_count = 0, std::optional<int> a_target = std::nullopt);
     void StoreToStore(ItemCategory a_category, Container a_source, Container a_destination);
     void AllToStore(Container a_source, Container a_destination);

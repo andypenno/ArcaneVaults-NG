@@ -375,7 +375,7 @@ struct Stores {
     std::function<void()> returnToVault_;
     void GearMenu(RE::TESObjectREFR*);
     void ShowGearMenu(RE::TESObjectREFR*);
-    void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0);
+    void PlayerToStore(ItemCategory, Container, int = 0, int = 0, bool = false, CategoryMask = 0, const std::map<RE::TESBoundObject*,std::int32_t>* = nullptr);
     std::unordered_map<unsigned, std::pair<int,int>> junkLoan_;
     void BeginJunkLoan();
     void EndJunkLoan();
@@ -1216,7 +1216,7 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     junkMaterial.category=ItemCategory::Smithing;put(&junkMaterial,3);utility->smithing.inventory[&junkMaterial]=entry(2);utility->junk.inventory[&junkMaterial]=entry(4);
     crafting->EnterCrafting(&source);assert(player->inventory[&junkMaterial].first==9);
     player->inventory[&junkMaterial].first-=1;crafting->ExitCrafting();
-    assert(utility->junk.inventory[&junkMaterial].first==3 && utility->smithing.inventory[&junkMaterial].first==5);
+    assert(utility->junk.inventory[&junkMaterial].first==3 && utility->smithing.inventory[&junkMaterial].first==2 && player->inventory[&junkMaterial].first==3);
     player->inventory.clear();utility->junk.inventory.clear();junkMaterial.category=ItemCategory::None;
     put(&junkMaterial,INT_MAX-2);utility->junk.inventory[&junkMaterial]=entry(5);stores.BeginJunkLoan();
     assert(player->inventory[&junkMaterial].first==INT_MAX && utility->junk.inventory[&junkMaterial].first==3);
@@ -1601,6 +1601,17 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
         assert(player->inventory[&loanSmith].first==0 && player->inventory[&loanFood].first==0 && player->inventory[&loanAlchemy].first==0 && utility->junk.inventory[&loanJunk].first==10);
         if(all)assert(Soulgems::loanEnds==ends+1);
     }
+    for(bool all:{false,true})for(auto bench:{BenchType::Alchemy,BenchType::Smithing,BenchType::Cooking,BenchType::StaffEnchanting})for(int consumed:{0,3,12}){
+        player->inventory.clear();utility->smithing.inventory.clear();foodLoanBank.inventory.clear();alchemyLoanBank.inventory.clear();utility->junk.inventory.clear();
+        auto* session=CraftingLoanState::GetSingleton();session->Reset();
+        settings->overrides[&loanAlchemy]=ToMask(bench==BenchType::Cooking?ItemCategory::Reagent:ItemCategory::Catalyst);
+        player->inventory[&loanAlchemy]=entry(7);alchemyLoanBank.inventory[&loanAlchemy]=entry(5);
+        settings->GSC_CraftingLoan=true;settings->GSC_AllCraftingMaterials=all;utility->bench=bench;
+        session->EnterCrafting(&source);assert(player->inventory[&loanAlchemy].first==12);
+        player->inventory[&loanAlchemy].first-=consumed;session->ExitCrafting();session->ExitCrafting();
+        const int kept=std::min(7,12-consumed),returned=std::max(0,5-consumed);
+        assert(player->inventory[&loanAlchemy].first==kept && alchemyLoanBank.inventory[&loanAlchemy].first==returned);
+    }
     settings->GSC_AllCraftingMaterials=false;utility->foodContainer=utility->alchemyContainer=nullptr;
 
     player->inventory.clear();utility->treasure.inventory.clear();utility->inbox.inventory.clear();utility->junk.inventory.clear();
@@ -1667,7 +1678,7 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
         CraftingLoanState::GetSingleton()->EnterCrafting(&source);
         assert(player->inventory[&ordinaryIngot].first==15);
         CraftingLoanState::GetSingleton()->ExitCrafting();
-        assert(player->inventory[&ordinaryIngot].first==0 && utility->smithing.inventory[&ordinaryIngot].first==15);
+        assert(player->inventory[&ordinaryIngot].first==5 && utility->smithing.inventory[&ordinaryIngot].first==10);
 
         resetRetention();RE::TESDataHandler::sawnLogs=&retainedLogs;
         utility->smithing.removeLimit=1;utility->smithing.inventory[&retainedLogs]=entry(100);

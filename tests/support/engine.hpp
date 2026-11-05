@@ -445,7 +445,7 @@ struct Stores {
         }
     }
     void EnchantedItemsMenu(RE::TESObjectREFR*);
-    void PlayerToStore(ItemCategory,Container,int=0,int=0,bool=false,CategoryMask=0);
+    void PlayerToStore(ItemCategory,Container,int=0,int=0,bool=false,CategoryMask=0,const std::map<RE::TESBoundObject*,std::int32_t>* = nullptr);
     void OffloadItems(std::function<void()> complete={});
     void OffloadItemsNow(std::function<void()> complete={}){PlayerEquipment::Run([this]{PlayerToStore(ItemCategory::Jewelry,Container::Armor);},std::move(complete));}
 
