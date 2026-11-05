@@ -36,10 +36,14 @@ int main(){
     assert(starts==1 && SKSEMenuFramework::block(&event));
     RE::InputEvent release;release.up=true;RE::InputEvent motion;motion.button=false;
     assert(!SKSEMenuFramework::block(&release) && !SKSEMenuFramework::block(&motion) && !SKSEMenuFramework::block(nullptr));
+    RE::InputEvent stick;stick.button=false;stick.stick=true;stick.xValue=.8f;
+    assert(SKSEMenuFramework::block(&stick));stick.xValue=0;assert(!SKSEMenuFramework::block(&stick));
+    RE::InputEvent mouse;mouse.button=false;mouse.mouse=true;assert(SKSEMenuFramework::block(&mouse));
     SKSEMenuFramework::render();step();assert(starts==1);
     SKSEMenuFramework::render();step();assert(starts==2 && SKSEMenuFramework::block(&event));
     assert(ImGuiMCP::backgrounds==2 && ImGuiMCP::texts==2);
     assert(complete() && !complete() && !SKSEMenuFramework::block(&event));
+    stick.xValue=.8f;assert(!SKSEMenuFramework::block(&stick) && !SKSEMenuFramework::block(&mouse));
     const int priorDraws=ImGuiMCP::texts;SKSEMenuFramework::render();assert(ImGuiMCP::texts==priorDraws);
 
     for(bool invalidSize:{false,true}){

@@ -65,7 +65,7 @@ if args.feedback:
     wait_end=common.index('\n}',wait_end)+2
     common=common[:wait_stub]+common[wait_end:]
     common=common.replace("inline const char* Translate(const char* text){return text;}", "inline const char* Translate(const char* text){return std::string_view{text}==\"Vault.Sorting\"?\"Sorting items...\":text;}")
-    common+='namespace RE {struct InputEvent {bool up=false;bool IsUp()const{return up;}InputEvent* AsButtonEvent(){return this;}};}\n'
+    common+=feedback.program[feedback.program.index("namespace RE {"):feedback.program.index("namespace SKSE {")]
     framework=feedback.FRAMEWORK[:feedback.FRAMEWORK.index("namespace AVTranslation")]
 
 common=common.replace("inline bool inspectionOpen=false;", "inline int inventoryReads=0,bulkCalls=0,emptyBulkCalls=0,removeCalls=0;inline bool inspectionOpen=false;")

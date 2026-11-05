@@ -102,8 +102,12 @@ namespace TransferFeedback {
         }
 
         bool __stdcall BlockInput(RE::InputEvent* event) {
-            const auto* button = event ? event->AsButtonEvent() : nullptr;
-            return busy.load() && button && !button->IsUp();
+            if (!busy.load() || !event) return false;
+            if (const auto* button = event->AsButtonEvent()) {
+                return !button->IsUp();
+            }
+            if (const auto* stick = event->AsThumbstickEvent()) return stick->xValue != 0 || stick->yValue != 0;
+            return event->AsMouseMoveEvent() != nullptr;
         }
 
         void Poll(const std::shared_ptr<Request>& request) {
