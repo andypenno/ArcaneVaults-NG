@@ -248,10 +248,13 @@ int main() {
     RenderOptions();
     assert(settings->GSC_AssignSpell==!assignSpell && settings->GSC_SortSpell==!sortSpell);
     assert(Utility::GetSingleton()->spellUpdates==2 && settings->saves==beforeSpells+1);
-    ids.clear();scope.clear();toggleAllMaterials=true;
+    toggleSpells=false;ids.clear();scope.clear();toggleAllMaterials=true;
     const int savesBeforeAllMaterials=settings->saves;
     const bool allMaterialsBefore=settings->GSC_AllCraftingMaterials;
-    RenderOptions();
+    settings->GSC_CraftingLoan=false;shownControls.clear();RenderOptions();
+    assert(settings->GSC_AllCraftingMaterials==allMaterialsBefore);
+    assert(std::ranges::find(shownControls,"Options.AllCraftingMaterials")==shownControls.end());
+    settings->GSC_CraftingLoan=true;ids.clear();RenderOptions();
     assert(settings->GSC_AllCraftingMaterials!=allMaterialsBefore && settings->saves==savesBeforeAllMaterials+1);
     toggleAllMaterials=false;
 

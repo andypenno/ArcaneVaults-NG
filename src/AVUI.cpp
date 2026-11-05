@@ -68,7 +68,7 @@ namespace AVUI {
 			changeOption = true;
 		if (Checkbox(Translate("Options.CraftLoan"), &setting->GSC_CraftingLoan))
 			changeOption = true;
-		if (Checkbox(Translate("Options.AllCraftingMaterials"), &setting->GSC_AllCraftingMaterials))
+		if (setting->GSC_CraftingLoan && Checkbox(Translate("Options.AllCraftingMaterials"), &setting->GSC_AllCraftingMaterials))
 			changeOption = true;
 		if (Checkbox(Translate("Options.LearnDepositOverrides"), &setting->GSC_LearnDepositOverrides))
 			changeOption = true;
