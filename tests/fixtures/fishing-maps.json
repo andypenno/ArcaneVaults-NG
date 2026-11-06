@@ -9,6 +9,8 @@
     {"name": "The Pale", "local_id": "0x070CD0", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Pale"},
     {"name": "The Reach", "local_id": "0x070CD1", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Reach"},
     {"name": "The Rift", "local_id": "0x070CD2", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_The_Rift"},
-    {"name": "Whiterun", "local_id": "0x070CD3", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Whiterun"}
+    {"name": "Whiterun", "local_id": "0x070CD3", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Whiterun"},
+    {"name": "Winterhold", "local_id": "0x070CD4", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Winterhold"},
+    {"name": "Solstheim", "local_id": "0x070CD5", "source": "https://en.uesp.net/wiki/Skyrim:Fishing_Map_-_Solstheim"}
   ]
 }

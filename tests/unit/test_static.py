@@ -1,11 +1,22 @@
 import configparser
 import unittest
-from support.data import load_json, overrides, translations, validate_static
+from support.data import ROOT, load_json, overrides, translations, validate_static
+from support.sorting import enum_names
 
 
 class StaticDataTests(unittest.TestCase):
     def test_repository(self):
         self.assertGreater(validate_static()['translations'], 0)
+
+    def test_identified_official_clutter_defaults(self):
+        defaults = overrides((ROOT / 'ini/ArcaneVaultOverrides.ini').read_text(), set(enum_names('ItemCategory')))
+        for plugin, ids in {
+            'skyrim.esm': (0x12FEA, 0xB9BD4, 0x747FB, 0x747FE, 0x8632C, 0xB9BD0, 0xB9BDC, 0xD955A, 0xF5D08),
+            'hearthfires.esm': (0xC743, 0xD81E, 0xD822),
+        }.items():
+            for local_id in ids:
+                with self.subTest(plugin=plugin, local_id=hex(local_id)):
+                    self.assertEqual(defaults.get((plugin, local_id)), ['Junk'])
 
     def test_bad_json(self):
         for value in ('{"a":1,"a":1}', '{"a":NaN}', '{"a":1e999}', '{"a":1,}', ''):

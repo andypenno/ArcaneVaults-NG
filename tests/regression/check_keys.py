@@ -1302,8 +1302,8 @@ assert(!options.contains({"General", "EnchantedItemsLoan"}));
     skillBook.book.spell=true;assert(ClassifyItem(&skillBook)==(ItemCategory::Book|ItemCategory::SpellTome));
     utility->CacheSkillBooks(&bookData);assert(utility->SkillBookMap.empty());skillBook.book.spell=false;
     player->inventory.clear();utility->notes.inventory.clear();settings->ignored.clear();
-    constexpr std::array<unsigned,8> fishingIDs{FISHING_MAP_LOCAL_IDS};
-    std::array<RE::TESBoundObject,8> fishingMaps{};
+    constexpr auto fishingIDs=std::to_array<unsigned>({FISHING_MAP_LOCAL_IDS});
+    std::array<RE::TESBoundObject,fishingIDs.size()> fishingMaps{};
     for(unsigned i=0;i<fishingMaps.size();++i) {
         auto& map=fishingMaps[i];map.category=ItemCategory::None;map.formID=0x04000000|fishingIDs[i];map.nativeBook=true;
         settings->overrides[&map]=ToMask(ItemCategory::Map);

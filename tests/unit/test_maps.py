@@ -7,7 +7,7 @@ class MapsTests(unittest.TestCase):
     def test_fishing_defaults_and_display_names(self):
         fixture = load_json((ROOT / 'tests/fixtures/fishing-maps.json').read_text())
         expected = {(fixture['plugin'].casefold(), int(row['local_id'], 16)) for row in fixture['maps']}
-        self.assertEqual(len(expected), 8)
+        self.assertEqual(len(expected), 10)
         defaults = overrides((ROOT / 'ini/ArcaneVaultOverrides.ini').read_text(), set(enum_names('ItemCategory')))
         actual = {identity for identity, categories in defaults.items() if identity[0] == fixture['plugin'].casefold() and categories == ['Map']}
         self.assertEqual(actual, expected)
