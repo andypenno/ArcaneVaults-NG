@@ -1,4 +1,6 @@
 import copy
+import contextlib
+import io
 import hashlib
 import importlib.util
 import json
@@ -60,7 +62,7 @@ class CITests(unittest.TestCase):
 
     def test_bootstrap_cold_reuse_and_failure(self):
         for mode in ('cold', 'reuse', 'running', 'failure', 'wrong-container', 'podman-error'):
-            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
                 root, work = Path(directory) / 'repo', Path(directory) / 'work'
                 output = root / 'results/bootstrap'
                 root.mkdir()

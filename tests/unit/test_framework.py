@@ -58,7 +58,8 @@ class FrameworkTests(unittest.TestCase):
         from run import run
         for code, timeout, status in [('raise SystemExit(7)', 2, 'failed'), ('import time;time.sleep(10)', .05, 'timeout'), ('print("ok")', 2, 'passed')]:
             manifest = {'tests': [{'id': 'child', 'suites': ['unit'], 'command': ['{python}', '-c', code], 'timeout_seconds': timeout}]}
-            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory, patch('run.load_json', return_value=manifest):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory, \
+                 patch('run.load_json', return_value=manifest), contextlib.redirect_stdout(io.StringIO()):
                 report = run(['unit'], Path(directory) / 'results')
                 self.assertEqual(report['results'][0]['status'], status)
                 self.assertEqual(report['passed'], status == 'passed')
