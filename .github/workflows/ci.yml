@@ -96,7 +96,7 @@ jobs:
 
   verify:
     name: Verify (${{ matrix.check }})
-    needs: plan
+    needs: [plan, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:

@@ -6,7 +6,7 @@
 | --- | --- |
 | `plan` | Derive the verification matrix from the required release profile in `tests/manifest.json` |
 | `build` | Provision Wine/MSVC, check its toolchain, build the DLL and inventory test executable, run Windows scenarios, and assemble an unverified candidate |
-| `Verify (check)` | Run each required source check on its own runner alongside the build, with up to eight checks at once and fail-fast disabled |
+| `Verify (check)` | Run each required source check on its own runner after the candidate build succeeds, with up to eight checks at once and fail-fast disabled |
 | `release` | Require successful build and verification jobs, check the complete report population against the candidate's commit/source fingerprint, validate the exact ZIP, run packaging checks, and promote it |
 
 Keep `release` as the required check in branch rules. It runs even when a dependency fails and reports failure rather than silently skipping publication. Manual dispatch becomes available after the workflow reaches the default branch.

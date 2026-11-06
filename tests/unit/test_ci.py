@@ -131,6 +131,11 @@ class CITests(unittest.TestCase):
         self.assertIn('performance', checks)
         self.assertNotIn('packaging', checks)
 
+    def test_verification_waits_for_candidate_build(self):
+        workflow = (ROOT / '.github/workflows/ci.yml').read_text()
+        verification = workflow.split('  verify:', 1)[1].split('  release:', 1)[0]
+        self.assertIn('needs: [plan, build]', verification)
+
     def check_report(self, names):
         return {'complete': True, 'passed': True, 'commit': 'commit', 'source_sha256': 'source',
                 'results': [{'id': name, 'status': 'passed'} for name in sorted(names)]}
