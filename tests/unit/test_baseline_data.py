@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import unittest
 from support.data import ROOT
@@ -99,6 +100,13 @@ class BaselineDataTests(unittest.TestCase):
                     self.assertFalse(all(row['passed'] for row in results))
                 else:
                     with self.assertRaises(ValueError): compare_reference(reference, changed, policy)
+
+    def test_approved_measurement_fixtures_match_current_inputs(self):
+        reference = json.loads((ROOT / 'tests/baselines/approved-metrics.json').read_text())
+        for path, approved in reference['fixture_sha256'].items():
+            with self.subTest(path=path):
+                self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), approved,
+                                 'Measurement fixture changed; review the reference before benchmarking')
 
     def test_recording_cannot_overwrite_approved_data(self):
         from unittest.mock import patch

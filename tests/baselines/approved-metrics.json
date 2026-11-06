@@ -3,9 +3,9 @@
   "profile": {"machine": "x86_64","compiler_major": "13","calibration_sha256": "e3081a885ead29fd9fda39ed7dcf58584c90c8567059c16c92653b7e9a7f12eb","flags": ["-O2","-std=c++20"]},
   "samples": 4,
   "calibration": {"loans": {"before": [25.3371,25.4947,25.4185,25.3807],"after": [25.3196,25.4421,25.4427,25.4491]},"loans-all": {"before": [25.4092,25.3501,25.4466,25.4069],"after": [25.3773,25.374,25.5834,25.5161]},"quicksort": {"before": [25.3215,25.4535,25.3959,25.3657],"after": [25.4524,25.3052,25.4385,25.2962]}},
-  "fixture_sha256": {"tests/regression/check_quick_transfer_pipeline.py": "8c29adedb1f4e7a63b8244d58e8fb45c682155ab6d2af1a5c66e0ee1dcfd5771","tests/support/transfer_render_probe.py": "9dbab98e9fbfd92d41e898b1e618e2a91dd8b7d99e4bf59536a5e1d7c4563f1c","tests/support/engine.hpp": "830fc47ba7ed39ac76b1a469783f6c7a669e86990cad9c416c8110f81cf80084","tests/support/engine.py": "70914ca0b032e83f561f3d11ef5caa53e674fedc39e057c74907476a46e56bb1","tests/support/feedback.py": "008780b54cb2398b373a22098d6adcf9f421d8ea77e4e256d46552060235a8d9"},
-  "loan_harness": "e0f39ddd31ee87c9a96b96bc81dc0ea757c219f9a5e6bc1205984f8b962b41a3",
-  "quicksort_harness": "ceccc36edbb9087af9cdb5b1d9a3cd17d12d5ec799d3b98be662deaeebfeb32c",
+  "fixture_sha256": {"tests/regression/check_quick_transfer_pipeline.py": "3147e6c148d4dc551fc78782d3913c18bf9b2c02c01ae42396dc001b863277f1","tests/support/transfer_render_probe.py": "9dbab98e9fbfd92d41e898b1e618e2a91dd8b7d99e4bf59536a5e1d7c4563f1c","tests/support/engine.hpp": "417ed2b2879e2a0306f9717ce4a342f2dbdea3353082437da21a70e2cc716fef","tests/support/engine.py": "70914ca0b032e83f561f3d11ef5caa53e674fedc39e057c74907476a46e56bb1","tests/support/feedback.py": "10d808a8e506f9f2c618503bb9813b5da0acb6bc1b459f31eeefe4df3775f658"},
+  "loan_harness": "1c1334acd2b2d1f69042c5a4266e79551961f744116b5b2f98017700c4d4ecb9",
+  "quicksort_harness": "df2ac642710ebd4f42ead72d920d2c4d66cfe7fcf10d879eb402c0a8191393a3",
   "render": [
     {"case": ["zero",0,0,0,false],"calls": 0,"gap_ms": 16},
     {"case": ["zero",0,0,0,true],"calls": 5,"gap_ms": 16},
