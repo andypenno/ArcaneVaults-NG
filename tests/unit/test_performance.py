@@ -13,6 +13,17 @@ class PerformancePolicyTests(unittest.TestCase):
         self.assertTrue(compare_times([10, 13], [12, 14], self.policy)['passed'])
         self.assertTrue(compare_times([.01, .02], [.1, .2], self.policy)['passed'])
 
+    def test_explicit_ceiling_is_the_total_limit(self):
+        policy = {**self.policy, 'ceiling_ms': 300}
+        self.assertTrue(compare_times([154, 154], [299, 300], policy)['passed'])
+        self.assertTrue(compare_times([154, 154], [300, 300], policy)['passed'])
+        result = compare_times([154, 154], [301, 1000], policy)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['limit_ms'], 300)
+        for ceiling in (0, -1, float('inf'), float('nan')):
+            with self.assertRaises(ValueError):
+                compare_times([154, 154], [154, 154], {**policy, 'ceiling_ms': ceiling})
+
     def test_work_budget(self):
         policy = {'relative_increase': .1, 'absolute_calls': 8}
         self.assertTrue(compare_work(100, 110, policy)['passed'])

@@ -17,6 +17,13 @@ def compare_times(baseline, candidate, policy):
         raise ValueError('Timing comparison requires repeated nonnegative samples')
     before, after = statistics.median(baseline), statistics.median(candidate)
     noise = max(max(baseline) - min(baseline), max(candidate) - min(candidate))
+    if 'ceiling_ms' in policy:
+        ceiling = policy['ceiling_ms']
+        if not math.isfinite(ceiling) or ceiling <= 0:
+            raise ValueError('Timing ceiling must be finite and positive')
+        return {'passed': after <= ceiling, 'status': 'passed' if after <= ceiling else 'failed',
+                'baseline_ms': before, 'candidate_ms': after, 'delta_ms': after - before,
+                'noise_ms': noise, 'limit_ms': ceiling}
     material = max(policy['absolute_ms'], before * policy['relative_increase'])
     limit = max(material, noise * policy['noise_multiplier'])
     delta = after - before

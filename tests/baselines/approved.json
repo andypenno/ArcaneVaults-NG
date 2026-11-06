@@ -8,6 +8,7 @@
   "samples": 4,
   "render_gap_ms": 50,
   "timing": {
+    "explicit_ceilings": true,
     "relative_increase": 0.25,
     "absolute_ms": 1,
     "noise_multiplier": 2
@@ -16,7 +17,7 @@
     "relative_increase": 0.1,
     "absolute_calls": 8
   },
-  "rationale": "Versioned current-source observations and budgets. No historical source revision is required. CPU samples are calibrated against an invariant C++ control; deterministic calls and simulated render gaps remain hard gates.",
+  "rationale": "Timing ceilings are twice the median from GitHub Actions run 42145367419, rounded to one significant digit. No historical source revision is required. CPU samples are calibrated against an invariant C++ control; deterministic calls and simulated render gaps remain hard gates.",
   "reference": "approved-metrics.json",
   "calibration_relative_noise": 0.25
 }

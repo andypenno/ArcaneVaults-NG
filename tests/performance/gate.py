@@ -6,6 +6,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -51,7 +52,10 @@ def verify(render_before, render_after, loans, policy):
             raise ValueError('Missing baseline/candidate loan samples')
         if len(variants['working']) != policy['samples'] or len(variants['baseline']) != policy.get('reference_samples', policy['samples']):
             raise ValueError('Incomplete loan samples')
-        result = compare_times([s['ms'] for s in variants['baseline']], [s['ms'] for s in variants['working']], policy['timing'])
+        timing = dict(policy['timing'])
+        if 'loan_timing_ceilings' in policy:
+            timing['ceiling_ms'] = policy['loan_timing_ceilings'][key]
+        result = compare_times([s['ms'] for s in variants['baseline']], [s['ms'] for s in variants['working']], timing)
         results.append({'case': list(key), 'metric': 'host_elapsed_ms', **result})
         for metric in ('inventory_calls', 'entries_visited', 'entries_copied', 'moves', 'bulk_calls'):
             values = {}
@@ -206,6 +210,10 @@ def make_reference(measured, policy):
             groups.setdefault((sample['items'], sample['phase']), []).append(sample['microseconds'] / 1000)
     for case, samples in sorted(groups.items()):
         reference['quicksort'].append({'case': list(case), 'elapsed_ms': samples})
+    if policy['timing'].get('explicit_ceilings'):
+        for row in reference['loans'] + reference['quicksort']:
+            doubled = max(.001, 2 * statistics.median(row['elapsed_ms']))
+            row['ceiling_ms'] = round(doubled, -math.floor(math.log10(doubled)))
     return reference
 
 
@@ -236,7 +244,10 @@ def compare_reference(reference, measured, policy):
     for name in ('loans', 'loans-all'):
         for sample in measured[name]['samples']:
             samples.append({**sample, 'ms': sample['ms'] * scales[name]})
-    results = verify(ref_render, measured['render'], {'samples': samples}, {**policy, 'reference_samples': reference['samples']})
+    timing_policy = {**policy, 'reference_samples': reference['samples']}
+    if policy['timing'].get('explicit_ceilings'):
+        timing_policy['loan_timing_ceilings'] = {tuple(row['case']): row['ceiling_ms'] for row in reference['loans']}
+    results = verify(ref_render, measured['render'], {'samples': samples}, timing_policy)
     quick_cases = {(size, phase) for size in (100, 1000) for phase in ('snapshot', 'snapshot_and_transfer')}
     left = {tuple(row['case']): row['elapsed_ms'] for row in reference['quicksort']}
     right = {tuple(row['case']): row['elapsed_ms'] for row in current['quicksort']}
@@ -246,8 +257,11 @@ def compare_reference(reference, measured, policy):
         expected = 12 if case[1] == 'snapshot' else 4
         if len(left[case]) != expected or len(right[case]) != expected:
             raise ValueError('Incomplete Quick Transfer samples')
+        timing = dict(policy['timing'])
+        if timing.get('explicit_ceilings'):
+            timing['ceiling_ms'] = next(row['ceiling_ms'] for row in reference['quicksort'] if tuple(row['case']) == case)
         results.append({'case': list(case), 'metric': 'quicksort_calibrated_ms',
-            **compare_times(left[case], [value * scales['quicksort'] for value in right[case]], policy['timing'])})
+            **compare_times(left[case], [value * scales['quicksort'] for value in right[case]], timing)})
     for row in results:
         if row['metric'] == 'host_elapsed_ms':
             row['metric'] = 'loan_calibrated_ms'

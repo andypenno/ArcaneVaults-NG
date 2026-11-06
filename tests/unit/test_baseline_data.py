@@ -83,11 +83,19 @@ class BaselineDataTests(unittest.TestCase):
         results, _ = compare_reference(reference, measured, policy)
         self.assertTrue(all(row['passed'] for row in results))
         self.assertEqual(make_reference(measured, policy)['loans'], reference['loans'])
-        for defect in ('slow', 'work', 'gap', 'missing', 'render-sample', 'duplicate-render', 'profile', 'fixture', 'calibration'):
+        for defect in ('slow', 'quick-slow', 'ceiling-exceeded', 'work', 'gap', 'missing', 'render-sample', 'duplicate-render', 'profile', 'fixture', 'calibration'):
             with self.subTest(defect=defect):
                 changed = copy.deepcopy(measured)
                 if defect == 'slow':
                     for row in changed['loans']['samples']: row['ms'] = row['ms'] * 100 + 100
+                elif defect == 'quick-slow':
+                    for batch in changed['quicksort']['batches']:
+                        for row in batch['samples']: row['microseconds'] *= 100
+                elif defect == 'ceiling-exceeded':
+                    for row in changed['loans']['samples']:
+                        case = [row[k] for k in ('bench', 'size', 'mode', 'phase', 'scenario', 'all_materials')]
+                        ceiling = next(r['ceiling_ms'] for r in reference['loans'] if r['case'] == case)
+                        row['ms'] = ceiling * 1.01
                 elif defect == 'work':
                     for row in changed['loans']['samples']: row['inventory_calls'] += 100000
                 elif defect == 'gap':
@@ -99,7 +107,7 @@ class BaselineDataTests(unittest.TestCase):
                 elif defect == 'profile': changed['measurement']['profile'] = {}
                 elif defect == 'fixture': changed['render']['fixture_sha256'] = {}
                 else: changed['measurement']['calibration']['loans']['before'][0] *= 100
-                if defect in ('slow', 'work', 'gap'):
+                if defect in ('slow', 'quick-slow', 'ceiling-exceeded', 'work', 'gap'):
                     results, _ = compare_reference(reference, changed, policy)
                     self.assertFalse(all(row['passed'] for row in results))
                 else:
