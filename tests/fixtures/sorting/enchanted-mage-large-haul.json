@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "name": "enchanted-mage-large-haul",
+  "description": "Enchanted mage equipment from the haul supplies the worn loadout. Explicit expected destinations cover mage large haul.",
+  "settings": {
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadPotion": true,
+    "GSC_AmmunitionKeepAmount": 100,
+    "GSC_SoulgemKeepAmount": 25,
+    "GSC_GoldKeepAmount": 5000,
+    "GSC_LockpickKeepAmount": 25
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-linen-robes",
+        "base": "linen-robes",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot linen-robes",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-fire-staff",
+        "base": "fire-staff",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot fire-staff",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "enchanted-loot-linen-robes",
+        "base": "linen-robes",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot linen-robes",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Armor": 1
+        }
+      },
+      {
+        "id": "bare-loot-linen-robes",
+        "base": "linen-robes",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Armor": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-cuirass",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Armor": 1
+        }
+      },
+      {
+        "id": "bare-loot-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Armor": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Armor": 1
+        }
+      },
+      {
+        "id": "bare-loot-leather-boots",
+        "base": "leather-boots",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Armor": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Armor": 1
+        }
+      },
+      {
+        "id": "bare-loot-silver-ring",
+        "base": "silver-ring",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Armor": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot stahlrim-sword",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Weapon": 1
+        }
+      },
+      {
+        "id": "bare-loot-stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Weapon": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-hunting-bow",
+        "base": "hunting-bow",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot hunting-bow",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Weapon": 1
+        }
+      },
+      {
+        "id": "bare-loot-hunting-bow",
+        "base": "hunting-bow",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Weapon": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-steel-warhammer",
+        "base": "steel-warhammer",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-warhammer",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Weapon": 1
+        }
+      },
+      {
+        "id": "bare-loot-steel-warhammer",
+        "base": "steel-warhammer",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Weapon": 3
+        }
+      },
+      {
+        "id": "enchanted-loot-fire-staff",
+        "base": "fire-staff",
+        "count": 1,
+        "copies": 110,
+        "enchantment": "loot-enchantment",
+        "name": "Loot fire-staff",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "Weapon": 1
+        }
+      },
+      {
+        "id": "bare-loot-fire-staff",
+        "base": "fire-staff",
+        "count": 3,
+        "bare": true,
+        "after": {
+          "Weapon": 3
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

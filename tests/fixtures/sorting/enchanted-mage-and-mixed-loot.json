@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "name": "enchanted-mage-and-mixed-loot",
+  "description": "Enchanted mage equipment from the haul supplies the worn loadout. Explicit expected destinations cover mage and mixed loot.",
+  "settings": {
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadPotion": true,
+    "GSC_AmmunitionKeepAmount": 100,
+    "GSC_SoulgemKeepAmount": 25,
+    "GSC_GoldKeepAmount": 5000,
+    "GSC_LockpickKeepAmount": 25
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-linen-robes",
+        "base": "linen-robes",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot linen-robes",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-fire-staff",
+        "base": "fire-staff",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot fire-staff",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "loot-ruined-book",
+        "base": "ruined-book",
+        "count": 7,
+        "after": {
+          "Junk": 7
+        },
+        "bare": true
+      },
+      {
+        "id": "loot-mountain-flower",
+        "base": "mountain-flower",
+        "count": 9,
+        "after": {
+          "Alchemy": 9
+        }
+      },
+      {
+        "id": "loot-letter",
+        "base": "letter",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "loot-steel-arrow",
+        "base": "steel-arrow",
+        "count": 175,
+        "after": {
+          "player": 100,
+          "Ammunition": 75
+        }
+      },
+      {
+        "id": "loot-empty-petty-gem",
+        "base": "empty-petty-gem",
+        "count": 31,
+        "after": {
+          "player": 25,
+          "Soulgem": 6
+        }
+      },
+      {
+        "id": "loot-septim",
+        "base": "septim",
+        "count": 6150,
+        "after": {
+          "player": 5000,
+          "Treasure": 1150
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

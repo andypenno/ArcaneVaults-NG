@@ -38,7 +38,7 @@ def scenario(path):
     rows, seen = [], set()
     for inventory, entries in data['inventories'].items():
         for row in entries:
-            allowed = {'id', 'base', 'count', 'after', 'copies', 'favorite', 'worn', 'quest', 'ignored', 'name', 'enchantment', 'owner', 'charge', 'temper', 'soul'}
+            allowed = {'id', 'base', 'count', 'after', 'copies', 'favorite', 'worn', 'quest', 'ignored', 'name', 'enchantment', 'owner', 'charge', 'temper', 'soul', 'bare'}
             if set(row) - allowed or not {'id', 'base', 'count', 'after'} <= row.keys() or row['base'] not in bases:
                 raise ValueError('Invalid sorting row')
             if not isinstance(row['id'], str) or not row['id']:
@@ -47,7 +47,11 @@ def scenario(path):
                 raise ValueError('Invalid sorting quantity')
             if set(row['after']) - (containers | {'player'}) or any(type(n) is not int or n <= 0 for n in row['after'].values()) or sum(row['after'].values()) != row['count']:
                 raise ValueError('Expected sorting state violates conservation')
-            for field in ('favorite', 'worn', 'quest', 'ignored'):
+            if row.get('bare', False) and (set(row) & {'favorite', 'worn', 'name', 'enchantment', 'owner', 'charge', 'temper', 'soul', 'copies'}):
+                raise ValueError('Bare stacks cannot carry instance metadata or copies')
+            if row.get('bare', False) and any(x['base'] == row['base'] and x.get('bare', False) for x in rows):
+                raise ValueError('Only one bare identity per base is representable')
+            for field in ('favorite', 'worn', 'quest', 'ignored', 'bare'):
                 if field in row and type(row[field]) is not bool:
                     raise ValueError('Invalid protection flag')
             for field in ('charge', 'temper'):

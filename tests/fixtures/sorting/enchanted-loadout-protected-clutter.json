@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "name": "enchanted-loadout-protected-clutter",
+  "description": "Enchanted mage equipment from the haul supplies the worn loadout. Explicit expected destinations cover loadout protected clutter.",
+  "settings": {
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadPotion": true,
+    "GSC_AmmunitionKeepAmount": 100,
+    "GSC_SoulgemKeepAmount": 25,
+    "GSC_GoldKeepAmount": 5000,
+    "GSC_LockpickKeepAmount": 25
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-linen-robes",
+        "base": "linen-robes",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot linen-robes",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-fire-staff",
+        "base": "fire-staff",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot fire-staff",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "quest-clutter",
+        "base": "ruined-book",
+        "count": 4,
+        "after": {
+          "player": 4
+        },
+        "quest": true
+      },
+      {
+        "id": "ignored-keepsake",
+        "base": "keepsake",
+        "count": 1,
+        "after": {
+          "player": 1
+        },
+        "ignored": true
+      },
+      {
+        "id": "favorite-potion",
+        "base": "health-potion",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "favorite": true
+      },
+      {
+        "id": "loot-mountain-flower",
+        "base": "mountain-flower",
+        "count": 8,
+        "after": {
+          "Alchemy": 8
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

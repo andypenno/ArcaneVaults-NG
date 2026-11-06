@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "name": "enchanted-loadout-zero-reserves",
+  "description": "Enchanted archer equipment from the haul supplies the worn loadout. Explicit expected destinations cover loadout zero reserves.",
+  "settings": {
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadPotion": true,
+    "GSC_AmmunitionKeepAmount": 0,
+    "GSC_SoulgemKeepAmount": 0,
+    "GSC_GoldKeepAmount": 0,
+    "GSC_LockpickKeepAmount": 25
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-cuirass",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-hunting-bow",
+        "base": "hunting-bow",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot hunting-bow",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "loot-ruined-book",
+        "base": "ruined-book",
+        "count": 7,
+        "after": {
+          "Junk": 7
+        },
+        "bare": true
+      },
+      {
+        "id": "loot-mountain-flower",
+        "base": "mountain-flower",
+        "count": 9,
+        "after": {
+          "Alchemy": 9
+        }
+      },
+      {
+        "id": "loot-letter",
+        "base": "letter",
+        "count": 2,
+        "after": {
+          "Notes": 2
+        }
+      },
+      {
+        "id": "loot-steel-arrow",
+        "base": "steel-arrow",
+        "count": 175,
+        "after": {
+          "Ammunition": 175
+        }
+      },
+      {
+        "id": "loot-empty-petty-gem",
+        "base": "empty-petty-gem",
+        "count": 31,
+        "after": {
+          "Soulgem": 31
+        }
+      },
+      {
+        "id": "loot-septim",
+        "base": "septim",
+        "count": 6150,
+        "after": {
+          "Treasure": 6150
+        }
+      }
+    ]
+  },
+  "no_transfers": false
+}

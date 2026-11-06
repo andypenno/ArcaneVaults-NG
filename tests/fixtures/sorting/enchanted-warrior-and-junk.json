@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "name": "enchanted-warrior-and-junk",
+  "description": "Enchanted warrior equipment from the haul supplies the worn loadout. Explicit expected destinations cover warrior and junk.",
+  "settings": {
+    "GSC_OffloadClothing": true,
+    "GSC_OffloadHeavyArmor": true,
+    "GSC_OffloadLightArmor": true,
+    "GSC_OffloadJewelry": true,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadPotion": true,
+    "GSC_AmmunitionKeepAmount": 100,
+    "GSC_SoulgemKeepAmount": 25,
+    "GSC_GoldKeepAmount": 5000,
+    "GSC_LockpickKeepAmount": 25
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-cuirass",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot stahlrim-sword",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "loot-ruined-book",
+        "base": "ruined-book",
+        "count": 7,
+        "after": {
+          "Junk": 7
+        },
+        "bare": true
+      }
+    ]
+  },
+  "no_transfers": false
+}

@@ -1,0 +1,264 @@
+{
+  "version": 1,
+  "name": "enchanted-loadout-armor-disabled",
+  "description": "Enchanted warrior equipment from the haul supplies the worn loadout. Explicit expected destinations cover loadout armor disabled.",
+  "settings": {
+    "GSC_OffloadClothing": false,
+    "GSC_OffloadHeavyArmor": false,
+    "GSC_OffloadLightArmor": false,
+    "GSC_OffloadJewelry": false,
+    "GSC_OffloadArchery": true,
+    "GSC_OffloadOneHand": true,
+    "GSC_OffloadTwoHand": true,
+    "GSC_OffloadStaffHand": true,
+    "GSC_OffloadJunk": true,
+    "GSC_OffloadNotes": true,
+    "GSC_OffloadTreasure": true,
+    "GSC_OffloadPotion": true,
+    "GSC_AmmunitionKeepAmount": 100,
+    "GSC_SoulgemKeepAmount": 25,
+    "GSC_GoldKeepAmount": 5000,
+    "GSC_LockpickKeepAmount": 25
+  },
+  "inventories": {
+    "player": [
+      {
+        "id": "equipped-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-cuirass",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-leather-boots",
+        "base": "leather-boots",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-silver-ring",
+        "base": "silver-ring",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "equipped-stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 1,
+        "enchantment": "loot-enchantment",
+        "name": "Loot stahlrim-sword",
+        "charge": 35,
+        "temper": 1.2,
+        "owner": "dungeon-owner",
+        "after": {
+          "player": 1
+        },
+        "worn": true,
+        "favorite": true
+      },
+      {
+        "id": "bare-stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 3,
+        "after": {
+          "Weapon": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-stahlrim-sword",
+        "base": "stahlrim-sword",
+        "count": 2,
+        "after": {
+          "Weapon": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot stahlrim-sword",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-hunting-bow",
+        "base": "hunting-bow",
+        "count": 3,
+        "after": {
+          "Weapon": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-hunting-bow",
+        "base": "hunting-bow",
+        "count": 2,
+        "after": {
+          "Weapon": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot hunting-bow",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-steel-warhammer",
+        "base": "steel-warhammer",
+        "count": 3,
+        "after": {
+          "Weapon": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-steel-warhammer",
+        "base": "steel-warhammer",
+        "count": 2,
+        "after": {
+          "Weapon": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-warhammer",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-fire-staff",
+        "base": "fire-staff",
+        "count": 3,
+        "after": {
+          "Weapon": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-fire-staff",
+        "base": "fire-staff",
+        "count": 2,
+        "after": {
+          "Weapon": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot fire-staff",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-linen-robes",
+        "base": "linen-robes",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-linen-robes",
+        "base": "linen-robes",
+        "count": 2,
+        "after": {
+          "player": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot linen-robes",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-steel-cuirass",
+        "base": "steel-cuirass",
+        "count": 2,
+        "after": {
+          "player": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot steel-cuirass",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-leather-boots",
+        "base": "leather-boots",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-leather-boots",
+        "base": "leather-boots",
+        "count": 2,
+        "after": {
+          "player": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot leather-boots",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      },
+      {
+        "id": "bare-silver-ring",
+        "base": "silver-ring",
+        "count": 3,
+        "after": {
+          "player": 3
+        },
+        "bare": true
+      },
+      {
+        "id": "enchanted-spare-silver-ring",
+        "base": "silver-ring",
+        "count": 2,
+        "after": {
+          "player": 2
+        },
+        "enchantment": "loot-enchantment",
+        "name": "Loot silver-ring",
+        "owner": "another-owner",
+        "charge": 35,
+        "temper": 1.2
+      }
+    ]
+  },
+  "no_transfers": false
+}
