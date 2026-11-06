@@ -80,16 +80,6 @@ jobs:
             ${{ env.AV_CI_WORK }}/release-tools
             ${{ env.AV_CI_WORK }}/xmake-packages
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
-      - name: Upload verification reports
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: verification-${{ github.sha }}-${{ github.run_attempt }}-build
-          path: |
-            results/ci/
-            results/releases/
-          if-no-files-found: warn
-          retention-days: 14
       - name: Remove CI container
         if: always()
         run: podman rm --force --ignore arcanevault-ci
@@ -124,13 +114,13 @@ jobs:
           cache-dependency-path: tools/esp/packages.lock.json
       - name: Run verification
         run: python3 tests/run.py --suite release --test "$CHECK" --sanitize --output "results/ci/tests/$CHECK"
-      - name: Upload check report and logs
+      - name: Upload release gate report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: check-${{ github.sha }}-${{ matrix.check }}
           overwrite: true
-          path: results/ci/tests/${{ matrix.check }}/
+          path: results/ci/tests/${{ matrix.check }}/report.json
           if-no-files-found: error
           retention-days: 14
 
@@ -175,12 +165,4 @@ jobs:
           path: build/ArcaneVaults-NG.zip
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
-      - name: Upload final verification reports
-        if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
-        with:
-          name: verification-${{ github.sha }}-${{ github.run_attempt }}-publish
-          path: results/ci/publish/
-          if-no-files-found: warn
           retention-days: 14

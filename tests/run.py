@@ -118,6 +118,10 @@ def run(suites, output=None, names=(), zip_path=None, sanitize=False, baseline=N
             print(f"{result['status'].upper()} {item['id']}", flush=True)
             if result['status'] != 'passed':
                 print_failure_log(item['id'], log, result['status'])
+            elif os.environ.get('GITHUB_ACTIONS') == 'true':
+                print('::group::' + item['id'], flush=True)
+                print(log.read_text(errors='replace'), flush=True)
+                print('::endgroup::', flush=True)
         report['complete'] = True
         report['passed'] = all(row['status'] == 'passed' for row in report['results'])
         if report['source_sha256'] != fingerprint():

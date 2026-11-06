@@ -13,7 +13,7 @@ Keep `release` as the required check in branch rules. It runs even when a depend
 
 Source checks initialize only the JSON and CommonLib test inputs. Only the ESP editor check installs .NET 10. The build initializes all recursive pinned submodules and runs MSVC, the Windows SDK and Caprica under Wine. Python 3.12 and GCC run portable verification. Performance has a separate runner and retains its existing serial, calibrated measurement policy.
 
-Failed checks print their captured output in the Actions log and emit an error annotation. Provisioning/compiler failures and failed benchmark subprocesses also expose their captured logs. Performance failures print the affected scenario, metric, baseline, observation and limit. Raw reports and logs remain downloadable even when verification fails.
+Checks print their captured output in the Actions log on success and failure. Failed checks also emit an error annotation. Provisioning/compiler failures and failed benchmark subprocesses also expose their captured logs. Performance failures print the affected scenario, metric, baseline, observation and limit. Check output stays in Actions logs. Check artifacts contain only the small JSON gate reports.
 
 ## Bootstrap
 
@@ -27,7 +27,7 @@ The Wine cache holds Microsoft download payloads, checksum-verified Caprica asse
 
 The local [full release command](release-build.md) still runs every required check before assembly, then tests and atomically promotes the candidate. CI uses the same assembler through [pipeline.py](../tools/ci/pipeline.py), which keeps candidates unverified until every required check report matches the commit and source fingerprint. Missing, duplicate, failed or stale reports block promotion. Checksums bind final packaging verification to the built ZIP.
 
-`candidate-<commit>` is an internal, unverified build artifact. It never replaces the normal install artifact. `check-<commit>-<check>` contains that check's report and logs. Candidate/check names are scoped to the workflow run and overwritten when their job is rerun, so rerunning failed jobs can reuse successful checks. Earlier job output remains in Actions logs. `verification-<commit>-<attempt>-build` and `-publish` contain build/bootstrap and final packaging reports.
+`candidate-<commit>` is an internal, unverified build artifact. It never replaces the normal install artifact. `check-<commit>-<check>` contains only that check's `report.json`, which final publication needs to verify the complete check population and source identity. Candidate/check names are scoped to the workflow run and overwritten when their job is rerun, so rerunning failed jobs can reuse successful checks. Earlier job output remains in Actions logs. Build/bootstrap and final packaging report collections are not uploaded.
 
 Only successful final verification uploads `ArcaneVaults-NG-<commit>-<attempt>` with the verified `ArcaneVaults-NG.zip`. Downloading an artifact may add an outer archive; install the inner ZIP. Artifacts have 14-day retention. Reports stay outside install ZIPs. Required sanitizers, performance limits, Windows scenarios and exact package checks remain enabled.
 

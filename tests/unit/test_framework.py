@@ -78,6 +78,20 @@ class FrameworkTests(unittest.TestCase):
                 self.assertEqual('::error title=Verification failed::' in captured.getvalue(), actions == 'true')
                 self.assertEqual('::endgroup::' in captured.getvalue(), actions == 'true')
 
+    def test_successful_child_output_is_visible_in_actions(self):
+        from run import run
+        manifest = {'tests': [{'id': 'working', 'suites': ['unit'], 'command':
+            ['{python}', '-c', 'print("specific verification success")'], 'timeout_seconds': 2}]}
+        for actions in ('true', 'false'):
+            with self.subTest(actions=actions), tempfile.TemporaryDirectory() as directory, \
+                 patch('run.load_json', return_value=manifest), patch.dict('os.environ', {'GITHUB_ACTIONS': actions}), \
+                 contextlib.redirect_stdout(io.StringIO()) as captured:
+                report = run(['unit'], Path(directory) / 'results')
+                self.assertTrue(report['passed'])
+                self.assertEqual('specific verification success' in captured.getvalue(), actions == 'true')
+                self.assertEqual('::endgroup::' in captured.getvalue(), actions == 'true')
+                self.assertNotIn('::error', captured.getvalue())
+
     def test_pipeline_timeout_retains_and_prints_partial_output(self):
         import json
         import runpy
