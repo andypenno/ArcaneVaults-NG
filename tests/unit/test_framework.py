@@ -1,4 +1,6 @@
 import copy
+import contextlib
+import io
 import hashlib
 import tempfile
 import unittest
@@ -61,6 +63,20 @@ class FrameworkTests(unittest.TestCase):
                 self.assertEqual(report['results'][0]['status'], status)
                 self.assertEqual(report['passed'], status == 'passed')
                 self.assertIsNone(json.loads((Path(directory) / 'results/report.json').read_text())['active_child_pid'])
+
+    def test_failed_child_output_and_actions_annotation_are_visible(self):
+        from run import run
+        manifest = {'tests': [{'id': 'broken', 'suites': ['unit'], 'command':
+            ['{python}', '-c', 'print("specific verification error"); raise SystemExit(7)'], 'timeout_seconds': 2}]}
+        for actions in ('true', 'false'):
+            with self.subTest(actions=actions), tempfile.TemporaryDirectory() as directory, \
+                 patch('run.load_json', return_value=manifest), patch.dict('os.environ', {'GITHUB_ACTIONS': actions}), \
+                 contextlib.redirect_stdout(io.StringIO()) as captured:
+                report = run(['unit'], Path(directory) / 'results')
+                self.assertFalse(report['passed'])
+                self.assertIn('specific verification error', captured.getvalue())
+                self.assertEqual('::error title=Verification failed::' in captured.getvalue(), actions == 'true')
+                self.assertEqual('::endgroup::' in captured.getvalue(), actions == 'true')
 
     def test_scenario_validation(self):
         import json

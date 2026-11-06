@@ -33,20 +33,11 @@ def write_zip(path, files):
             archive.writestr(info, data, compresslevel=9)
 
 
-def build(container):
+def assemble(container, output, history):
     manifest = json.loads((ROOT / "release/inputs.json").read_text())
-    identifier = release_id(ROOT)
-    output = ROOT / "results/releases" / identifier
-    output.mkdir(parents=True, exist_ok=False)
-    history = ROOT / "build/history" / identifier
     log_path = output / "build.log"
     sys.path.insert(0, str(ROOT / "tests"))
-    from run import fingerprint, run as run_suites
-    os.environ['AV_WINE_CONTAINER'] = container
-    print(f"Release results: {output}", flush=True)
-    before = fingerprint()
-    gates = run_suites(["release"], output / "tests", sanitize=True)
-    require(gates['passed'], f"Required test gates failed: {output / 'tests/report.json'}")
+    from run import print_failure_log
     info = json.loads(subprocess.check_output(["podman", "inspect", container]))[0]
     mounts = {mount["Destination"]: Path(mount["Source"]).resolve() for mount in info["Mounts"]}
     require(mounts.get("/repo") == ROOT, "Build container /repo must mount this checkout")
@@ -68,11 +59,19 @@ def build(container):
             cached.write(data)
     require(digest(archive.read_bytes()) == dependency["sha256"], "Cached Caprica checksum differs")
     with log_path.open("w") as log:
+        def logged(command):
+            try:
+                subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                log.flush()
+                print_failure_log('Release compilation', log_path)
+                raise
+
         def run(args, wine=False):
             command = ["podman", "exec", "-w", "/repo"]
             if wine:
                 command += ["-e", "WINEPREFIX=/work/wine", "-e", "WINEDEBUG=-all"]
-            subprocess.run(command + [container] + args, check=True, stdout=log, stderr=subprocess.STDOUT)
+            logged(command + [container] + args)
 
         if not compiler.exists():
             run(["7z", "x", "/work/release-tools/Caprica.v0.3.0.7z", "-o/work/release-tools/caprica", "-y"])
@@ -92,7 +91,7 @@ subprocess.run(['xmake','f','-p','windows','-a','x64','-m','release','--toolchai
 subprocess.run(['xmake','build','-j4','ArcaneVaults-NG'],check=True)
 subprocess.run(['xmake','build','-j4','arcanevault-inventory-tests'],check=True)
 """]
-            subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT)
+            logged(command)
         finally:
             lock.write_bytes(original)
         from support.scenarios import scenario
@@ -131,20 +130,36 @@ subprocess.run(['xmake','build','-j4','arcanevault-inventory-tests'],check=True)
             history.mkdir(parents=True, exist_ok=False)
             write_zip(candidate, files)
             require(validate_zip(ROOT, candidate) == checks, "ZIP revalidation differs")
-            package = run_suites(["packaging"], output / "packaging", zip_path=candidate)
-            require(package['passed'], f"Candidate packaging tests failed: {output}")
-            require(fingerprint() == before, "Source changed during release verification")
-            report = {"complete": True, "passed": True, "commit": gates['commit'], "dirty": gates['dirty'],
-                      "source_sha256": before, "candidate": str(candidate), "zip_sha256": digest(candidate.read_bytes()),
-                      "checks": checks, "tests": str(output / "tests/report.json"), "packaging": str(output / "packaging/report.json"),
-                      "runtime": {"se": True, "ae": True, "vr": False},
-                      "compiler_wrapper_sha256": digest((work / 'msvc/bin/x64/cl.exe').read_bytes()),
-                      "lockfile_sha256": digest(original), "windows_inventory_scenarios": True,
-                      "files": {name: digest(data) for name, data in sorted(files.items())}}
-            (output / "artifact.json").write_text(json.dumps(report, indent=2) + "\n")
-            final = promote(ROOT, candidate, report, validate_zip)
-            print(f"Verified {final}\nHistory {candidate}\nSHA256 {report['zip_sha256']}\nValidated {checks['files']} paths and {checks['esp_records']} ESP records")
+            return {"candidate": str(candidate), "zip_sha256": digest(candidate.read_bytes()), "checks": checks,
+                    "runtime": {"se": True, "ae": True, "vr": False},
+                    "compiler_wrapper_sha256": digest((work / 'msvc/bin/x64/cl.exe').read_bytes()),
+                    "lockfile_sha256": digest(original), "windows_inventory_scenarios": True,
+                    "files": {name: digest(data) for name, data in sorted(files.items())}}
 
+
+def build(container):
+    identifier = release_id(ROOT)
+    output = ROOT / "results/releases" / identifier
+    output.mkdir(parents=True, exist_ok=False)
+    history = ROOT / "build/history" / identifier
+    sys.path.insert(0, str(ROOT / "tests"))
+    from run import fingerprint, run as run_suites
+    os.environ['AV_WINE_CONTAINER'] = container
+    print(f"Release results: {output}", flush=True)
+    before = fingerprint()
+    gates = run_suites(["release"], output / "tests", sanitize=True)
+    require(gates['passed'], f"Required test gates failed: {output / 'tests/report.json'}")
+    assembled = assemble(container, output, history)
+    candidate = Path(assembled['candidate'])
+    package = run_suites(["packaging"], output / "packaging", zip_path=candidate)
+    require(package['passed'], f"Candidate packaging tests failed: {output}")
+    require(fingerprint() == before, "Source changed during release verification")
+    report = {"complete": True, "passed": True, "commit": gates['commit'], "dirty": gates['dirty'],
+              "source_sha256": before, "tests": str(output / "tests/report.json"),
+              "packaging": str(output / "packaging/report.json"), **assembled}
+    (output / "artifact.json").write_text(json.dumps(report, indent=2) + "\n")
+    final = promote(ROOT, candidate, report, validate_zip)
+    print(f"Verified {final}\nHistory {candidate}\nSHA256 {report['zip_sha256']}\nValidated {report['checks']['files']} paths and {report['checks']['esp_records']} ESP records")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,8 @@
 import copy
+import contextlib
+import io
+import tempfile
+from pathlib import Path
 import hashlib
 import json
 import unittest
@@ -113,3 +117,23 @@ class BaselineDataTests(unittest.TestCase):
         from performance import record_baseline
         with patch('sys.argv', ['record', '--output', str(ROOT / 'tests/baselines')]), self.assertRaises(ValueError):
             record_baseline.main()
+
+    def test_failed_performance_case_is_printed_in_the_log(self):
+        from unittest.mock import patch
+        from performance import gate
+        policy_path = ROOT / 'tests/baselines/approved.json'
+        reference = json.loads((ROOT / 'tests/baselines/approved-metrics.json').read_text())
+        failure = {'case': [1, 100, 1, 'take', 0, False], 'metric': 'entries_copied',
+                   'passed': False, 'baseline': 100, 'candidate': 200, 'limit': 118}
+        with tempfile.TemporaryDirectory() as directory, \
+             patch('sys.argv', ['gate', '--output', directory, '--baseline', str(policy_path)]), \
+             patch.object(gate, 'measurement_profile', return_value=reference['profile']), \
+             patch.object(gate, 'measure'), patch.object(gate, 'read_measurements'), \
+             patch.object(gate, 'compare_reference', return_value=([failure], {})), \
+             contextlib.redirect_stdout(io.StringIO()) as captured:
+            with self.assertRaises(SystemExit) as error: gate.main()
+            self.assertEqual(error.exception.code, 1)
+            self.assertIn('entries_copied', captured.getvalue())
+            self.assertIn('"candidate": 200', captured.getvalue())
+            self.assertIn('"limit": 118', captured.getvalue())
+            self.assertFalse(json.loads((Path(directory) / 'report.json').read_text())['passed'])

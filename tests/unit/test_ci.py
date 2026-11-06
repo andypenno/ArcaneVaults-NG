@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -11,6 +12,11 @@ from support.data import ROOT
 spec = importlib.util.spec_from_file_location('bootstrap_wine', ROOT / 'tools/ci/bootstrap_wine.py')
 ci = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ci)
+
+
+pipeline_spec = importlib.util.spec_from_file_location('ci_pipeline', ROOT / 'tools/ci/pipeline.py')
+pipeline = importlib.util.module_from_spec(pipeline_spec)
+pipeline_spec.loader.exec_module(pipeline)
 
 
 class CITests(unittest.TestCase):
@@ -116,3 +122,132 @@ class CITests(unittest.TestCase):
         revision = re.search(r'\["directxtk [^"]+"\].*?commit = "([a-f0-9]+)"', lock, re.S).group(1)
         provision = (ROOT / 'tools/ci/provision_wine.sh').read_text()
         self.assertIn('checkout https://gitlab.com/tboox/xmake-repo.git ' + revision, provision)
+
+    def test_parallel_matrix_accounts_for_every_release_check(self):
+        checks = [row['check'] for row in pipeline.matrix()['include']]
+        self.assertEqual(len(checks), len(set(checks)))
+        self.assertEqual(set(checks) | {'wine-toolchain'}, pipeline.required_checks())
+        self.assertNotIn('wine-toolchain', checks)
+        self.assertIn('performance', checks)
+        self.assertNotIn('packaging', checks)
+
+    def check_report(self, names):
+        return {'complete': True, 'passed': True, 'commit': 'commit', 'source_sha256': 'source',
+                'results': [{'id': name, 'status': 'passed'} for name in sorted(names)]}
+
+    def candidate_report(self):
+        return {'stage': 'candidate', 'complete': True, 'passed': False, 'commit': 'commit',
+                'source_sha256': 'source', 'windows_inventory_scenarios': True}
+
+    def test_publication_rejects_missing_failed_duplicate_and_stale_checks(self):
+        candidate = self.candidate_report()
+        report = self.check_report(pipeline.required_checks())
+        pipeline.validate_reports(candidate, [report], 'commit', 'source')
+        for defect in ('missing', 'failed', 'incomplete', 'duplicate', 'commit', 'source', 'empty',
+                       'candidate-commit', 'candidate-source', 'candidate-verified', 'windows', 'unknown', 'malformed-id'):
+            meta, result = copy.deepcopy(candidate), copy.deepcopy(report)
+            if defect == 'missing': result['results'].pop()
+            elif defect == 'failed': result['results'][0]['status'] = 'failed'
+            elif defect == 'incomplete': result['complete'] = False
+            elif defect == 'duplicate': result['results'].append(result['results'][0])
+            elif defect == 'commit': result['commit'] = 'other'
+            elif defect == 'source': result['source_sha256'] = 'other'
+            elif defect == 'empty': result['results'] = []
+            elif defect == 'candidate-commit': meta['commit'] = 'other'
+            elif defect == 'candidate-source': meta['source_sha256'] = 'other'
+            elif defect == 'candidate-verified': meta['passed'] = True
+            elif defect == 'unknown': result['results'][0]['id'] = 'unknown-check'
+            elif defect == 'malformed-id': result['results'][0]['id'] = {}
+            else: meta['windows_inventory_scenarios'] = False
+            with self.subTest(defect=defect), self.assertRaises(ValueError):
+                pipeline.validate_reports(meta, [result], 'commit', 'source')
+
+    def test_candidate_never_replaces_verified_zip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            verified = root / 'build/ArcaneVaults-NG.zip'
+            verified.parent.mkdir()
+            verified.write_bytes(b'previous')
+            def check(_suites, output, **kwargs):
+                self.assertEqual(kwargs['names'], ['wine-toolchain'])
+                output.mkdir(parents=True)
+                report = self.check_report({'wine-toolchain'})
+                (output / 'report.json').write_text(json.dumps(report))
+                return report
+            def assemble(_container, _output, history):
+                history.mkdir(parents=True)
+                archive = history / 'ArcaneVaults-NG.zip'
+                archive.write_bytes(b'candidate')
+                return {'candidate': str(archive), 'windows_inventory_scenarios': True}
+            with patch.object(pipeline, 'ROOT', root), patch.object(pipeline, 'fingerprint', return_value='source'), \
+                 patch.object(pipeline.subprocess, 'check_output', return_value='commit\n'), \
+                 patch.object(pipeline, 'release_id', return_value='run'), \
+                 patch.object(pipeline, 'run_suites', side_effect=check), \
+                 patch.object(pipeline, 'assemble', side_effect=assemble), patch.object(pipeline, 'promote') as promote:
+                pipeline.candidate('test-wine')
+            promote.assert_not_called()
+            self.assertEqual(verified.read_bytes(), b'previous')
+            bundle = root / '.build/ci/candidate'
+            self.assertEqual((bundle / 'ArcaneVaults-NG.zip').read_bytes(), b'candidate')
+            self.assertIs(json.loads((bundle / 'candidate.json').read_text())['passed'], False)
+
+    def test_publication_preserves_previous_zip_until_all_gates_pass(self):
+        for defect in ('none', 'missing', 'checksum', 'packaging', 'source'):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                bundle = root / '.build/ci/candidate'
+                bundle.mkdir(parents=True)
+                archive = bundle / 'ArcaneVaults-NG.zip'
+                archive.write_bytes(b'candidate')
+                meta = {**self.candidate_report(), 'checks': {'files': 1},
+                        'zip_sha256': hashlib.sha256(b'candidate').hexdigest()}
+                (bundle / 'candidate.json').write_text(json.dumps(meta))
+                (bundle / 'toolchain.json').write_text(json.dumps(self.check_report({'wine-toolchain'})))
+                checks = root / 'results/ci/checks/unit'
+                checks.mkdir(parents=True)
+                if defect != 'missing': (checks / 'report.json').write_text(json.dumps(self.check_report({'unit'})))
+                verified = root / 'build/ArcaneVaults-NG.zip'
+                verified.parent.mkdir()
+                verified.write_bytes(b'previous')
+                if defect == 'checksum': archive.write_bytes(b'changed')
+                with patch.object(pipeline, 'ROOT', root), \
+                     patch.object(pipeline, 'fingerprint', side_effect=['source', 'changed' if defect == 'source' else 'source']), \
+                     patch.object(pipeline.subprocess, 'check_output', return_value='commit\n'), \
+                     patch.object(pipeline, 'release_id', return_value='run'), \
+                     patch.object(pipeline, 'required_checks', return_value={'unit', 'wine-toolchain'}), \
+                     patch.object(pipeline, 'validate_zip', return_value={'files': 1}), \
+                     patch.object(pipeline, 'run_suites', return_value={'passed': defect != 'packaging'}):
+                    if defect == 'none': pipeline.publish()
+                    else:
+                        with self.assertRaises(ValueError): pipeline.publish()
+                self.assertEqual(verified.read_bytes(), b'candidate' if defect == 'none' else b'previous')
+
+    def test_local_release_keeps_full_source_and_package_gates(self):
+        import build_release as builder
+        for defect in ('none', 'source', 'packaging', 'changed'):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                verified = root / 'build/ArcaneVaults-NG.zip'
+                verified.parent.mkdir()
+                verified.write_bytes(b'previous')
+                calls = []
+                def suites(names, output, **kwargs):
+                    calls.append(names)
+                    return {'passed': defect != ('source' if names == ['release'] else 'packaging'),
+                            'commit': 'commit', 'dirty': False}
+                def assemble(_container, _output, history):
+                    history.mkdir(parents=True)
+                    archive = history / 'ArcaneVaults-NG.zip'
+                    archive.write_bytes(b'candidate')
+                    return {'candidate': str(archive), 'zip_sha256': hashlib.sha256(b'candidate').hexdigest(),
+                            'checks': {'files': 1, 'esp_records': 1}}
+                with patch.object(builder, 'ROOT', root), patch.object(builder, 'release_id', return_value='run'), \
+                     patch('run.fingerprint', side_effect=['source', 'changed' if defect == 'changed' else 'source']), \
+                     patch('run.run', side_effect=suites), patch.object(builder, 'assemble', side_effect=assemble) as built, \
+                     patch.object(builder, 'validate_zip', return_value={}):
+                    if defect == 'none': builder.build('test-wine')
+                    else:
+                        with self.assertRaises(ValueError): builder.build('test-wine')
+                    if defect == 'source': built.assert_not_called()
+                self.assertEqual(calls, [['release']] if defect == 'source' else [['release'], ['packaging']])
+                self.assertEqual(verified.read_bytes(), b'candidate' if defect == 'none' else b'previous')

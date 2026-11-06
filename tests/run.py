@@ -40,6 +40,21 @@ def select(manifest, suites, names):
     return selected
 
 
+def print_failure_log(label, path, status='failed'):
+    path = Path(path)
+    message = f'{label} {status}; log {path}'
+    actions = os.environ.get('GITHUB_ACTIONS') == 'true'
+    if actions:
+        escaped = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+        print('::error title=Verification failed::' + escaped, flush=True)
+        print('::group::' + label.replace('\r', ' ').replace('\n', ' '), flush=True)
+    else:
+        print(message, flush=True)
+    print(path.read_text(errors='replace') if path.exists() else '(no captured output)', flush=True)
+    if actions:
+        print('::endgroup::', flush=True)
+
+
 def run(suites, output=None, names=(), zip_path=None, sanitize=False, baseline=None):
     manifest = load_json((ROOT / 'tests/manifest.json').read_text())
     selected = select(manifest, suites, names)
@@ -101,11 +116,14 @@ def run(suites, output=None, names=(), zip_path=None, sanitize=False, baseline=N
                     report['active_child_pid'] = None
                     save()
             print(f"{result['status'].upper()} {item['id']}", flush=True)
+            if result['status'] != 'passed':
+                print_failure_log(item['id'], log, result['status'])
         report['complete'] = True
         report['passed'] = all(row['status'] == 'passed' for row in report['results'])
         if report['source_sha256'] != fingerprint():
             report['passed'] = False
             report['error'] = 'Source changed during the test run'
+            print(report['error'], file=sys.stderr, flush=True)
         save()
     finally:
         signal.signal(signal.SIGTERM, previous)

@@ -4,8 +4,11 @@ import json
 from pathlib import Path
 import platform
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'tests'))
+from run import print_failure_log
 IMAGE = 'docker.io/library/ubuntu@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55'
 LABEL = 'io.arcanevaults.ci-bootstrap'
 
@@ -54,6 +57,7 @@ def bootstrap(container, work, output):
         report.update(complete=True, passed=True)
     except BaseException as error:
         report['error'] = str(error)
+        print_failure_log('Wine/MSVC provisioning', output / 'bootstrap.log')
         raise
     finally:
         report_path.write_text(json.dumps(report, indent=2) + '\n')

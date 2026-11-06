@@ -11,6 +11,7 @@ import sys
 import tempfile
 from support.data import ROOT, load_json
 from support.performance import calibration_scale, compare_times, compare_work
+from run import print_failure_log
 
 
 def verify(render_before, render_after, loans, policy):
@@ -119,8 +120,12 @@ def measure(output, policy):
             calibration = {}
             if timed:
                 calibration['before'] = list(map(float, subprocess.check_output([str(binary)], text=True, timeout=30).splitlines()))
-            with (output / (name + '.log')).open('w') as log:
-                subprocess.run([sys.executable, *arguments], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600)
+            try:
+                with (output / (name + '.log')).open('w') as log:
+                    subprocess.run([sys.executable, *arguments], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                print_failure_log(name, output / (name + '.log'))
+                raise
             if timed:
                 calibration['after'] = list(map(float, subprocess.check_output([str(binary)], text=True, timeout=30).splitlines()))
                 report['calibration'][name] = calibration
@@ -269,6 +274,9 @@ def main():
     results, scales = compare_reference(reference, read_measurements(args.output), policy)
     report.update(complete=True, passed=all(row['passed'] for row in results), calibration_scales=scales, comparisons=results)
     target.write_text(json.dumps(report, indent=2) + '\n')
+    for result in results:
+        if not result['passed']:
+            print('Performance failure ' + json.dumps(result, sort_keys=True), flush=True)
     print(f"Performance decisions: {len(results)}; failures: {sum(not row['passed'] for row in results)}; {target}", flush=True)
     raise SystemExit(0 if report['passed'] else 1)
 
