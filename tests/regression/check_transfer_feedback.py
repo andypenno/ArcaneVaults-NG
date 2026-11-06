@@ -11,6 +11,39 @@ source = source.replace("using Clock = std::chrono::steady_clock;", "using Clock
 source = source.replace("std::thread(", "TestThread(")
 source = source.replace("std::this_thread::sleep_for(std::chrono::milliseconds(16));", "")
 program += "\n".join(line for line in source.splitlines() if not line.startswith("#include"))
+program += r"""
+namespace RE {
+enum class BSEventNotifyControl { kContinue };
+template<class T> struct BSTEventSource {};
+struct PlayerControls {
+    inline static std::array<std::uintptr_t,1> VTABLE{1};
+    struct Vector {float x{},y{};};
+    struct Data {Vector moveInputVec,prevMoveVec,lookInputVec,prevLookVec;bool autoMove{};} data;
+    bool blockPlayerInput{};
+};
+}
+namespace Native {
+inline std::array<std::uintptr_t,2> table{};
+inline std::vector<RE::InputEvent*> seen;
+inline bool fail{};
+RE::BSEventNotifyControl Process(RE::PlayerControls* controls, RE::InputEvent* const* events, RE::BSTEventSource<RE::InputEvent*>*) {
+    seen.clear();
+    for(auto* event=events?*events:nullptr;event;event=event->next)seen.push_back(event);
+    controls->data.moveInputVec={1,1};controls->data.autoMove=true;
+    if(fail)throw std::runtime_error("native input failure");
+    return RE::BSEventNotifyControl::kContinue;
+}
+}
+namespace REL {
+template<class T> struct Relocation {
+    explicit Relocation(std::uintptr_t){}
+    template<class F> std::uintptr_t write_vfunc(int slot,F replacement) {
+        auto original=Native::table[slot];Native::table[slot]=reinterpret_cast<std::uintptr_t>(replacement);return original;
+    }
+};
+}
+"""
+program += "\n".join(line for line in (ROOT / 'src/SortingInput.cpp').read_text().splitlines() if not line.startswith('#include'))
 program += r'''
 int main(){
     using namespace TransferFeedback;
@@ -20,6 +53,32 @@ int main(){
         for(auto& action:ready){action();}
         SKSE::GetTaskInterface()->Run();
     };
+    Native::table[1]=reinterpret_cast<std::uintptr_t>(Native::Process);
+    SortingInput::Install();SortingInput::Install();
+    auto dispatch=reinterpret_cast<SortingInput::Process>(Native::table[1]);
+    RE::PlayerControls controls;
+    RE::InputEvent press,releaseNative,stickNative,neutral,mouseNative,other;
+    releaseNative.up=true;stickNative.button=false;stickNative.stick=true;stickNative.xValue=1;
+    neutral.button=false;neutral.stick=true;mouseNative.button=false;mouseNative.mouse=true;other.button=false;
+    press.next=&releaseNative;releaseNative.next=&stickNative;stickNative.next=&neutral;neutral.next=&mouseNative;mouseNative.next=&other;
+    RE::InputEvent* head=&press;
+    dispatch(&controls,&head,nullptr);
+    assert(Native::seen.size()==6 && controls.data.moveInputVec.x==1 && controls.data.autoMove);
+    Complete nativeDone;
+    Begin([&](Complete done){nativeDone=std::move(done);});
+    assert(IsBusy() && nativeDone);
+    controls.blockPlayerInput=false;
+    dispatch(&controls,&head,nullptr);
+    assert((Native::seen==std::vector<RE::InputEvent*>{&releaseNative,&neutral,&other}));
+    assert(press.next==&releaseNative && releaseNative.next==&stickNative && stickNative.next==&neutral && neutral.next==&mouseNative && mouseNative.next==&other);
+    assert(!controls.blockPlayerInput && controls.data.moveInputVec.x==0 && !controls.data.autoMove);
+    Native::fail=true;bool nativeCaught=false;
+    try{dispatch(&controls,&head,nullptr);}catch(const std::runtime_error&){nativeCaught=true;}
+    Native::fail=false;
+    assert(nativeCaught && releaseNative.next==&stickNative && neutral.next==&mouseNative && controls.data.moveInputVec.x==0);
+    dispatch(&controls,nullptr,nullptr);assert(Native::seen.empty() && controls.data.moveInputVec.x==0);
+    assert(nativeDone() && !IsBusy());
+    dispatch(&controls,&head,nullptr);assert(Native::seen.size()==6 && controls.data.moveInputVec.x==1);
     int starts=0;Register();
     Begin([&](Complete done){++starts;assert(done());});
     assert(starts==1);

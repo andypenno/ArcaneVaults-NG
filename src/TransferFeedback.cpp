@@ -153,6 +153,9 @@ namespace TransferFeedback {
         }
     }
 
+    bool IsBusy() { return busy.load(); }
+    bool FilterInput(RE::InputEvent* event) { return BlockInput(event); }
+
     void Register() {
         if (registered || !SKSEMenuFramework::IsInstalled()) return;
         label = AVTranslation::Translate("Vault.Sorting");

@@ -3,6 +3,7 @@ program = r'''
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 #include <atomic>
 #include <cassert>
@@ -26,7 +27,7 @@ struct TestThread {
     template<class F> explicit TestThread(F action){timers.emplace_back(std::move(action));}
     void detach(){}
 };
-namespace RE {struct InputEvent {bool up=false,button=true;bool stick=false,mouse=false;float xValue=0,yValue=0;bool IsUp()const{return up;}InputEvent* AsButtonEvent(){return button?this:nullptr;}InputEvent* AsThumbstickEvent(){return stick?this:nullptr;}InputEvent* AsMouseMoveEvent(){return mouse?this:nullptr;}};}
+namespace RE {struct InputEvent {InputEvent* next{};bool up=false,button=true;bool stick=false,mouse=false;float xValue=0,yValue=0;bool IsUp()const{return up;}InputEvent* AsButtonEvent(){return button?this:nullptr;}InputEvent* AsThumbstickEvent(){return stick?this:nullptr;}InputEvent* AsMouseMoveEvent(){return mouse?this:nullptr;}};}
 namespace SKSE {
 struct Tasks {
     std::deque<std::function<void()>> queue;
