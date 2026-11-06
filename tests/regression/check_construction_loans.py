@@ -64,7 +64,7 @@ int main(int argc,char** argv){
  player->rows.clear();smithing->rows.clear();logs.categories=ToMask(ItemCategory::Smithing)|ToMask(ItemCategory::Construction);
  int cases=0,failedVisits=0;
  for(const auto& test:fixture.at("cases"))for(bool all:{false,true})for(bool reload:{false,true})
- for(int prefix:{3,8})for(int limit:{1,9999})for(bool playable:{false,true}){
+ for(int prefix:{3,8})for(int limit:{1,9999})for(bool playable:{false,true})for(bool baseStock:{false,true}){
   session->Reset();player->rows.clear();for(auto& [home,bank]:banks){(void)home;bank->rows.clear();}
   logs.id=(static_cast<unsigned>(prefix)<<24)|std::stoul(fixture.at("local_id").get<std::string>(),nullptr,16);
   logs.playable=playable;
@@ -72,6 +72,7 @@ int main(int argc,char** argv){
   player->limit=smithing->limit=limit;
   int remaining=test.at("carried").get<int>()+test.at("banked").get<int>();
   player->Put(&logs,test.at("carried"));smithing->Put(&logs,test.at("banked"));
+  if(baseStock)player->rows[&logs].baseStock=test.at("carried");
   smithing->Put(&ingot,10);
   auto visible=[&](RE::TESObjectREFR* ref){
    const auto inventory=ref->GetInventory([](RE::TESBoundObject& item){return item.playable;});
@@ -93,7 +94,7 @@ int main(int argc,char** argv){
    assert(visible(smithing)==(playable?count(smithing,&logs):0));
    assert(count(player,&ingot)==10 && count(smithing,&ingot)==0);
    report["visits"].push_back({{"case",test.at("name")},{"visit",++visit},{"all_materials",all},
-    {"session_reset",reload},{"load_order_prefix",prefix},{"transfer_limit",limit},{"playable",playable},
+    {"session_reset",reload},{"load_order_prefix",prefix},{"transfer_limit",limit},{"playable",playable},{"base_stock",baseStock},
     {"expected_carried",remaining},{"actual_carried",available},{"banked",count(smithing,&logs)},
     {"visible_carried",visible(player)},{"visible_banked",visible(smithing)},{"available",usable}});
    assert(consumed<=remaining);const int actualConsumption=std::min(consumed,available);

@@ -6,6 +6,7 @@
 #include "Stores.h"
 #include "Soulgems.h"
 #include "ItemClass.h"
+#include "InventoryStacks.h"
 #include "DepositLearning.h"
 #include <atomic>
 #include <utility>
@@ -281,7 +282,7 @@ public:
 
         if (benchType == BenchType::None || !materials) return;
         stores->RecoverSawnLogs();
-        carriedBefore_ = RE::PlayerCharacter::GetSingleton()->GetInventoryCounts();
+        carriedBefore_ = InventoryStacks::Counts(RE::PlayerCharacter::GetSingleton());
         loanBench_ = benchType;
         loanFurniture_ = a_furniture->GetHandle();
         materialsLoan_ = materials;
