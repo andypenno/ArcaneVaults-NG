@@ -78,6 +78,25 @@ class FrameworkTests(unittest.TestCase):
                 self.assertEqual('::error title=Verification failed::' in captured.getvalue(), actions == 'true')
                 self.assertEqual('::endgroup::' in captured.getvalue(), actions == 'true')
 
+    def test_pipeline_timeout_retains_and_prints_partial_output(self):
+        import json
+        import runpy
+        import subprocess
+        partial = b'{"phase":"capture","size":1000,"passed":true}\n'
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'frames.json'
+            with patch('sys.argv', ['pipeline', '--frame-startup', '--output', str(output)]), \
+                 patch('subprocess.run'), \
+                 patch('subprocess.check_output', side_effect=subprocess.TimeoutExpired('fixture', 960, output=partial)), \
+                 contextlib.redirect_stderr(io.StringIO()) as captured:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    runpy.run_path(str(ROOT / 'tests/regression/check_quick_transfer_pipeline.py'), run_name='__main__')
+            report = json.loads(output.read_text())
+            self.assertFalse(report['complete'])
+            self.assertEqual(report['timeout_seconds'], 960)
+            self.assertEqual(report['output'], partial.decode())
+            self.assertIn('capture', captured.getvalue())
+
     def test_scenario_validation(self):
         import json
         path = ROOT / 'tests/fixtures/inventories/same-base-worn-and-spare.json'

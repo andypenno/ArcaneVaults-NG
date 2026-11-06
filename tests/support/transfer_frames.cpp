@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
             if (i) std::cout << ',';
             std::cout << FrameProbe::gaps[i];
         }
-        std::cout << "]}\n";
+        std::cout << "]}\n" << std::flush;
         FrameProbe::enabled = false; FrameProbe::afterShow = {};
         RE::InventoryMenu::grouped = false;
     }

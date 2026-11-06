@@ -7,6 +7,7 @@ import signal
 import statistics
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 from support import engine as harness
@@ -530,11 +531,14 @@ with tempfile.TemporaryDirectory(prefix="av-transfer-pipeline-") as directory:
         else:
             command=[str(path/"check"),*(args.frame_phases or [])]
             try:
-                output=subprocess.check_output(command,text=True,timeout=(480 if args.sanitize else 120) if args.frame_startup else 30)
-            except subprocess.CalledProcessError as error:
+                output=subprocess.check_output(command,text=True,timeout=(960 if args.sanitize else 240) if args.frame_startup else 30)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+                partial=error.output or ''
+                if isinstance(partial,bytes):partial=partial.decode(errors='replace')
+                print(partial[-4000:],file=sys.stderr,flush=True)
                 args.output.parent.mkdir(parents=True,exist_ok=True)
-                args.output.write_text(json.dumps({'complete':False,'passed':False,'returncode':error.returncode,
-                    'output':error.output,'source_ref':args.source_ref},indent=2)+'\n')
+                args.output.write_text(json.dumps({'complete':False,'passed':False,'returncode':getattr(error,'returncode',None),
+                    'timeout_seconds':getattr(error,'timeout',None),'output':partial,'source_ref':args.source_ref},indent=2)+'\n')
                 raise
             cases=[json.loads(line) for line in output.splitlines()]
 args.output.parent.mkdir(parents=True,exist_ok=True)

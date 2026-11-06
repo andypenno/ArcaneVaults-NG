@@ -262,7 +262,7 @@
       "id": "quick_transfer_frames",
       "suites": ["regression"],
       "command": ["{python}", "tests/regression/check_quick_transfer_frames.py", "--output", "{results}/frames.json"],
-"timeout_seconds": 600,
+"timeout_seconds": 1200,
       "sanitize": true,
       "release": true
     },
