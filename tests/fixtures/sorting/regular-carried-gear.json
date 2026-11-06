@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "regular-carried-gear",
-  "description": "Regular carried gear only. Two consecutive sorts must preserve every protected copy and reserve.",
+  "description": "A smaller protected loadout with bare keys, lockpicks, arrows, gold just below its reserve and empty soul gems exactly at their reserve. Both sorts must preserve all quantities without opening inspection.",
   "settings": {
     "GSC_OffloadReagent": true,
     "GSC_OffloadCatalyst": true,
@@ -58,27 +58,6 @@
         "charge": 87
       },
       {
-        "id": "hunting-bow",
-        "base": "hunting-bow",
-        "count": 1,
-        "after": {
-          "player": 1
-        },
-        "favorite": true,
-        "enchantment": "soul-trap",
-        "charge": 40
-      },
-      {
-        "id": "steel-warhammer",
-        "base": "steel-warhammer",
-        "count": 1,
-        "after": {
-          "player": 1
-        },
-        "favorite": true,
-        "temper": 1.2
-      },
-      {
         "id": "fire-staff",
         "base": "fire-staff",
         "count": 1,
@@ -97,16 +76,6 @@
         },
         "worn": true,
         "enchantment": "magicka-regeneration"
-      },
-      {
-        "id": "steel-cuirass",
-        "base": "steel-cuirass",
-        "count": 1,
-        "after": {
-          "player": 1
-        },
-        "favorite": true,
-        "enchantment": "fortify-health"
       },
       {
         "id": "leather-boots",
@@ -148,24 +117,6 @@
         "favorite": true
       },
       {
-        "id": "stamina-potion",
-        "base": "stamina-potion",
-        "count": 8,
-        "after": {
-          "player": 8
-        },
-        "favorite": true
-      },
-      {
-        "id": "venison-stew",
-        "base": "venison-stew",
-        "count": 5,
-        "after": {
-          "player": 5
-        },
-        "favorite": true
-      },
-      {
         "id": "fireball-scroll",
         "base": "fireball-scroll",
         "count": 3,
@@ -180,7 +131,8 @@
         "count": 1,
         "after": {
           "player": 1
-        }
+        },
+        "bare": true
       },
       {
         "id": "lockpick",
@@ -188,7 +140,8 @@
         "count": 25,
         "after": {
           "player": 25
-        }
+        },
+        "bare": true
       },
       {
         "id": "steel-arrow",
@@ -196,23 +149,26 @@
         "count": 100,
         "after": {
           "player": 100
-        }
+        },
+        "bare": true
       },
       {
         "id": "septim",
         "base": "septim",
-        "count": 4200,
+        "count": 4999,
         "after": {
-          "player": 4200
-        }
+          "player": 4999
+        },
+        "bare": true
       },
       {
         "id": "empty-petty-gem",
         "base": "empty-petty-gem",
-        "count": 8,
+        "count": 25,
         "after": {
-          "player": 8
-        }
+          "player": 25
+        },
+        "bare": true
       },
       {
         "id": "letter",

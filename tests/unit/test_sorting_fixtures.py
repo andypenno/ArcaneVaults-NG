@@ -26,6 +26,15 @@ class SortingFixtureTests(unittest.TestCase):
             self.assertEqual(sum(row['inventory'] == 'player' for row in case['rows']), size)
             self.assertGreater(len({row['base'] for row in case['rows']}), 40)
 
+    def test_inventories_have_distinct_populations_or_settings(self):
+        populations = {}
+        for path in (ROOT / 'tests/fixtures/sorting').glob('*.json'):
+            if path.stem == 'catalog': continue
+            data = json.loads(path.read_text())
+            signature = json.dumps({k: v for k, v in data.items() if k not in ('name', 'description')}, sort_keys=True)
+            self.assertNotIn(signature, populations, f"Duplicate inventories {path.stem} and {populations.get(signature)}")
+            populations[signature] = path.stem
+
     def test_malformed_expected_state_and_flags_fail(self):
         original = json.loads((ROOT / 'tests/fixtures/sorting/protected-adventurer-loadout.json').read_text())
         for problem in ('conservation', 'unknown_destination', 'duplicate', 'flag', 'setting', 'copies', 'no_transfer', 'charge', 'soul', 'owner'):
