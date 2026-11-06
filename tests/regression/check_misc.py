@@ -267,18 +267,18 @@ overrides = (ROOT / "ini/ArcaneVaultOverrides.ini").read_text()
 assert "ccBGSSSE037-Curios.esl|0x000800 = Treasure" in overrides.splitlines()
 fishing = json.loads((ROOT / 'tests/fixtures/fishing-maps.json').read_text())
 keys = [line.split('=', 1)[0].strip() for line in overrides.splitlines() if line.startswith(fishing['plugin'] + '|') and line.split('=', 1)[1].strip() == 'Map']
-assert len(keys) == len(fishing['maps']) == 8
+assert len(keys) == len(fishing['maps'])
 fishing_check = r'''
-    std::array<RE::TESBoundObject,8> fishingMaps{};
-    const std::array<const char*,8> fishingKeys{FISHING_KEYS};
-    const std::array<unsigned,8> fishingIDs{FISHING_IDS};
+    const auto fishingKeys=std::to_array<const char*>({FISHING_KEYS});
+    const auto fishingIDs=std::to_array<unsigned>({FISHING_IDS});
+    std::array<RE::TESBoundObject,fishingKeys.size()> fishingMaps{};
     data->forms.clear();CSimpleIniA::entries.clear();overrides.clear();
     for(unsigned i=0;i<fishingMaps.size();++i) {
         fishingMaps[i].id=0x09000000|fishingIDs[i];
         data->forms[{"ccBGSSSE001-Fish.esm",fishingIDs[i]}]={&fishingMaps[i]};
         CSimpleIniA::entries.push_back({{fishingKeys[i]},"Map"});
     }
-    settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.size()==8);
+    settings->ProcessOverrideFile(L"bundled.ini",overrides);assert(overrides.size()==fishingMaps.size());
     for(auto& map:fishingMaps)assert(overrides.at(map.id)==ParseCategories("Map"));
     CSimpleIniA::entries={{{fishingKeys[0]},"Ingredient"}};
     settings->ProcessOverrideFile(L"user.ini",overrides);
