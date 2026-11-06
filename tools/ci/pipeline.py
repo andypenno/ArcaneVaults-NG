@@ -1,4 +1,4 @@
-"""Build an unverified CI candidate and publish it only after matching check reports pass."""
+"""Verify CI candidates, stage install files and remove temporary artifacts after upload."""
 import argparse
 import json
 import os
@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / 'tools/release'), str(ROOT / 'tests')]
@@ -90,17 +91,46 @@ def publish():
                   tests=[str(path) for path in paths], packaging=str(output / 'packaging/report.json'))
     (output / 'artifact.json').write_text(json.dumps(report, indent=2) + '\n')
     final = promote(ROOT, archived, report, validate_zip)
+    install = ROOT / '.build/ci/install'
+    install.mkdir(parents=True, exist_ok=False)
+    with zipfile.ZipFile(final) as package:
+        package.extractall(install)
     print(f'Verified {final}', flush=True)
+
+
+def cleanup():
+    repository = os.environ['GITHUB_REPOSITORY']
+    run_id = os.environ['GITHUB_RUN_ID']
+    commit = os.environ['GITHUB_SHA']
+    install_id = os.environ['AV_INSTALL_ARTIFACT_ID']
+    endpoint = f'repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100'
+    output = subprocess.check_output(['gh', 'api', '--paginate', endpoint,
+                                      '--jq', '.artifacts[] | @json'], text=True)
+    artifacts = [json.loads(line) for line in output.splitlines() if line]
+    install = next((row for row in artifacts if str(row['id']) == install_id
+                    and row['name'].startswith(f'ArcaneVaults-NG-{commit}-') and not row['expired']), None)
+    require(install is not None,
+            'Install artifact is missing or expired; retaining temporary artifacts')
+    temporary = {f'candidate-{commit}'} | {f'check-{commit}-{row["check"]}' for row in matrix()['include']}
+    targets = [row for row in artifacts if row['name'] in temporary]
+    print(f'Keeping {install["name"]}; removing temporary artifacts: ' +
+          ', '.join(f'{row["name"]} ({row["id"]})' for row in targets), flush=True)
+    for artifact in targets:
+        subprocess.run(['gh', 'api', '--method', 'DELETE',
+                        f'repos/{repository}/actions/artifacts/{artifact["id"]}'], check=True)
+        print(f'Removed temporary artifact {artifact["name"]}', flush=True)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('stage', choices=['matrix', 'candidate', 'publish'])
+    parser.add_argument('stage', choices=['matrix', 'candidate', 'publish', 'cleanup'])
     parser.add_argument('--container', default='arcanevault-ci')
     args = parser.parse_args()
     if args.stage == 'matrix':
         print(json.dumps(matrix(), separators=(',', ':')))
     elif args.stage == 'candidate':
         candidate(args.container)
-    else:
+    elif args.stage == 'publish':
         publish()
+    else:
+        cleanup()

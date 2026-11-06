@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 from support.data import ROOT
 
@@ -205,9 +206,12 @@ class CITests(unittest.TestCase):
                 bundle = root / '.build/ci/candidate'
                 bundle.mkdir(parents=True)
                 archive = bundle / 'ArcaneVaults-NG.zip'
-                archive.write_bytes(b'candidate')
+                payload = {'SKSE/Plugins/ArcaneVaults-NG.dll': b'candidate', 'Scripts/ArcaneVaults.pex': b'script'}
+                with zipfile.ZipFile(archive, 'w') as package:
+                    for name, data in payload.items(): package.writestr(name, data)
+                candidate_bytes = archive.read_bytes()
                 meta = {**self.candidate_report(), 'checks': {'files': 1},
-                        'zip_sha256': hashlib.sha256(b'candidate').hexdigest()}
+                        'zip_sha256': hashlib.sha256(candidate_bytes).hexdigest()}
                 (bundle / 'candidate.json').write_text(json.dumps(meta))
                 (bundle / 'toolchain.json').write_text(json.dumps(self.check_report({'wine-toolchain'})))
                 checks = root / 'results/ci/checks/unit'
@@ -227,7 +231,59 @@ class CITests(unittest.TestCase):
                     if defect == 'none': pipeline.publish()
                     else:
                         with self.assertRaises(ValueError): pipeline.publish()
-                self.assertEqual(verified.read_bytes(), b'candidate' if defect == 'none' else b'previous')
+                self.assertEqual(verified.read_bytes(), candidate_bytes if defect == 'none' else b'previous')
+                install = root / '.build/ci/install'
+                files = {p.relative_to(install).as_posix(): p.read_bytes() for p in install.rglob('*') if p.is_file()}
+                self.assertEqual(files, payload if defect == 'none' else {})
+
+    def test_cleanup_requires_uploaded_install_and_deletes_only_current_handoffs(self):
+        env = {'GITHUB_REPOSITORY': 'owner/repo', 'GITHUB_RUN_ID': '123',
+               'GITHUB_SHA': 'commit', 'AV_INSTALL_ARTIFACT_ID': '3'}
+        artifacts = [{'id': 1, 'name': 'candidate-commit', 'expired': False},
+                     {'id': 2, 'name': 'check-commit-unit', 'expired': False},
+                     {'id': 3, 'name': 'ArcaneVaults-NG-commit-2', 'expired': False},
+                     {'id': 4, 'name': 'candidate-another-commit', 'expired': False},
+                     {'id': 5, 'name': 'check-commit-unknown', 'expired': False},
+                     {'id': 6, 'name': 'ArcaneVaults-NG-commit-1', 'expired': False}]
+        for defect in ('none', 'missing-install', 'expired', 'wrong-name', 'previous-attempt', 'partial', 'empty'):
+            rows = copy.deepcopy(artifacts)
+            if defect == 'missing-install': rows.pop(2)
+            elif defect == 'expired': rows[2]['expired'] = True
+            elif defect == 'wrong-name': rows[2]['name'] = 'ArcaneVaults-NG-another-commit-2'
+            elif defect == 'previous-attempt':
+                rows[2]['name'] = 'ArcaneVaults-NG-commit-1'
+                rows.pop(5)
+            elif defect == 'partial': rows = rows[1:]
+            elif defect == 'empty': rows = rows[2:]
+            with self.subTest(defect=defect), patch.dict('os.environ', env), \
+                 patch.object(pipeline, 'required_checks', return_value={'unit', 'wine-toolchain'}), \
+                 patch.object(pipeline.subprocess, 'check_output', return_value='\n'.join(map(json.dumps, rows))) as listing, \
+                 patch.object(pipeline.subprocess, 'run') as delete, contextlib.redirect_stdout(io.StringIO()) as output:
+                if defect in ('missing-install', 'expired', 'wrong-name'):
+                    with self.assertRaises(ValueError): pipeline.cleanup()
+                    delete.assert_not_called()
+                else:
+                    pipeline.cleanup()
+                    expected = [1, 2] if defect in ('none', 'previous-attempt') else [2] if defect == 'partial' else []
+                    self.assertEqual([call.args[0] for call in delete.call_args_list], [
+                        ['gh', 'api', '--method', 'DELETE', f'repos/owner/repo/actions/artifacts/{identity}']
+                        for identity in expected])
+                    self.assertTrue(all(call.kwargs['check'] for call in delete.call_args_list))
+                    self.assertIn('Keeping ArcaneVaults-NG-commit-', output.getvalue())
+                    self.assertNotIn('candidate-another-commit', output.getvalue())
+                command = listing.call_args.args[0]
+                self.assertIn('--paginate', command)
+                self.assertIn('repos/owner/repo/actions/runs/123/artifacts?per_page=100', command)
+
+    def test_cleanup_propagates_delete_errors_for_retry(self):
+        env = {'GITHUB_REPOSITORY': 'owner/repo', 'GITHUB_RUN_ID': '123',
+               'GITHUB_SHA': 'commit', 'AV_INSTALL_ARTIFACT_ID': '2'}
+        rows = [{'id': 1, 'name': 'candidate-commit', 'expired': False},
+                {'id': 2, 'name': 'ArcaneVaults-NG-commit-1', 'expired': False}]
+        with patch.dict('os.environ', env), \
+             patch.object(pipeline.subprocess, 'check_output', return_value='\n'.join(map(json.dumps, rows))), \
+             patch.object(pipeline.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, 'gh')):
+            with self.assertRaises(subprocess.CalledProcessError): pipeline.cleanup()
 
     def test_local_release_keeps_full_source_and_package_gates(self):
         import build_release as builder

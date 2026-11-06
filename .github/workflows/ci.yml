@@ -129,6 +129,8 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      install_artifact_id: ${{ steps.install.outputs.artifact-id }}
     steps:
       - name: Require successful build and verification jobs
         env:
@@ -158,11 +160,31 @@ jobs:
           path: results/ci/checks
       - name: Verify the exact ZIP and promote
         run: python3 tools/ci/pipeline.py publish
-      - name: Upload verified install ZIP
+      - name: Upload verified install files
+        id: install
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
           name: ArcaneVaults-NG-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/ArcaneVaults-NG.zip
+          path: .build/ci/install/
+          include-hidden-files: true
           if-no-files-found: error
-          compression-level: 0
+          compression-level: 6
           retention-days: 14
+
+  cleanup:
+    needs: release
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Remove temporary candidate and check reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AV_INSTALL_ARTIFACT_ID: ${{ needs.release.outputs.install_artifact_id }}
+        run: python3 tools/ci/pipeline.py cleanup
